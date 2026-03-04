@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 
 // ── Supabase helpers ─────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://zaaazhtqtehpedotzsnj.supabase.co";
-const SUPABASE_KEY = "sb_publishable_J38JLEoYmeCufnagHx9UGQ_XvLSyGJg";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InphYWF6aHRxdGVocGVkb3R6c25qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2MDQwNTEsImV4cCI6MjA4ODE4MDA1MX0.2ajn09G4TLKL-_78279h5G4-hLHs9r3sUCIsq4ChOUA";
 const ROW_ID = "main";
 
 async function sbFetch(method, body) {
@@ -218,7 +218,7 @@ function KanbanPage({ project, onUpdate }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
 
-  const openNew = (status) => { const t = { id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "" }; setForm(t); setModal({ isNew: true }); };
+  const openNew = (status) => { const t = { id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeId: "" }; setForm(t); setModal({ isNew: true }); };
   const openEdit = (t) => { setForm({ ...t }); setModal({ isNew: false }); };
 
   const save = () => {
@@ -261,6 +261,7 @@ function KanbanPage({ project, onUpdate }) {
                       <span style={{ fontSize: 13, fontWeight: 600, color: C.text, lineHeight: 1.4 }}>{t.title}</span>
                     </div>
                     {t.dueDate && <div style={{ fontSize: 11, color: C.muted, marginLeft: 15 }}>📅 {t.dueDate}</div>}
+                    {t.assigneeId && (() => { const m = project.members.find(m => m.id === t.assigneeId); return m ? <div style={{ fontSize: 11, color: C.sage, marginLeft: 15, fontWeight: 600 }}>👤 {m.name}</div> : null; })()}
                   </div>
                 ))}
               </div>
@@ -293,6 +294,16 @@ function KanbanPage({ project, onUpdate }) {
                 </select>
               </div>
             ))}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>担当者</label>
+              <select value={form.assigneeId || ""} onChange={e => setForm(f => ({ ...f, assigneeId: e.target.value }))}
+                style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 11px", fontSize: 13, background: C.bg, color: C.text, outline: "none" }}>
+                <option value="">未割り当て</option>
+                {project.members.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}（{m.org}）</option>
+                ))}
+              </select>
+            </div>
             <div style={{ marginBottom: 18 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>メモ</label>
               <textarea value={form.desc || ""} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} rows={3}
@@ -410,6 +421,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                     <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: C.bg, borderRadius: 8, fontSize: 12 }}>
                       <PriorityDot p={t.priority} />
                       <span style={{ flex: 1, color: C.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
+                      {t.assigneeId && (() => { const m = p.members.find(m => m.id === t.assigneeId); return m ? <span style={{ fontSize: 11, color: C.sage, fontWeight: 600, whiteSpace: "nowrap" }}>👤 {m.name}</span> : null; })()}
                       <StatusBadge s={t.status} />
                     </div>
                   ))}
