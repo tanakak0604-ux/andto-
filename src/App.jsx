@@ -1009,7 +1009,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
           r.readAsDataURL(audioFile);
         });
         const mimeType = audioFile.type || "audio/mp4";
-        const gres = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyCuoIsJQ-4bFxmqpc8yViZRRStPN4dtnKI`, {
+        const gres = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCuoIsJQ-4bFxmqpc8yViZRRStPN4dtnKI`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
