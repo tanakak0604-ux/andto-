@@ -2076,6 +2076,34 @@ export default function App() {
 
   const active = projects.find(p => p.id === tab);
 
+  const exportData = () => {
+    const data = JSON.stringify({ projects, exportedAt: new Date().toISOString() }, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `taskflow-backup-${new Date().toLocaleDateString("ja-JP").replace(/\//g, "-")}.json`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
+  const importData = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.projects && Array.isArray(data.projects)) {
+          setProjects(data.projects);
+          setTab("projects");
+        } else { alert("正しいバックアップファイルではありません"); }
+      } catch { alert("ファイルの読み込みに失敗しました"); }
+    };
+    r.readAsText(file);
+    e.target.value = "";
+  };
+
+  const importRef = React.useRef ? React.useRef(null) : { current: null };
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Hiragino Sans', 'Noto Sans JP', sans-serif", color: C.text }}>
       {/* NAV */}
@@ -2107,6 +2135,17 @@ export default function App() {
         ) : (
           <button onClick={() => setShowAdd(true)} style={btn({ padding: "0 14px", height: 52, background: "transparent", fontSize: 13, color: C.muted, flexShrink: 0 })}>+ プロジェクト</button>
         )}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, padding: "0 12px", flexShrink: 0 }}>
+          <button onClick={exportData} title="データをエクスポート"
+            style={btn({ padding: "5px 10px", borderRadius: 8, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" })}>
+            ⬆ エクスポート
+          </button>
+          <button onClick={() => importRef.current?.click()} title="データをインポート"
+            style={btn({ padding: "5px 10px", borderRadius: 8, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" })}>
+            ⬇ インポート
+          </button>
+          <input ref={importRef} type="file" accept=".json" onChange={importData} style={{ display: "none" }} />
+        </div>
       </div>
 
       {/* CONTENT */}
