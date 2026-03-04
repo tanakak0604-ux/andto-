@@ -214,11 +214,159 @@ function btn(extra = {}) {
 }
 
 // ── KANBAN ────────────────────────────────────────────────────────────────────
+function TaskCard({ t, project, onUpdate, onEdit }) {
+  return (
+    <div draggable onDragStart={e => e.dataTransfer.setData("id", t.id)} onClick={() => onEdit(t)}
+      style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "11px 13px", cursor: "grab", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginBottom: 5 }}>
+        <div style={{ marginTop: 4 }}><PriorityDot p={t.priority} /></div>
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.text, lineHeight: 1.4 }}>{t.title}</span>
+      </div>
+      {t.dueDate && <div style={{ fontSize: 11, color: C.muted, marginLeft: 15 }}>📅 {t.dueDate}</div>}
+      {(t.assigneeIds || []).length > 0 && (
+        <div style={{ fontSize: 11, color: C.sage, marginLeft: 15, fontWeight: 600 }}>
+          👤 {(t.assigneeIds || []).map(id => project.members.find(m => m.id === id)?.name).filter(Boolean).join("・")}
+        </div>
+      )}
+      {(t.subtasks || []).length > 0 && (() => {
+        const done = (t.subtasks || []).filter(s => s.done).length;
+        const total = t.subtasks.length;
+        const pct = Math.round(done / total * 100);
+        return (
+          <div style={{ marginLeft: 15, marginTop: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+              <div style={{ flex: 1, height: 3, background: C.border, borderRadius: 4 }}>
+                <div style={{ width: `${pct}%`, height: "100%", background: C.sage, borderRadius: 4, transition: "width 0.2s" }} />
+              </div>
+              <span style={{ fontSize: 10, color: C.muted, whiteSpace: "nowrap" }}>{done}/{total}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              {t.subtasks.map(s => (
+                <div key={s.id}
+                  onClick={e => {
+                    e.stopPropagation();
+                    const updated = { ...t, subtasks: t.subtasks.map(x => x.id === s.id ? { ...x, done: !x.done } : x) };
+                    onUpdate({ ...project, tasks: project.tasks.map(x => x.id === t.id ? updated : x) });
+                  }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "2px 0" }}>
+                  <div style={{ width: 13, height: 13, borderRadius: 3, border: `1.5px solid ${s.done ? C.sage : C.border}`, background: s.done ? C.sage : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {s.done && <span style={{ color: "#fff", fontSize: 9, lineHeight: 1 }}>✓</span>}
+                  </div>
+                  <span style={{ fontSize: 11, color: s.done ? C.muted : C.text, textDecoration: s.done ? "line-through" : "none", lineHeight: 1.4 }}>{s.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+function DoneColumn({ project, onUpdate, onEdit, onOpenNew }) {
+  const doneTasks = project.tasks.filter(t => t.status === "done");
+  const folders = project.donefolders || [{ id: "default", name: "完了タスク" }];
+  const [openFolders, setOpenFolders] = useState(() => Object.fromEntries(folders.map(f => [f.id, true])));
+  const [addingFolder, setAddingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [over, setOver] = useState(null);
+
+  const toggleFolder = (id) => setOpenFolders(s => ({ ...s, [id]: !s[id] }));
+
+  const addFolder = () => {
+    if (!newFolderName.trim()) return;
+    const nf = { id: uid(), name: newFolderName.trim() };
+    onUpdate({ ...project, donefolders: [...folders, nf] });
+    setOpenFolders(s => ({ ...s, [nf.id]: true }));
+    setNewFolderName(""); setAddingFolder(false);
+  };
+
+  const dropToFolder = (e, folderId) => {
+    e.preventDefault(); setOver(null);
+    const taskId = e.dataTransfer.getData("id");
+    const task = project.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, status: "done", folderId } : t) });
+  };
+
+  const unfoldered = doneTasks.filter(t => !t.folderId || !folders.find(f => f.id === t.folderId));
+
+  return (
+    <div style={{ flex: 1, minWidth: 240, background: C.doneLight, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <span style={{ fontWeight: 800, color: C.done, fontSize: 12, letterSpacing: 1, textTransform: "uppercase" }}>完了</span>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{ background: C.done, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>{doneTasks.length}</span>
+          <button onClick={() => setAddingFolder(true)} title="フォルダ追加"
+            style={btn({ fontSize: 14, color: C.done, background: "transparent", padding: "0 4px" })}>📁+</button>
+        </div>
+      </div>
+
+      {addingFolder && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") addFolder(); if (e.key === "Escape") setAddingFolder(false); }}
+            placeholder="フォルダ名" style={{ flex: 1, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "5px 9px", fontSize: 12, background: "#fff", outline: "none" }} />
+          <button onClick={addFolder} style={btn({ padding: "5px 10px", borderRadius: 8, background: C.done, color: "#fff", fontSize: 12 })}>追加</button>
+          <button onClick={() => setAddingFolder(false)} style={btn({ padding: "5px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 12 })}>✕</button>
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {folders.map(folder => {
+          const folderTasks = doneTasks.filter(t => t.folderId === folder.id);
+          const isOpen = openFolders[folder.id] !== false;
+          const isOver = over === folder.id;
+          return (
+            <div key={folder.id}
+              onDragOver={e => { e.preventDefault(); setOver(folder.id); }}
+              onDragLeave={() => setOver(null)}
+              onDrop={e => dropToFolder(e, folder.id)}
+              style={{ background: isOver ? "#D4E8D5" : "#fff", borderRadius: 10, border: `1.5px solid ${isOver ? C.done : C.border}`, overflow: "hidden", transition: "all 0.15s" }}>
+              <div onClick={() => toggleFolder(folder.id)}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", cursor: "pointer" }}>
+                <span style={{ fontSize: 13 }}>{isOpen ? "📂" : "📁"}</span>
+                <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: C.text }}>{folder.name}</span>
+                <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{folderTasks.length}件</span>
+                <span style={{ fontSize: 11, color: C.muted }}>{isOpen ? "▲" : "▼"}</span>
+              </div>
+              {isOpen && (
+                <div style={{ padding: "0 10px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+                  {folderTasks.length === 0 && (
+                    <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "10px 0" }}>タスクをここにドロップ</div>
+                  )}
+                  {folderTasks.map(t => (
+                    <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={onEdit} />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {unfoldered.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "4px 0" }}>
+            <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, padding: "0 4px" }}>未分類</div>
+            {unfoldered.map(t => (
+              <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={onEdit} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <button onClick={() => onOpenNew("done")}
+        style={{ ...btn({ marginTop: 10, width: "100%", border: `1.5px dashed ${C.border}`, background: "transparent", borderRadius: 10, padding: "8px 0", color: C.muted, fontSize: 13 }) }}>
+        + タスク追加
+      </button>
+    </div>
+  );
+}
+
 function KanbanPage({ project, onUpdate }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
 
-  const openNew = (status) => { const t = { id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeId: "" }; setForm(t); setModal({ isNew: true }); };
+  const openNew = (status) => { const t = { id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [] }; setForm(t); setModal({ isNew: true }); };
   const openEdit = (t) => { setForm({ ...t }); setModal({ isNew: false }); };
 
   const save = () => {
@@ -234,7 +382,6 @@ function KanbanPage({ project, onUpdate }) {
   const cols = [
     { s: "todo", label: "未着手", bg: C.todoLight, col: C.todo },
     { s: "doing", label: "進行中", bg: C.doingLight, col: C.doing },
-    { s: "done", label: "完了", bg: C.doneLight, col: C.done },
   ];
 
   return (
@@ -253,17 +400,7 @@ function KanbanPage({ project, onUpdate }) {
                 <span style={{ background: col, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>{tasks.length}</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {tasks.map(t => (
-                  <div key={t.id} draggable onDragStart={e => e.dataTransfer.setData("id", t.id)} onClick={() => openEdit(t)}
-                    style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "11px 13px", cursor: "grab", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginBottom: 5 }}>
-                      <div style={{ marginTop: 4 }}><PriorityDot p={t.priority} /></div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: C.text, lineHeight: 1.4 }}>{t.title}</span>
-                    </div>
-                    {t.dueDate && <div style={{ fontSize: 11, color: C.muted, marginLeft: 15 }}>📅 {t.dueDate}</div>}
-                    {t.assigneeId && (() => { const m = project.members.find(m => m.id === t.assigneeId); return m ? <div style={{ fontSize: 11, color: C.sage, marginLeft: 15, fontWeight: 600 }}>👤 {m.name}</div> : null; })()}
-                  </div>
-                ))}
+                {tasks.map(t => <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={openEdit} />)}
               </div>
               <button onClick={() => openNew(s)}
                 style={{ ...btn({ marginTop: 10, width: "100%", border: `1.5px dashed ${C.border}`, background: "transparent", borderRadius: 10, padding: "8px 0", color: C.muted, fontSize: 13 }) }}>
@@ -272,6 +409,7 @@ function KanbanPage({ project, onUpdate }) {
             </div>
           );
         })}
+        <DoneColumn project={project} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />
       </div>
 
       {modal && (
@@ -295,19 +433,52 @@ function KanbanPage({ project, onUpdate }) {
               </div>
             ))}
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>担当者</label>
-              <select value={form.assigneeId || ""} onChange={e => setForm(f => ({ ...f, assigneeId: e.target.value }))}
-                style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 11px", fontSize: 13, background: C.bg, color: C.text, outline: "none" }}>
-                <option value="">未割り当て</option>
-                {project.members.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}（{m.org}）</option>
-                ))}
-              </select>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>担当者（複数選択可）</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                {project.members.length === 0 ? (
+                  <span style={{ fontSize: 12, color: C.muted }}>メンバーが登録されていません</span>
+                ) : project.members.map(m => {
+                  const ids = form.assigneeIds || [];
+                  const selected = ids.includes(m.id);
+                  return (
+                    <button key={m.id} type="button"
+                      onClick={() => setForm(f => {
+                        const ids = f.assigneeIds || [];
+                        return { ...f, assigneeIds: selected ? ids.filter(id => id !== m.id) : [...ids, m.id] };
+                      })}
+                      style={{ padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1.5px solid ${selected ? C.sage : C.border}`, background: selected ? C.sageLight : C.bg, color: selected ? C.sage : C.muted, transition: "all 0.15s" }}>
+                      {selected ? "✓ " : ""}{m.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div style={{ marginBottom: 18 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>メモ</label>
               <textarea value={form.desc || ""} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} rows={3}
                 style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 11px", fontSize: 12, background: C.bg, color: C.text, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+            </div>
+            {/* サブタスク */}
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 6 }}>
+                サブタスク {(form.subtasks || []).length > 0 && <span style={{ color: C.sage }}>({(form.subtasks || []).filter(s => s.done).length}/{(form.subtasks || []).length})</span>}
+              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
+                {(form.subtasks || []).map((s, i) => (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: C.bg, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                    <input type="checkbox" checked={s.done} onChange={() => setForm(f => ({ ...f, subtasks: f.subtasks.map((x, j) => j === i ? { ...x, done: !x.done } : x) }))}
+                      style={{ width: 14, height: 14, cursor: "pointer", accentColor: C.sage, flexShrink: 0 }} />
+                    <input value={s.title} onChange={e => setForm(f => ({ ...f, subtasks: f.subtasks.map((x, j) => j === i ? { ...x, title: e.target.value } : x) }))}
+                      style={{ flex: 1, border: "none", background: "transparent", fontSize: 12, color: s.done ? C.muted : C.text, outline: "none", textDecoration: s.done ? "line-through" : "none" }} />
+                    <button onClick={() => setForm(f => ({ ...f, subtasks: f.subtasks.filter((_, j) => j !== i) }))}
+                      style={btn({ color: C.muted, fontSize: 14, padding: "0 4px", background: "transparent" })}>✕</button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setForm(f => ({ ...f, subtasks: [...(f.subtasks || []), { id: uid(), title: "", done: false }] }))}
+                style={btn({ fontSize: 12, color: C.muted, border: `1.5px dashed ${C.border}`, borderRadius: 8, padding: "5px 12px", background: "transparent", width: "100%" })}>
+                + サブタスクを追加
+              </button>
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               {!modal.isNew && <button onClick={del} style={btn({ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${C.accent}`, background: "transparent", color: C.accent, fontSize: 13, fontWeight: 700 })}>削除</button>}
@@ -325,6 +496,7 @@ function KanbanPage({ project, onUpdate }) {
 const COLOR_PALETTE = ["#6B8F71","#C8A84B","#7B9EC0","#C8694A","#9B8EC0","#4A9B8E","#C8697A","#8E9B4A"];
 
 function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes }) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({});
   const [modalTab, setModalTab] = useState("info");
@@ -421,7 +593,11 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                     <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: C.bg, borderRadius: 8, fontSize: 12 }}>
                       <PriorityDot p={t.priority} />
                       <span style={{ flex: 1, color: C.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
-                      {t.assigneeId && (() => { const m = p.members.find(m => m.id === t.assigneeId); return m ? <span style={{ fontSize: 11, color: C.sage, fontWeight: 600, whiteSpace: "nowrap" }}>👤 {m.name}</span> : null; })()}
+                      {(t.assigneeIds || []).length > 0 && (
+                        <span style={{ fontSize: 11, color: C.sage, fontWeight: 600, whiteSpace: "nowrap" }}>
+                          👤 {(t.assigneeIds || []).map(id => p.members.find(m => m.id === id)?.name).filter(Boolean).join("・")}
+                        </span>
+                      )}
                       <StatusBadge s={t.status} />
                     </div>
                   ))}
@@ -622,7 +798,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
               )}
 
               <div style={{ display: "flex", gap: 8, justifyContent: "space-between", marginTop: 20, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
-                <button onClick={() => { if (window.confirm(`「${target.name}」を削除しますか？`)) { onDelete(editingId); setEditingId(null); } }}
+                <button onClick={() => setConfirmDeleteId(editingId)}
                   style={btn({ padding: "9px 14px", borderRadius: 10, border: `1.5px solid ${C.accent}`, background: "transparent", color: C.accent, fontSize: 12, fontWeight: 700 })}>
                   削除
                 </button>
@@ -636,6 +812,32 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                     保存
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 削除確認モーダル */}
+      {confirmDeleteId && (() => {
+        const proj = projects.find(p => p.id === confirmDeleteId);
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
+            <div style={{ background: C.surface, borderRadius: 16, padding: "28px 32px", width: 340, boxShadow: "0 20px 60px rgba(0,0,0,0.18)", textAlign: "center" }}>
+              <div style={{ fontSize: 22, marginBottom: 10 }}>🗑️</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: C.text, marginBottom: 8 }}>プロジェクトを削除</div>
+              <div style={{ fontSize: 13, color: C.muted, marginBottom: 24, lineHeight: 1.7 }}>
+                「{proj?.name}」を削除しますか？<br />この操作は取り消せません。
+              </div>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                <button onClick={() => setConfirmDeleteId(null)}
+                  style={btn({ padding: "9px 20px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700 })}>
+                  キャンセル
+                </button>
+                <button onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); setEditingId(null); }}
+                  style={btn({ padding: "9px 20px", borderRadius: 10, background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700 })}>
+                  削除する
+                </button>
               </div>
             </div>
           </div>
@@ -758,13 +960,105 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const handleFile = e => {
     const f = e.target.files[0]; if (!f) return;
     setFileName(f.name);
+    const isAudio = f.type.startsWith("audio/") || f.type.startsWith("video/") ||
+      [".m4a",".mp3",".wav",".mp4",".webm"].some(ext => f.name.toLowerCase().endsWith(ext));
     if (f.type.startsWith("text/") || f.name.endsWith(".txt") || f.name.endsWith(".md")) {
       const r = new FileReader(); r.onload = ev => setText(ev.target.result); r.readAsText(f);
-    } else { setText(`[ファイル: ${f.name}]\n（このファイルタイプのテキスト抽出には対応APIが必要です）`); }
+    } else if (isAudio) {
+      setText(""); setFileName(f.name);
+      setAudioFile(f);
+    } else {
+      setText(`[ファイル: ${f.name}]\n（このファイルタイプのテキスト抽出には対応APIが必要です）`);
+    }
   };
 
   const [isDragging, setIsDragging] = useState(false);
   const [genError, setGenError] = useState("");
+  const [audioFile, setAudioFile] = useState(null);
+
+  const generateMinutesFromAudio = async () => {
+    if (!audioFile) return;
+    setLoading(true);
+    setGenError("");
+    try {
+      const endpoint = window.location.hostname.includes("vercel.app") || window.location.hostname.includes("andto") ? "/api/chat" : "https://api.anthropic.com/v1/messages";
+
+      // Step1: 音声→テキスト（Whisper APIがないため、WebAudio APIでBase64化してGemini経由 or テキスト抽出を促す）
+      // ClaudeはaudioをサポートしていないためFormData + Whisper or バックエンド経由が必要
+      // ここではapi/transcribeエンドポイントを使用
+      const formData = new FormData();
+      formData.append("file", audioFile);
+
+      const transcribeEndpoint = window.location.hostname.includes("vercel.app") || window.location.hostname.includes("andto")
+        ? "/api/transcribe"
+        : null;
+
+      let transcribedText = "";
+
+      if (transcribeEndpoint) {
+        const tres = await fetch(transcribeEndpoint, { method: "POST", body: formData });
+        const td = await tres.json();
+        if (td.error) { setGenError("文字起こしエラー：" + td.error); setLoading(false); return; }
+        transcribedText = td.text || "";
+      } else {
+        // Artifact環境ではGemini Flash経由で音声→テキスト
+        const base64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result.split(",")[1]);
+          r.onerror = rej;
+          r.readAsDataURL(audioFile);
+        });
+        const mimeType = audioFile.type || "audio/mp4";
+        const gres = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyCuoIsJQ-4bFxmqpc8yViZRRStPN4dtnKI`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: "この音声の内容を文字起こしてください。話者が複数いる場合は区別してください。" },
+                { inline_data: { mime_type: mimeType, data: base64 } }
+              ]
+            }]
+          })
+        });
+        const gd = await gres.json();
+        if (gd.error) { setGenError("文字起こしエラー：" + gd.error.message); setLoading(false); return; }
+        transcribedText = gd.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      }
+
+      if (!transcribedText) { setGenError("音声の文字起こしに失敗しました"); setLoading(false); return; }
+
+      // Step2: テキスト→議事録生成
+      setText(transcribedText);
+      const selProjObj = projects.find(p => p.id === selProj);
+      const attendeeRule = getAttendeesText() ? `出席者：${getAttendeesText()}` : "";
+      const bunsekiText = selProjObj?.members?.find(m => m.id === bunseki)?.name || "—";
+      const today = new Date().toLocaleDateString("ja-JP");
+      const userContent = SYSTEM_PROMPT + "\n\n" + attendeeRule + "\n\n" + TEMPLATE.replace("{date}", today).replace("{bunseki}", bunsekiText).replace("{created}", today) + "\n\n【入力テキスト】\n" + transcribedText;
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514", max_tokens: 8000,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: userContent }]
+        })
+      });
+      const d = await res.json();
+      if (d.error) { setGenError("APIエラー：" + (d.error.message || "")); setLoading(false); return; }
+      const generatedMinutes = d.content?.[0]?.text || "";
+      if (generatedMinutes) {
+        setMinutes(generatedMinutes);
+        setMinutesTitle("会議");
+        setStep("minutes");
+      }
+    } catch(e) {
+      setGenError("通信エラー：" + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const generateMinutes = async (isRegen = false) => {
     setLoading(true);
@@ -892,7 +1186,13 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   };
 
   const approveTasks = () => {
-    onAddTasks(selProj, extracted.filter(t => t.selected).map(({ selected, ...t }) => t));
+    const proj = projects.find(p => p.id === selProj);
+    const tasks = extracted.filter(t => t.selected).map(({ selected, assignee, ...t }) => {
+      // assignee名からassigneeIdに変換
+      const member = proj?.members?.find(m => m.name === assignee || assignee?.includes(m.name));
+      return { ...t, assigneeIds: member ? [member.id] : [] };
+    });
+    onAddTasks(selProj, tasks);
     setStep("save");
   };
 
@@ -962,7 +1262,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   };
 
   const reset = () => {
-    setStep("input"); setText(""); setFileName(""); setMinutes(""); setMinutesTitle(""); setExtracted([]); setSaveMsg(""); setAttendees([]); setBunseki(""); setNewMemberCandidates([]); setShowMemberConfirm(false); setShowRegenConfirm(false); setShowQuickAddMember(false); setQuickMember({ name: "", org: "", isAndto: false });
+    setStep("input"); setText(""); setFileName(""); setMinutes(""); setMinutesTitle(""); setExtracted([]); setSaveMsg(""); setAttendees([]); setBunseki(""); setNewMemberCandidates([]); setShowMemberConfirm(false); setShowRegenConfirm(false); setShowQuickAddMember(false); setQuickMember({ name: "", org: "", isAndto: false }); setAudioFile(null);
   };
 
   const stepIdx = STEPS.indexOf(step);
@@ -1247,9 +1547,18 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
               <div style={{ fontSize: 13, fontWeight: 700, color: isDragging ? C.sage : fileName ? C.accent : C.text }}>
                 {isDragging ? "ここにドロップ" : fileName || "クリックまたはドラッグ＆ドロップ"}
               </div>
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>.txt / .md 対応</div>
-              <input ref={fileRef} type="file" style={{ display: "none" }} accept=".txt,.md" onChange={handleFile} />
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>.txt / .md / .m4a / .mp3 / .wav 対応</div>
+              <input ref={fileRef} type="file" style={{ display: "none" }} accept=".txt,.md,.m4a,.mp3,.wav,.mp4,.webm" onChange={handleFile} />
             </div>
+            {audioFile && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: C.accentLight, borderRadius: 10, marginBottom: 10 }}>
+                <span style={{ fontSize: 12, color: C.accent, fontWeight: 600 }}>🎤 {audioFile.name}</span>
+                <button onClick={generateMinutesFromAudio} disabled={loading || !selProj}
+                  style={btn({ padding: "5px 16px", borderRadius: 8, background: loading || !selProj ? C.border : C.accent, color: "#fff", fontSize: 12, fontWeight: 700, marginLeft: "auto" })}>
+                  {loading ? "⏳ 生成中..." : "✨ 議事録を生成"}
+                </button>
+              </div>
+            )}
             <textarea value={text} onChange={e => setText(e.target.value)} rows={8}
               placeholder="または会議メモ・発言内容を直接ペースト..."
               style={{ ...inputStyle, resize: "vertical", lineHeight: 1.7, fontFamily: "inherit" }} />
@@ -1425,6 +1734,47 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
 function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [editingId, setEditingId] = useState(null);
   const [editContent, setEditContent] = useState("");
+  const [aiEditId, setAiEditId] = useState(null);
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+
+  const runAiEdit = async (m) => {
+    if (!aiInstruction.trim()) return;
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const endpoint = window.location.hostname.includes("vercel.app") || window.location.hostname.includes("andto") ? "/api/chat" : "https://api.anthropic.com/v1/messages";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 8000,
+          system: "あなたは議事録編集の専門家です。ユーザーの指示に従って議事録を修正してください。元の構成・フォーマットを極力維持し、指示された箇所のみ修正してください。修正後の議事録全文のみを出力してください。",
+          messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。
+
+【修正指示】
+${aiInstruction}
+
+【議事録】
+${m.content}` }]
+        })
+      });
+      const d = await res.json();
+      if (d.error) { setAiError("AIエラー：" + (d.error.message || "")); return; }
+      const revised = d.content?.[0]?.text || "";
+      if (revised) {
+        onUpdate({ ...project, minutes: project.minutes.map(x => x.id === m.id ? { ...x, content: revised } : x) });
+        setAiEditId(null);
+        setAiInstruction("");
+      }
+    } catch (e) {
+      setAiError("通信エラー：" + e.message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const openEdit = (m) => { setEditingId(m.id); setEditContent(m.content); };
   const saveEdit = () => {
@@ -1624,6 +1974,13 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
                   <button onClick={() => setEditingId(null)}
                     style={btn({ padding: "5px 12px", borderRadius: 8, fontSize: 12, color: C.muted, border: `1.5px solid ${C.border}`, background: "transparent" })}>キャンセル</button>
                 )}
+                <button onClick={() => { setAiEditId(aiEditId === m.id ? null : m.id); setAiInstruction(""); setAiError(""); }}
+                  style={btn({ padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    background: aiEditId === m.id ? C.accent : "transparent",
+                    color: aiEditId === m.id ? "#fff" : C.accent,
+                    border: `1.5px solid ${C.accent}` })}>
+                  ✨ AI修正
+                </button>
                 <button onClick={() => downloadPDF(m)}
                   style={btn({ padding: "5px 12px", borderRadius: 8, fontSize: 12, color: C.muted, border: `1.5px solid ${C.border}`, background: "transparent" })} title="PDF出力">🖨️</button>
                 <button onClick={() => deleteMinute(m.id)}
@@ -1636,6 +1993,30 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
                 </button>
               </div>
             </div>
+            {/* AI修正パネル */}
+            {aiEditId === m.id && (
+              <div style={{ padding: "14px 18px", background: C.accentLight, borderBottom: `1.5px solid ${C.border}` }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.accent, marginBottom: 8 }}>✨ AI修正指示</div>
+                <textarea
+                  value={aiInstruction}
+                  onChange={e => setAiInstruction(e.target.value)}
+                  placeholder="例：決定事項をより明確に書き直してください / 誤字脱字を修正してください / タスクの期限をすべて確認してください"
+                  rows={3}
+                  style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "8px 11px", fontSize: 12, background: "#fff", color: C.text, outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.7 }}
+                />
+                {aiError && <div style={{ fontSize: 12, color: C.accent, marginTop: 6 }}>{aiError}</div>}
+                <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
+                  <button onClick={() => { setAiEditId(null); setAiInstruction(""); }}
+                    style={btn({ padding: "6px 14px", borderRadius: 8, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 12, fontWeight: 700 })}>
+                    キャンセル
+                  </button>
+                  <button onClick={() => runAiEdit(m)} disabled={aiLoading || !aiInstruction.trim()}
+                    style={btn({ padding: "6px 18px", borderRadius: 8, background: aiLoading || !aiInstruction.trim() ? C.border : C.accent, color: "#fff", fontSize: 12, fontWeight: 700 })}>
+                    {aiLoading ? "修正中..." : "修正する"}
+                  </button>
+                </div>
+              </div>
+            )}
             {/* 内容 */}
             {editingId === m.id ? (
               <textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={20}
@@ -1737,7 +2118,7 @@ export default function App() {
         />
       ) : (
         <>
-          {tab === "projects" && (
+          <div style={{ display: tab === "projects" ? "block" : "none" }}>
             <ProjectsPage
               projects={projects}
               onUpdate={updateProject}
@@ -1745,9 +2126,13 @@ export default function App() {
               onNavigate={id => setTab(id)}
               onViewMinutes={id => setMinutesProjectId(id)}
             />
-          )}
-          {tab === "calendar" && <CalendarPage projects={projects} />}
-          {tab === "minutes" && <MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} />}
+          </div>
+          <div style={{ display: tab === "calendar" ? "block" : "none" }}>
+            <CalendarPage projects={projects} />
+          </div>
+          <div style={{ display: tab === "minutes" ? "block" : "none" }}>
+            <MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} />
+          </div>
           {active && tab === active.id && <KanbanPage key={active.id} project={active} onUpdate={updateProject} />}
         </>
       )}
