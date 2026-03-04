@@ -1,17 +1,35 @@
 import { useState, useRef, useEffect } from "react";
 
-// ── Storage helpers ───────────────────────────────────────────────────────────
-const STORAGE_KEY = "taskflow-projects";
+// ── Supabase helpers ─────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://zaaazhtqtehpedotzsnj.supabase.co";
+const SUPABASE_KEY = "sb_publishable_J38JLEoYmeCufnagHx9UGQ_XvLSyGJg";
+const ROW_ID = "main";
+
+async function sbFetch(method, body) {
+  const url = method === "GET"
+    ? `${SUPABASE_URL}/rest/v1/projects?id=eq.${ROW_ID}&select=data`
+    : `${SUPABASE_URL}/rest/v1/projects`;
+  const res = await fetch(url, {
+    method,
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": method === "POST" ? "resolution=merge-duplicates" : "",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (method === "GET") return res.json();
+}
 
 async function loadProjects() {
-  // Claude Artifact環境ではwindow.storage、それ以外はlocalStorage
   try {
     if (window.storage) {
-      const result = await window.storage.get(STORAGE_KEY, true);
+      const result = await window.storage.get("taskflow-projects", true);
       if (result && result.value) return JSON.parse(result.value);
     } else {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      const rows = await sbFetch("GET");
+      if (rows && rows.length > 0) return rows[0].data;
     }
   } catch (_) {}
   return null;
@@ -20,9 +38,9 @@ async function loadProjects() {
 async function saveProjects(projects) {
   try {
     if (window.storage) {
-      await window.storage.set(STORAGE_KEY, JSON.stringify(projects), true);
+      await window.storage.set("taskflow-projects", JSON.stringify(projects), true);
     } else {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+      await sbFetch("POST", { id: ROW_ID, data: projects, updated_at: new Date().toISOString() });
     }
   } catch (_) {}
 }
