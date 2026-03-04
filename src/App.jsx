@@ -44,7 +44,6 @@ async function saveProjects(projects) {
     }
   } catch (_) {}
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
 const C = {
   bg: "#F5F2EC", surface: "#FDFAF5", border: "#E2DDD4",
@@ -213,7 +212,6 @@ function btn(extra = {}) {
   return { border: "none", cursor: "pointer", fontFamily: "inherit", ...extra };
 }
 
-// ── KANBAN ────────────────────────────────────────────────────────────────────
 function TaskCard({ t, project, onUpdate, onEdit }) {
   return (
     <div draggable onDragStart={e => e.dataTransfer.setData("id", t.id)} onClick={() => onEdit(t)}
@@ -458,7 +456,6 @@ function KanbanPage({ project, onUpdate }) {
               <textarea value={form.desc || ""} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} rows={3}
                 style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 11px", fontSize: 12, background: C.bg, color: C.text, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
             </div>
-            {/* サブタスク */}
             <div style={{ marginBottom: 18 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 6 }}>
                 サブタスク {(form.subtasks || []).length > 0 && <span style={{ color: C.sage }}>({(form.subtasks || []).filter(s => s.done).length}/{(form.subtasks || []).length})</span>}
@@ -492,7 +489,6 @@ function KanbanPage({ project, onUpdate }) {
   );
 }
 
-// ── PROJECTS PAGE ─────────────────────────────────────────────────────────────
 const COLOR_PALETTE = ["#6B8F71","#C8A84B","#7B9EC0","#C8694A","#9B8EC0","#4A9B8E","#C8697A","#8E9B4A"];
 
 function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes }) {
@@ -533,10 +529,8 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
 
   const sortMembers = (members) => {
     return [...members].sort((a, b) => {
-      // 谷口（andto）を常に先頭
       if (a.name === "谷口" && a.isAndto) return -1;
       if (b.name === "谷口" && b.isAndto) return 1;
-      // 残りは所属の50音順（所属なしは末尾）
       const orgA = a.org || "ん";
       const orgB = b.org || "ん";
       return orgA.localeCompare(orgB, "ja");
@@ -555,7 +549,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
           const pct = total ? Math.round(done / total * 100) : 0;
           return (
             <div key={p.id} style={{ background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
-              {/* カラーヘッダー */}
               <div style={{ height: 6, background: p.color }} />
               <div style={{ padding: 20 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
@@ -575,8 +568,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                     style={btn({ background: "transparent", color: C.muted, fontSize: 15, padding: "2px 6px", borderRadius: 7, flexShrink: 0 })}
                     title="プロジェクト設定">⚙️</button>
                 </div>
-
-                {/* 進捗バー */}
                 <div style={{ height: 6, background: C.border, borderRadius: 10, marginBottom: 10, overflow: "hidden" }}>
                   <div style={{ height: "100%", width: `${pct}%`, background: p.color, borderRadius: 10, transition: "width 0.4s ease" }} />
                 </div>
@@ -586,8 +577,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                   <span style={{ color: C.done, fontWeight: 700 }}>完了 {done}</span>
                   <span style={{ marginLeft: "auto", color: p.color, fontWeight: 900 }}>{pct}%</span>
                 </div>
-
-                {/* タスクプレビュー */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 14 }}>
                   {p.tasks.filter(t => t.status !== "done").slice(0, 3).map(t => (
                     <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: C.bg, borderRadius: 8, fontSize: 12 }}>
@@ -605,8 +594,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                     <div style={{ fontSize: 12, color: C.muted, textAlign: "center", padding: "8px 0" }}>進行中のタスクなし</div>
                   )}
                 </div>
-
-                {/* 議事録バッジ */}
                 {(p.minutes || []).length > 0 && (
                   <div style={{ marginBottom: 10 }}>
                     <span style={{ fontSize: 11, color: C.muted, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: "3px 10px", fontWeight: 700 }}>
@@ -614,8 +601,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                     </span>
                   </div>
                 )}
-
-                {/* ボタン群 */}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => onNavigate(p.id)}
                     style={btn({ flex: 1, padding: "9px 0", borderRadius: 10, background: p.color + "18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>
@@ -632,22 +617,18 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
         })}
       </div>
 
-      {/* 編集モーダル */}
       {editingId && (() => {
         const target = projects.find(p => p.id === editingId);
         return (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
             onClick={() => setEditingId(null)}>
             <div style={{ background: C.surface, borderRadius: 20, padding: 28, width: 440, boxShadow: "0 24px 70px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
-              {/* ヘッダー */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ width: 14, height: 14, borderRadius: "50%", background: form.color }} />
                   <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: C.text }}>プロジェクト設定</h3>
                 </div>
               </div>
-
-              {/* タブ切替 */}
               <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `1.5px solid ${C.border}`, paddingBottom: 0 }}>
                 {[["info","⚙️ 基本情報"], ["members","👥 メンバー"]].map(([id, lbl]) => (
                   <button key={id} onClick={() => setModalTab(id)}
@@ -659,26 +640,18 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                   </button>
                 ))}
               </div>
-
-              {/* 基本情報タブ */}
               {modalTab === "info" && <>
-
-              {/* プロジェクト名 */}
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 4 }}>プロジェクト名 *</label>
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", fontSize: 14, fontWeight: 600, background: C.bg, color: C.text, outline: "none", boxSizing: "border-box" }} />
               </div>
-
-              {/* 概要 */}
               <div style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 4 }}>概要・説明</label>
                 <textarea value={form.desc} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} rows={3}
                   placeholder="プロジェクトの目的や背景を簡単に記入..."
                   style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", fontSize: 13, background: C.bg, color: C.text, outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.6, fontFamily: "inherit" }} />
               </div>
-
-              {/* カラー選択 */}
               <div style={{ marginBottom: 22 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 8 }}>プロジェクトカラー</label>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -691,8 +664,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                   ))}
                 </div>
               </div>
-
-              {/* 統計（読み取り専用） */}
               <div style={{ background: C.bg, borderRadius: 12, padding: "12px 14px", marginBottom: 16, display: "flex", gap: 18 }}>
                 <div style={{ textAlign: "center" }}>
                   <div style={{ fontSize: 18, fontWeight: 900, color: C.text }}>{target.tasks.length}</div>
@@ -713,16 +684,12 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                   <div style={{ fontSize: 10, color: C.muted }}>達成率</div>
                 </div>
               </div>
-
               </>}
-
-              {/* メンバータブ */}
               {modalTab === "members" && (
                 <div>
                   <p style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>
                     登録されたメンバーは議事録の出席者欄に参照されます。andtoメンバーは敬称なしで記載されます。
                   </p>
-                  {/* メンバーリスト */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16, maxHeight: 260, overflowY: "auto" }}>
                     {(form.members || []).length === 0 && (
                       <div style={{ fontSize: 12, color: C.muted, textAlign: "center", padding: "16px 0" }}>メンバーが登録されていません</div>
@@ -730,7 +697,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                     {(form.members || []).map(m => (
                       <div key={m.id}>
                         {editingMemberId === m.id ? (
-                          /* インライン編集フォーム */
                           <div style={{ background: C.surface, borderRadius: 10, padding: 12, border: `1.5px solid ${C.sage}` }}>
                             <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                               <input value={editMemberForm.name} onChange={e => setEditMemberForm(f => ({ ...f, name: e.target.value }))}
@@ -754,7 +720,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                             </div>
                           </div>
                         ) : (
-                          /* 通常表示 */
                           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: C.bg, borderRadius: 10, border: `1px solid ${C.border}` }}>
                             <div style={{ width: 30, height: 30, borderRadius: "50%", background: m.isAndto ? C.accent : C.sage, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
                               {m.name.charAt(0)}
@@ -771,8 +736,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                       </div>
                     ))}
                   </div>
-
-                  {/* メンバー追加フォーム */}
                   <div style={{ background: C.bg, borderRadius: 12, padding: 14, border: `1.5px dashed ${C.border}` }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 10 }}>メンバーを追加</div>
                     <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
@@ -796,7 +759,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                   </div>
                 </div>
               )}
-
               <div style={{ display: "flex", gap: 8, justifyContent: "space-between", marginTop: 20, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
                 <button onClick={() => setConfirmDeleteId(editingId)}
                   style={btn({ padding: "9px 14px", borderRadius: 10, border: `1.5px solid ${C.accent}`, background: "transparent", color: C.accent, fontSize: 12, fontWeight: 700 })}>
@@ -818,7 +780,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
         );
       })()}
 
-      {/* 削除確認モーダル */}
       {confirmDeleteId && (() => {
         const proj = projects.find(p => p.id === confirmDeleteId);
         return (
@@ -847,7 +808,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
   );
 }
 
-// ── CALENDAR ──────────────────────────────────────────────────────────────────
 function CalendarPage({ projects }) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
@@ -855,7 +815,6 @@ function CalendarPage({ projects }) {
 
   const allTasks = projects.flatMap(p => p.tasks.map(t => ({ ...t, pColor: p.color, pName: p.name })));
 
-  // 月曜始まり：日曜=0を6に、月曜=1を0に変換
   const firstDayRaw = new Date(year, month, 1).getDay();
   const firstDay = (firstDayRaw === 0) ? 6 : firstDayRaw - 1;
   const days = new Date(year, month + 1, 0).getDate();
@@ -867,7 +826,6 @@ function CalendarPage({ projects }) {
   });
 
   const mn = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-  // 月曜始まり
   const dn = ["月","火","水","木","金","土","日"];
 
   const prev = () => { if (month === 0) { setMonth(11); setYear(y => y-1); } else setMonth(m => m-1); };
@@ -880,7 +838,6 @@ function CalendarPage({ projects }) {
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: C.text }}>{year}年 {mn[month]}</h2>
         <button onClick={next} style={btn({ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${C.border}`, background: "transparent", fontSize: 16, color: C.text })}>›</button>
       </div>
-      {/* gridTemplateColumns: 均等幅 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 1, background: C.border, borderRadius: 16, overflow: "hidden" }}>
         {dn.map((d, i) => (
           <div key={d} style={{ background: C.surface, padding: "10px 0", textAlign: "center", fontSize: 12, fontWeight: 800,
@@ -890,7 +847,6 @@ function CalendarPage({ projects }) {
           const ds = day ? `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}` : "";
           const tasks = ds ? (byDate[ds] || []) : [];
           const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-          // 列インデックス（0=月〜6=日）
           const col = i % 7;
           return (
             <div key={i} style={{ background: C.surface, minHeight: 90, padding: "7px 5px", boxSizing: "border-box", width: "100%" }}>
@@ -913,7 +869,6 @@ function CalendarPage({ projects }) {
   );
 }
 
-// ── MINUTES ───────────────────────────────────────────────────────────────────
 const STEPS = ["input", "minutes", "tasks", "save"];
 const STEP_LABELS = ["① 入力", "② 議事録確認", "③ タスク承認", "④ 保存"];
 
@@ -922,14 +877,14 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState("");
   const [minutes, setMinutes] = useState("");
-  const [minutesTitle, setMinutesTitle] = useState(""); // AI推測タイトル
+  const [minutesTitle, setMinutesTitle] = useState("");
   const [extracted, setExtracted] = useState([]);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState("input");
   const [saveMsg, setSaveMsg] = useState("");
   const [attendees, setAttendees] = useState([]);
-  const [bunseki, setBunseki] = useState(""); // 文責者ID
-  const [newMemberCandidates, setNewMemberCandidates] = useState([]); // 未登録メンバー候補
+  const [bunseki, setBunseki] = useState("");
+  const [newMemberCandidates, setNewMemberCandidates] = useState([]);
   const [showMemberConfirm, setShowMemberConfirm] = useState(false);
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const [showQuickAddMember, setShowQuickAddMember] = useState(false);
@@ -938,7 +893,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
 
   const selProjObj = projects.find(p => p.id === selProj);
 
-  // プロジェクト変更時に出席者をリセット
   const handleProjChange = (id) => {
     setSelProj(id);
     setAttendees([]);
@@ -982,26 +936,16 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     setGenError("");
     try {
       const endpoint = window.location.hostname.includes("vercel.app") || window.location.hostname.includes("andto") ? "/api/chat" : "https://api.anthropic.com/v1/messages";
-
-      // Step1: 音声→テキスト（Whisper APIがないため、WebAudio APIでBase64化してGemini経由 or テキスト抽出を促す）
-      // ClaudeはaudioをサポートしていないためFormData + Whisper or バックエンド経由が必要
-      // ここではapi/transcribeエンドポイントを使用
       const formData = new FormData();
       formData.append("file", audioFile);
-
-      const transcribeEndpoint = window.location.hostname.includes("vercel.app") || window.location.hostname.includes("andto")
-        ? "/api/transcribe"
-        : null;
-
+      const transcribeEndpoint = window.location.hostname.includes("vercel.app") || window.location.hostname.includes("andto") ? "/api/transcribe" : null;
       let transcribedText = "";
-
       if (transcribeEndpoint) {
         const tres = await fetch(transcribeEndpoint, { method: "POST", body: formData });
         const td = await tres.json();
         if (td.error) { setGenError("文字起こしエラー：" + td.error); setLoading(false); return; }
         transcribedText = td.text || "";
       } else {
-        // Artifact環境ではGemini Flash経由で音声→テキスト
         const base64 = await new Promise((res, rej) => {
           const r = new FileReader();
           r.onload = () => res(r.result.split(",")[1]);
@@ -1025,17 +969,13 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
         if (gd.error) { setGenError("文字起こしエラー：" + gd.error.message); setLoading(false); return; }
         transcribedText = gd.candidates?.[0]?.content?.parts?.[0]?.text || "";
       }
-
       if (!transcribedText) { setGenError("音声の文字起こしに失敗しました"); setLoading(false); return; }
-
-      // Step2: テキスト→議事録生成
       setText(transcribedText);
-      const selProjObj = projects.find(p => p.id === selProj);
+      const selProjObjLatest = projects.find(p => p.id === selProj);
       const attendeeRule = getAttendeesText() ? `出席者：${getAttendeesText()}` : "";
-      const bunsekiText = selProjObj?.members?.find(m => m.id === bunseki)?.name || "—";
+      const bunsekiText = selProjObjLatest?.members?.find(m => m.id === bunseki)?.name || "—";
       const today = new Date().toLocaleDateString("ja-JP");
       const userContent = SYSTEM_PROMPT + "\n\n" + attendeeRule + "\n\n" + TEMPLATE.replace("{date}", today).replace("{bunseki}", bunsekiText).replace("{created}", today) + "\n\n【入力テキスト】\n" + transcribedText;
-
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1070,8 +1010,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     const bunsekiName = bunseki ? (members.find(m => m.id === bunseki)?.name || "") : "";
     const bunsekiText = bunsekiName || "—";
     const selectedMembers = attendees.length > 0 ? members.filter(m => attendees.includes(m.id)) : members;
-
-    // 所属ごとにグループ化（andtoは最後にまとめて）
     const nonAndto = selectedMembers.filter(m => !m.isAndto);
     const andtoMembers = selectedMembers.filter(m => m.isAndto);
     const orgGroups = {};
@@ -1130,13 +1068,9 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       }
       setGenError("");
       setMinutes(generatedMinutes);
-
-      // タイトル推測（生成された議事録の1行目 or AIに抽出させる）
       const firstLine = generatedMinutes.split("\n").find(l => l.trim().length > 0) || "";
       const guessedTitle = firstLine.replace(/^#\s*【(.+?)】.*/, "$1").replace(/^#\s*/, "").trim();
       setMinutesTitle(guessedTitle || "会議");
-
-      // 再生成時はメンバー候補検出をスキップ
       if (!isRegen) {
         const existingNames = (latestProj?.members || []).map(m => m.name);
         try {
@@ -1164,7 +1098,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   };
 
   const extractTasks = async () => {
-    // タスク抽出と同時に議事録を自動保存
     saveToProject();
     setLoading(true);
     try {
@@ -1188,7 +1121,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const approveTasks = () => {
     const proj = projects.find(p => p.id === selProj);
     const tasks = extracted.filter(t => t.selected).map(({ selected, assignee, ...t }) => {
-      // assignee名からassigneeIdに変換
       const member = proj?.members?.find(m => m.name === assignee || assignee?.includes(m.name));
       return { ...t, assigneeIds: member ? [member.id] : [] };
     });
@@ -1266,13 +1198,10 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   };
 
   const stepIdx = STEPS.indexOf(step);
-
   const inputStyle = { width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, background: C.bg, color: C.text, outline: "none", boxSizing: "border-box" };
 
   return (
     <div style={{ padding: 24, maxWidth: 800, margin: "0 auto" }}>
-
-      {/* 未登録メンバー確認モーダル */}
       {showMemberConfirm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300 }}
           onClick={() => setShowMemberConfirm(false)}>
@@ -1332,7 +1261,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
           </div>
         </div>
       )}
-      {/* 議事録再生成確認モーダル */}
       {showRegenConfirm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300 }}>
           <div style={{ background: C.surface, borderRadius: 20, padding: 28, width: 380, maxWidth: "90vw", boxShadow: "0 24px 70px rgba(0,0,0,0.2)" }}>
@@ -1369,7 +1297,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       )}
       <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>会議メモからAIが議事録を生成し、タスクを自動抽出してプロジェクトに登録します。</p>
 
-      {/* ステップインジケーター */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: 28 }}>
         {STEP_LABELS.map((lbl, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", flex: i < STEP_LABELS.length - 1 ? 1 : "none" }}>
@@ -1388,10 +1315,8 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
         ))}
       </div>
 
-      {/* ① 入力 */}
       {step === "input" && (
         <div style={{ background: C.surface, borderRadius: 16, padding: 24, border: `1.5px solid ${C.border}` }}>
-          {/* プロジェクト選択 */}
           <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: C.muted, display: "block", marginBottom: 8 }}>📁 対象プロジェクト</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1415,7 +1340,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
             )}
           </div>
 
-          {/* 出席者選択 */}
           {selProjObj && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -1428,8 +1352,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                   ＋ メンバーを追加
                 </button>
               </div>
-
-              {/* メンバー追加ミニフォーム */}
               {showQuickAddMember && (
                 <div style={{ background: C.bg, borderRadius: 12, padding: 14, border: `1.5px dashed ${C.sage}`, marginBottom: 10 }}>
                   <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
@@ -1454,7 +1376,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                         return (a.org || "ん").localeCompare(b.org || "ん", "ja");
                       });
                       onUpdateProject({ ...selProjObj, members: sorted });
-                      // 追加したメンバーを出席者にも自動選択
                       setAttendees(prev => [...prev, newM.id]);
                       setQuickMember({ name: "", org: "", isAndto: false });
                       setShowQuickAddMember(false);
@@ -1465,7 +1386,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                   </div>
                 </div>
               )}
-
               {(selProjObj.members || []).length > 0 && (
                 <>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1501,8 +1421,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
           )}
 
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginBottom: 14 }}>
-
-            {/* 文責選択 */}
             {selProjObj && (selProjObj.members || []).length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: 12, fontWeight: 700, color: C.muted, display: "block", marginBottom: 8 }}>✍️ 文責</label>
@@ -1577,7 +1495,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
         </div>
       )}
 
-      {/* ② 議事録確認 */}
       {step === "minutes" && (
         <div style={{ background: C.surface, borderRadius: 16, padding: 24, border: `1.5px solid ${C.border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -1587,7 +1504,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
             </div>
             <button onClick={() => setStep("input")} style={btn({ fontSize: 12, color: C.muted, background: "transparent" })}>← 戻る</button>
           </div>
-          {/* 日付＋タイトル */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, padding: "10px 14px", background: C.bg, borderRadius: 10, border: `1px solid ${C.border}` }}>
             <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{new Date().toLocaleDateString("ja-JP")}</span>
             <span style={{ color: C.border }}>｜</span>
@@ -1620,7 +1536,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
         </div>
       )}
 
-      {/* ③ タスク承認 */}
       {step === "tasks" && (
         <div style={{ background: C.surface, borderRadius: 16, padding: 24, border: `1.5px solid ${C.border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -1630,18 +1545,15 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
           <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
             追加するタスクにチェックを入れ、内容を編集してください。承認後、<strong style={{ color: selProjObj?.color }}>{selProjObj?.name}</strong> のカンバンに登録されます。
           </p>
-
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
             <button onClick={() => setExtracted(ex => ex.map(x => ({ ...x, selected: true })))}
               style={btn({ fontSize: 12, color: C.sage, background: "transparent", marginRight: 12 })}>全選択</button>
             <button onClick={() => setExtracted(ex => ex.map(x => ({ ...x, selected: false })))}
               style={btn({ fontSize: 12, color: C.muted, background: "transparent" })}>全解除</button>
           </div>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
             {extracted.map(t => (
               <div key={t.id} style={{ background: t.selected ? C.sageLight : C.bg, border: `1.5px solid ${t.selected ? C.sage : C.border}`, borderRadius: 12, overflow: "hidden" }}>
-                {/* チェック行 */}
                 <div onClick={() => setExtracted(ex => ex.map(x => x.id === t.id ? { ...x, selected: !x.selected } : x))}
                   style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", cursor: "pointer" }}>
                   <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${t.selected ? C.sage : C.border}`,
@@ -1651,7 +1563,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                   <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.text }}>{t.title || "（タイトル未入力）"}</span>
                   <PriorityDot p={t.priority} />
                 </div>
-                {/* 編集フィールド */}
                 <div onClick={e => e.stopPropagation()} style={{ padding: "0 14px 12px 46px", display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <input value={t.title} onChange={e => setExtracted(ex => ex.map(x => x.id === t.id ? { ...x, title: e.target.value } : x))}
                     placeholder="タスク名"
@@ -1671,7 +1582,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
               </div>
             ))}
           </div>
-
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
             <span style={{ fontSize: 13, color: C.muted }}>{extracted.filter(t => t.selected).length} / {extracted.length} 件を選択中</span>
             <button onClick={approveTasks} disabled={extracted.filter(t => t.selected).length === 0}
@@ -1683,7 +1593,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
         </div>
       )}
 
-      {/* ④ 保存 */}
       {step === "save" && (
         <div style={{ background: C.surface, borderRadius: 16, padding: 24, border: `1.5px solid ${C.border}` }}>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
@@ -1694,7 +1603,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
               議事録を保存する方法を選択してください。
             </div>
           </div>
-
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14, marginBottom: 20 }}>
             {[
               { icon: "📁", label: "プロジェクトに保存", desc: "Projectsページに蓄積", action: saveToProject, color: selProjObj?.color || C.sage },
@@ -1711,13 +1619,11 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
               </button>
             ))}
           </div>
-
           {saveMsg && (
             <div style={{ background: C.sageLight, border: `1.5px solid ${C.sage}`, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.sage, fontWeight: 600, marginBottom: 16 }}>
               ✓ {saveMsg}
             </div>
           )}
-
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
             <button onClick={reset}
               style={btn({ padding: "10px 22px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700 })}>
@@ -1730,7 +1636,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   );
 }
 
-// ── MINUTES DETAIL PAGE ───────────────────────────────────────────────────────
 function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [editingId, setEditingId] = useState(null);
   const [editContent, setEditContent] = useState("");
@@ -1752,13 +1657,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
           model: "claude-sonnet-4-20250514",
           max_tokens: 8000,
           system: "あなたは議事録編集の専門家です。ユーザーの指示に従って議事録を修正してください。元の構成・フォーマットを極力維持し、指示された箇所のみ修正してください。修正後の議事録全文のみを出力してください。",
-          messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。
-
-【修正指示】
-${aiInstruction}
-
-【議事録】
-${m.content}` }]
+          messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。\n\n【修正指示】\n${aiInstruction}\n\n【議事録】\n${m.content}` }]
         })
       });
       const d = await res.json();
@@ -1782,11 +1681,8 @@ ${m.content}` }]
     setEditingId(null);
   };
 
-
   const downloadPDF = (m) => {
-    const safeContent = m.content
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
+    const safeContent = m.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const htmlBody = safeContent.split("\n").map(line => {
       if (line.startsWith("# "))   return `<h1>${line.slice(2)}</h1>`;
       if (line.startsWith("## "))  return `<h2>${line.slice(3)}</h2>`;
@@ -1796,7 +1692,6 @@ ${m.content}` }]
       if (line.trim() === "") return `<div class="spacer"></div>`;
       return `<p>${line}</p>`;
     }).join("\n");
-
     const html = `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -1805,65 +1700,26 @@ ${m.content}` }]
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif;
-    color: #000; font-size: 10.5pt; line-height: 1.9;
-    background: #eee;
-  }
-  .print-btn {
-    position: fixed; top: 20px; right: 20px;
-    background: #333; color: #fff; border: none;
-    padding: 10px 22px; border-radius: 6px; font-size: 13px;
-    font-weight: 700; cursor: pointer; z-index: 100;
-    font-family: inherit;
-  }
+  body { font-family: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif; color: #000; font-size: 10.5pt; line-height: 1.9; background: #eee; }
+  .print-btn { position: fixed; top: 20px; right: 20px; background: #333; color: #fff; border: none; padding: 10px 22px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; z-index: 100; font-family: inherit; }
   .print-btn:hover { background: #000; }
-  .page {
-    max-width: 794px; margin: 40px auto; background: #fff;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-  }
-  .doc-header {
-    padding: 32px 48px 24px;
-    border-bottom: 1.5px solid #000;
-    display: flex; justify-content: space-between; align-items: flex-end;
-  }
+  .page { max-width: 794px; margin: 40px auto; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+  .doc-header { padding: 32px 48px 24px; border-bottom: 1.5px solid #000; display: flex; justify-content: space-between; align-items: flex-end; }
   .header-left { flex: 1; }
   .company-name { font-size: 9pt; color: #333; margin-bottom: 4px; }
   .project-name { font-size: 12pt; font-weight: 700; }
   .header-right { text-align: right; font-size: 8.5pt; color: #333; }
   .meta-row { margin-bottom: 3px; }
   .content { padding: 28px 48px 48px; }
-  h1 {
-    font-size: 12pt; font-weight: 900;
-    border-bottom: 1.5px solid #000; padding-bottom: 4px;
-    margin: 24px 0 8px;
-  }
-  h2 {
-    font-size: 11pt; font-weight: 700;
-    border-left: 3px solid #000; padding-left: 8px;
-    margin: 16px 0 6px;
-  }
-  h3 {
-    font-size: 10.5pt; font-weight: 700;
-    margin: 12px 0 4px; padding-left: 12px;
-  }
+  h1 { font-size: 12pt; font-weight: 900; border-bottom: 1.5px solid #000; padding-bottom: 4px; margin: 24px 0 8px; }
+  h2 { font-size: 11pt; font-weight: 700; border-left: 3px solid #000; padding-left: 8px; margin: 16px 0 6px; }
+  h3 { font-size: 10.5pt; font-weight: 700; margin: 12px 0 4px; padding-left: 12px; }
   p { margin: 2px 0; padding-left: 4px; }
   li { margin: 2px 0 2px 24px; }
   hr { border: none; border-top: 1px solid #ccc; margin: 14px 0; }
   .spacer { height: 6px; }
-  .doc-footer {
-    border-top: 1px solid #ccc; padding: 12px 48px;
-    display: flex; justify-content: space-between;
-    font-size: 8pt; color: #666;
-  }
-  @media print {
-    .print-btn { display: none; }
-    body { background: #fff; font-size: 10pt; }
-    .page { margin: 0; box-shadow: none; max-width: 100%; }
-    @page { margin: 15mm 18mm; size: A4; }
-    h1, h2, h3 { page-break-after: avoid; }
-    p, li { page-break-inside: avoid; }
-  }
+  .doc-footer { border-top: 1px solid #ccc; padding: 12px 48px; display: flex; justify-content: space-between; font-size: 8pt; color: #666; }
+  @media print { .print-btn { display: none; } body { background: #fff; font-size: 10pt; } .page { margin: 0; box-shadow: none; max-width: 100%; } @page { margin: 15mm 18mm; size: A4; } h1, h2, h3 { page-break-after: avoid; } p, li { page-break-inside: avoid; } }
 </style>
 </head>
 <body>
@@ -1879,17 +1735,11 @@ ${m.content}` }]
       <div class="meta-row">文書：議事録</div>
     </div>
   </div>
-  <div class="content">
-    ${htmlBody}
-  </div>
-  <div class="doc-footer">
-    <span>andto</span>
-    <span>${project.name}</span>
-  </div>
+  <div class="content">${htmlBody}</div>
+  <div class="doc-footer"><span>andto</span><span>${project.name}</span></div>
 </div>
 </body>
 </html>`;
-
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1912,7 +1762,6 @@ ${m.content}` }]
     }
   };
 
-  // 本文の「日時　：」から打合せ日を抽出してソート（降順）
   const extractMeetingDate = (content) => {
     const match = content.match(/日時[　\s]*：[　\s]*(\d{4}[\/\-年]\d{1,2}[\/\-月]\d{1,2})/);
     if (match) {
@@ -1926,12 +1775,11 @@ ${m.content}` }]
   const minutes = [...(project.minutes || [])].sort((a, b) => {
     const da = extractMeetingDate(a.content) || new Date(a.createdAt);
     const db = extractMeetingDate(b.content) || new Date(b.createdAt);
-    return db - da; // 新しい順
+    return db - da;
   });
 
   return (
     <div style={{ padding: 24, maxWidth: 860, margin: "0 auto" }}>
-      {/* ヘッダー */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <button onClick={onBack} style={btn({ background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700, padding: "6px 12px", borderRadius: 8, border: `1.5px solid ${C.border}` })}>← 戻る</button>
         <div style={{ width: 12, height: 12, borderRadius: "50%", background: project.color }} />
@@ -1949,7 +1797,6 @@ ${m.content}` }]
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {minutes.map(m => (
           <div key={m.id} style={{ background: C.surface, borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
-            {/* 議事録ヘッダー */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: editingId === m.id ? `1.5px solid ${C.border}` : "none" }}>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: project.color, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -1993,7 +1840,6 @@ ${m.content}` }]
                 </button>
               </div>
             </div>
-            {/* AI修正パネル */}
             {aiEditId === m.id && (
               <div style={{ padding: "14px 18px", background: C.accentLight, borderBottom: `1.5px solid ${C.border}` }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.accent, marginBottom: 8 }}>✨ AI修正指示</div>
@@ -2017,7 +1863,6 @@ ${m.content}` }]
                 </div>
               </div>
             )}
-            {/* 内容 */}
             {editingId === m.id ? (
               <textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={20}
                 style={{ width: "100%", border: "none", outline: "none", padding: "16px 18px", fontSize: 12, lineHeight: 1.8, fontFamily: "monospace", background: C.bg, color: C.text, resize: "vertical", boxSizing: "border-box" }} />
@@ -2033,7 +1878,6 @@ ${m.content}` }]
   );
 }
 
-// ── APP ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [projects, setProjects] = useState(INIT_PROJECTS);
   const [tab, setTab] = useState("projects");
@@ -2043,25 +1887,21 @@ export default function App() {
   const [storageReady, setStorageReady] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
 
-  // ── ストレージから初回ロード ──────────────────────────────────────────────
   useEffect(() => {
     loadProjects().then(saved => {
       if (saved && saved.length > 0) {
         setProjects(saved);
       } else {
-        // 保存データなし＝初回アクセス
         setShowWelcome(true);
       }
       setStorageReady(true);
     });
   }, []);
 
-  // ── projects が変わったら自動保存 ─────────────────────────────────────────
   useEffect(() => {
     if (!storageReady) return;
     saveProjects(projects);
   }, [projects, storageReady]);
-  // ──────────────────────────────────────────────────────────────────────────
 
   const updateProject = p => setProjects(ps => ps.map(x => x.id === p.id ? p : x));
   const deleteProject = id => { setProjects(ps => ps.filter(p => p.id !== id)); setTab("projects"); };
@@ -2106,7 +1946,6 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Hiragino Sans', 'Noto Sans JP', sans-serif", color: C.text }}>
-      {/* NAV */}
       <div style={{ background: C.surface, borderBottom: `1.5px solid ${C.border}`, display: "flex", alignItems: "stretch", overflowX: "auto", paddingLeft: 20 }}>
         <div style={{ fontWeight: 900, fontSize: 15, color: C.accent, paddingRight: 20, display: "flex", alignItems: "center", borderRight: `1px solid ${C.border}`, marginRight: 4, flexShrink: 0, letterSpacing: 0.5 }}>
           ✦ TaskFlow
@@ -2148,7 +1987,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* CONTENT */}
       {minutesProjectId ? (
         <MinutesDetailPage
           project={projects.find(p => p.id === minutesProjectId)}
@@ -2176,7 +2014,6 @@ export default function App() {
         </>
       )}
 
-      {/* ウェルカムモーダル（初回のみ） */}
       {showWelcome && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: "48px 40px", maxWidth: 480, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", textAlign: "center" }}>
