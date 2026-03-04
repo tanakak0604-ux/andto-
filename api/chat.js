@@ -4,7 +4,6 @@ export default async function handler(req, res) {
   try {
     const { model, messages, system, max_tokens } = req.body;
 
-    // AnthropicのメッセージフォーマットをGemini用に変換
     const geminiMessages = messages.map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }]
@@ -34,7 +33,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: { message: data.error.message } });
     }
 
-    // GeminiのレスポンスをAnthropicフォーマットに変換して返す
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     res.status(200).json({
       content: [{ type: 'text', text }]
