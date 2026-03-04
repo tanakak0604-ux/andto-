@@ -810,7 +810,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       + "【入力テキスト】\n" + text + "\n\n"
       + "上記テンプレートの構造を完全に維持し、入力テキストの内容を正確に当てはめて議事録を完成させてください。必ず「■ 次回会議予定」まで出力を完了すること。";
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch(window.location.hostname.includes("vercel.app") || window.location.hostname.includes("andto") ? "/api/chat" : "https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -846,7 +846,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       if (!isRegen) {
         const existingNames = (latestProj?.members || []).map(m => m.name);
         try {
-          const detectRes = await fetch("/api/chat", {
+          const detectRes = await fetch(window.location.hostname.includes("vercel.app") || window.location.hostname.includes("andto") ? "/api/chat" : "https://api.anthropic.com/v1/messages", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -874,7 +874,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     saveToProject();
     setLoading(true);
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch(window.location.hostname.includes("vercel.app") || window.location.hostname.includes("andto") ? "/api/chat" : "https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
