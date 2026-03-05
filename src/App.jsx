@@ -804,10 +804,18 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const approveTasks = () => {
     const proj = projects.find(p=>p.id===selProj);
     const tasks = extracted.filter(t=>t.selected).map(({selected,assignee,...t}) => {
-      const member = proj?.members?.find(m=>m.name===assignee||assignee?.includes(m.name));
-      return {...t,assigneeIds:member?[member.id]:[]};
+      let assigneeIds = [];
+      if (assignee && proj?.members) {
+        const member = proj.members.find(m =>
+          m.name === assignee ||
+          assignee.includes(m.name) ||
+          m.name.includes(assignee)
+        );
+        if (member) assigneeIds = [member.id];
+      }
+      return {...t, assigneeIds};
     });
-    onAddTasks(selProj,tasks);
+    onAddTasks(selProj, tasks);
   };
 
   const saveToProject = () => {
