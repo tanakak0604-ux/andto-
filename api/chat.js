@@ -7,8 +7,8 @@ module.exports = async function handler(req, res) {
   const { system, messages, max_tokens } = req.body;
   const prompt = (system ? system + "\n\n" : "") + messages.map(function(m) { return m.content; }).join("\n");
   const apiKey = process.env.GEMINI_API_KEY;
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + apiKey;
-
+　const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=" + apiKey;
+  
   try {
     const response = await fetch(url, {
       method: "POST",
