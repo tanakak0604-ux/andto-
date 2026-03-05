@@ -261,7 +261,17 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew }) {
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {folders.map(folder => {
-          const folderTasks = doneTasks.filter(t => t.folderId === folder.id);
+          const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+          const folderTasks = doneTasks
+            .filter(t => t.folderId === folder.id)
+            .sort((a, b) => {
+              const pd = (PRIORITY_ORDER[a.priority]||1) - (PRIORITY_ORDER[b.priority]||1);
+              if (pd !== 0) return pd;
+              if (!a.dueDate && !b.dueDate) return 0;
+              if (!a.dueDate) return 1;
+              if (!b.dueDate) return -1;
+              return new Date(a.dueDate) - new Date(b.dueDate);
+            });
           const isOpen = openFolders[folder.id] !== false;
           return (
             <div key={folder.id}
@@ -317,7 +327,17 @@ function KanbanPage({ project, onUpdate }) {
     <div style={{ padding: 24 }}>
       <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
         {[{ s: "todo", label: "未着手", bg: C.todoLight, col: C.todo }, { s: "doing", label: "進行中", bg: C.doingLight, col: C.doing }].map(({ s, label, bg, col }) => {
-          const tasks = project.tasks.filter(t => t.status === s);
+          const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+          const tasks = project.tasks
+            .filter(t => t.status === s)
+            .sort((a, b) => {
+              const pd = (PRIORITY_ORDER[a.priority]||1) - (PRIORITY_ORDER[b.priority]||1);
+              if (pd !== 0) return pd;
+              if (!a.dueDate && !b.dueDate) return 0;
+              if (!a.dueDate) return 1;
+              if (!b.dueDate) return -1;
+              return new Date(a.dueDate) - new Date(b.dueDate);
+            });
           const [over, setOver] = useState(false);
           return (
             <div key={s} style={{ flex: 1, minWidth: 240, background: over ? "#EDEBE4" : bg, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}` }}
@@ -787,7 +807,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       const member = proj?.members?.find(m=>m.name===assignee||assignee?.includes(m.name));
       return {...t,assigneeIds:member?[member.id]:[]};
     });
-    onAddTasks(selProj,tasks); setStep("save");
+    onAddTasks(selProj,tasks);
   };
 
   const saveToProject = () => {
