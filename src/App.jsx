@@ -816,6 +816,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       return {...t, assigneeIds};
     });
     onAddTasks(selProj, tasks);
+    setStep("save");
   };
 
   const saveToProject = () => {
@@ -1269,7 +1270,7 @@ export default function App() {
     const p = { id:uid(), name:newName, desc:"", color:colors[projects.length%colors.length], minutes:[], members:[], tasks:[] };
     setProjects(ps=>[...ps,p]); setTab(p.id); setNewName(""); setShowAdd(false);
   };
-  const addTasks = (pid, tasks) => { setProjects(ps=>ps.map(p=>p.id===pid?{...p,tasks:[...p.tasks,...tasks]}:p)); setTab(pid); };
+  const addTasks = (pid, tasks) => { setProjects(ps=>ps.map(p=>p.id===pid?{...p,tasks:[...p.tasks,...tasks]}:p)); };
   const active = projects.find(p => p.id===tab);
 
   const exportData = () => {
