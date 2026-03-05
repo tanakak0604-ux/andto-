@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${process.env.GEMINI_API_KEY}`
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -21,8 +21,22 @@ export default async function handler(req, res) {
         })
       }
     );
-    const data = await response.json();
-    console.log("Gemini response:", JSON.stringify(data));
+
+    const rawText = await response.text();
+    console.log("Gemini raw response:", rawText);
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch(e) {
+      console.error("JSON parse error:", rawText);
+      return res.status(500).json({ error: { message: "Gemini returned non-JSON: " + rawText.slice(0, 200) } });
+    }
+
+    if (data.error) {
+      return res.status(500).json({ error: { message: data.error.message || JSON.stringify(data.error) } });
+    }
+
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     res.status(200).json({ content: [{ type: "text", text }] });
   } catch (e) {
