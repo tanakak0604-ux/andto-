@@ -695,6 +695,10 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const [showQuickAddMember, setShowQuickAddMember] = useState(false);
   const [quickMember, setQuickMember] = useState({ name: "", org: "", isAndto: false });
   const [isDragging, setIsDragging] = useState(false);
+  const [showAiEdit, setShowAiEdit] = useState(false);
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiEditLoading, setAiEditLoading] = useState(false);
+  const [aiEditError, setAiEditError] = useState("");
   const [genError, setGenError] = useState("");
   const fileRef = useRef();
   const selProjObj = projects.find(p => p.id === selProj);
@@ -712,6 +716,19 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     }
   };
 
+    const runAiEdit = async () => {
+    if (!aiInstruction.trim()) return;
+    setAiEditLoading(true); setAiEditError("");
+    try {
+      const revised = await callClaude({
+        system: "あなたは議事録編集の専門家です。ユーザーの指示に従って議事録を修正してください。元の構成・フォーマットを極力維持し、指示された箇所のみ修正してください。修正後の議事録全文のみを出力してください。",
+        messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。\n\n【修正指示】\n${aiInstruction}\n\n【議事録】\n${minutes}` }]
+      });
+      if (revised) { setMinutes(revised); setShowAiEdit(false); setAiInstruction(""); }
+    } catch(e) { setAiEditError(e.message); }
+    setAiEditLoading(false);
+  };
+  
   const generateMinutes = async (isRegen = false) => {
     setLoading(true); setGenError("");
     const date = new Date().toLocaleDateString("ja-JP");
@@ -976,10 +993,36 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
           {genError&&<div style={{ marginBottom:14, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#DC2626", fontWeight:600 }}>⚠️ {genError}</div>}
           <textarea value={minutes} onChange={e=>setMinutes(e.target.value)} rows={18}
             style={{ ...inputStyle, resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace", fontSize:12, marginBottom:16 }} />
-          <button onClick={extractTasks} disabled={loading}
-            style={btn({padding:"12px 28px",borderRadius:12,background:loading?C.border:C.sage,color:"#fff",fontSize:13,fontWeight:800})}>
-            {loading?"⏳ 抽出中...":"📋 タスクを抽出する"}
-          </button>
+          
+          {/* AI修正エリア */}
+          {showAiEdit && (
+            <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:C.accent, marginBottom:8 }}>✨ AI修正指示</div>
+              <textarea value={aiInstruction} onChange={e=>setAiInstruction(e.target.value)} rows={3}
+                placeholder="例：決定事項をより明確に書き直してください / 敬語を統一してください"
+                style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit" }} />
+              {aiEditError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>⚠️ {aiEditError}</div>}
+              <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
+                <button onClick={()=>{setShowAiEdit(false);setAiInstruction("");setAiEditError("");}}
+                  style={btn({padding:"6px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12,fontWeight:700})}>キャンセル</button>
+                <button onClick={runAiEdit} disabled={aiEditLoading||!aiInstruction.trim()}
+                  style={btn({padding:"6px 18px",borderRadius:8,background:aiEditLoading||!aiInstruction.trim()?C.border:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>
+                  {aiEditLoading?"修正中...":"修正する"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={()=>{setShowAiEdit(v=>!v);setAiInstruction("");setAiEditError("");}}
+              style={btn({padding:"12px 20px",borderRadius:12,background:showAiEdit?C.accent:C.accentLight,color:showAiEdit?"#fff":C.accent,fontSize:13,fontWeight:800,border:`1.5px solid ${C.accent}`})}>
+              ✨ AI修正
+            </button>
+            <button onClick={extractTasks} disabled={loading}
+              style={btn({padding:"12px 28px",borderRadius:12,background:loading?C.border:C.sage,color:"#fff",fontSize:13,fontWeight:800})}>
+              {loading?"⏳ 抽出中...":"📋 タスクを抽出する"}
+            </button>
+          </div>
         </div>
       )}
 
