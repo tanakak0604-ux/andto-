@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -23,18 +23,17 @@ export default async function handler(req, res) {
     );
 
     const rawText = await response.text();
-    console.log("Gemini raw response:", rawText);
+    console.log("Gemini raw response:", rawText.slice(0, 300));
 
     let data;
     try {
       data = JSON.parse(rawText);
     } catch(e) {
-      console.error("JSON parse error:", rawText);
-      return res.status(500).json({ error: { message: "Gemini returned non-JSON: " + rawText.slice(0, 200) } });
+      return res.status(500).json({ error: { message: "Parse error: " + rawText.slice(0, 200) } });
     }
 
     if (data.error) {
-      return res.status(500).json({ error: { message: data.error.message || JSON.stringify(data.error) } });
+      return res.status(500).json({ error: { message: data.error.message } });
     }
 
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
