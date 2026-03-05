@@ -15,7 +15,7 @@ module.exports = async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: max_tokens || 8000 }
+        generationConfig: { maxOutputTokens: 16000 }
       })
     });
 
