@@ -6,15 +6,8 @@ export default async function handler(req, res) {
 
   const { system, messages, max_tokens } = req.body;
 
-  const contents = [];
-  if (system) contents.push({ role: "user", parts: [{ text: `[システム指示]\n${system}` }] });
-
-  messages.forEach(m => {
-    contents.push({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }]
-    });
-  });
+  const prompt = (system ? `${system}\n\n` : "") +
+    messages.map(m => m.content).join("\n");
 
   try {
     const response = await fetch(
@@ -23,13 +16,14 @@ export default async function handler(req, res) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents,
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: { maxOutputTokens: max_tokens || 8000 }
         })
       }
     );
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    console.log("Gemini response:", JSON.stringify(data));
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     res.status(200).json({ content: [{ type: "text", text }] });
   } catch (e) {
     res.status(500).json({ error: { message: e.message } });
