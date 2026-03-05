@@ -1,9 +1,9 @@
+import React, { useState, useRef, useEffect } from "react";
+
 async function callClaude({ system, messages, max_tokens = 8000 }) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
       max_tokens,
