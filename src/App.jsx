@@ -321,7 +321,7 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew }) {
                 <span style={{ fontSize: 11, color: C.muted }}>{folderTasks.length}件</span>
                 <span onClick={() => setOpenFolders(s => ({ ...s, [folder.id]: !s[folder.id] }))} style={{ fontSize: 11, color: C.muted, cursor: "pointer" }}>{isOpen ? "▲" : "▼"}</span>
               </div>
-フォルダ名をダブルクリックすると編集できるようになります！Commitして試してみてください。週間制限のうち75%を使用しました
+
               {isOpen && (
                 <div style={{ padding: "0 10px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
                   {folderTasks.length === 0 && <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "10px 0" }}>タスクをここにドロップ</div>}
