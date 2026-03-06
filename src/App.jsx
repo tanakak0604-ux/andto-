@@ -1268,8 +1268,11 @@ export default function App() {
 
   useEffect(() => {
     loadProjects().then(saved => {
-      if (saved&&saved.length>0) setProjects(saved);
-      else setShowWelcome(true);
+      if (saved && Array.isArray(saved) && saved.length > 0) {
+        setProjects(saved);
+      } else {
+        setShowWelcome(true);
+      }
       setStorageReady(true);
     });
   }, []);
