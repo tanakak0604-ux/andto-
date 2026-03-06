@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import logo from "./logo.png";
 
 async function callClaude({ system, messages, max_tokens = 8000 }) {
   const response = await fetch("/api/chat", {
@@ -1314,7 +1315,9 @@ export default function App() {
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif", color:C.text }}>
       <div style={{ background:C.surface, borderBottom:`1.5px solid ${C.border}`, display:"flex", alignItems:"stretch", overflowX:"auto", paddingLeft:20 }}>
-        <div style={{ fontWeight:900, fontSize:15, color:C.accent, paddingRight:20, display:"flex", alignItems:"center", borderRight:`1px solid ${C.border}`, marginRight:4, flexShrink:0, letterSpacing:0.5 }}>✦ TaskFlow</div>
+        <div style={{ paddingRight:20, display:"flex", alignItems:"center", borderRight:`1px solid ${C.border}`, marginRight:4, flexShrink:0 }}>
+  <img src={logo} alt="logo" style={{ height:32, objectFit:"contain" }} />
+</div>
         {[["projects","📁 Projects"],["calendar","📅 カレンダー"],["minutes","✨ 議事録"]].map(([id,lbl])=>(
           <button key={id} onClick={()=>setTab(id)} style={btn({padding:"0 16px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===id?C.accent:C.muted,borderBottom:tab===id?`2.5px solid ${C.accent}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap"})}>{lbl}</button>
         ))}
