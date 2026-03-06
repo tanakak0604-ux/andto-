@@ -10,21 +10,35 @@ async function callClaude({ system, messages, max_tokens = 8000 }) {
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
   return data.content?.[0]?.text || "";
 }
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
+const SUPABASE_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
+
 async function loadProjects() {
   try {
-    if (window.storage) {
-      const result = await window.storage.get("taskflow-projects", true);
-      if (result && result.value) return JSON.parse(result.value);
-    }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared&select=projects`, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    const data = await res.json();
+    if (data && data[0] && data[0].projects) return data[0].projects;
   } catch (_) {}
   return null;
 }
 
 async function saveProjects(projects) {
   try {
-    if (window.storage) {
-      await window.storage.set("taskflow-projects", JSON.stringify(projects), true);
-    }
+    await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared`, {
+      method: "PATCH",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({ projects, updated_at: new Date().toISOString() })
+    });
   } catch (_) {}
 }
 
