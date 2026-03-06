@@ -238,7 +238,9 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew }) {
   const [addingFolder, setAddingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [over, setOver] = useState(null);
-
+　const [editingFolderId, setEditingFolderId] = useState(null);
+　const [editFolderName, setEditFolderName] = useState("");
+  
   const addFolder = () => {
     if (!newFolderName.trim()) return;
     const nf = { id: uid(), name: newFolderName.trim() };
@@ -294,13 +296,32 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew }) {
               onDragLeave={() => setOver(null)}
               onDrop={e => dropToFolder(e, folder.id)}
               style={{ background: over === folder.id ? "#D4E8D5" : "#fff", borderRadius: 10, border: `1.5px solid ${over === folder.id ? C.done : C.border}`, overflow: "hidden" }}>
-              <div onClick={() => setOpenFolders(s => ({ ...s, [folder.id]: !s[folder.id] }))}
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", cursor: "pointer" }}>
-                <span style={{ fontSize: 13 }}>{isOpen ? "📂" : "📁"}</span>
-                <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: C.text }}>{folder.name}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px" }}>
+                <span onClick={() => setOpenFolders(s => ({ ...s, [folder.id]: !s[folder.id] }))} style={{ fontSize: 13, cursor: "pointer" }}>{isOpen ? "📂" : "📁"}</span>
+                {editingFolderId === folder.id ? (
+                  <input autoFocus value={editFolderName}
+                    onChange={e => setEditFolderName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        if (editFolderName.trim()) onUpdate({ ...project, donefolders: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) });
+                        setEditingFolderId(null);
+                      }
+                      if (e.key === "Escape") setEditingFolderId(null);
+                    }}
+                    onBlur={() => {
+                      if (editFolderName.trim()) onUpdate({ ...project, donefolders: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) });
+                      setEditingFolderId(null);
+                    }}
+                    style={{ flex: 1, border: `1.5px solid ${C.sage}`, borderRadius: 6, padding: "3px 8px", fontSize: 12, fontWeight: 700, color: C.text, outline: "none" }} />
+                ) : (
+                  <span onDoubleClick={() => { setEditingFolderId(folder.id); setEditFolderName(folder.name); }}
+                    onClick={() => setOpenFolders(s => ({ ...s, [folder.id]: !s[folder.id] }))}
+                    style={{ flex: 1, fontSize: 12, fontWeight: 700, color: C.text, cursor: "pointer" }}>{folder.name}</span>
+                )}
                 <span style={{ fontSize: 11, color: C.muted }}>{folderTasks.length}件</span>
-                <span style={{ fontSize: 11, color: C.muted }}>{isOpen ? "▲" : "▼"}</span>
+                <span onClick={() => setOpenFolders(s => ({ ...s, [folder.id]: !s[folder.id] }))} style={{ fontSize: 11, color: C.muted, cursor: "pointer" }}>{isOpen ? "▲" : "▼"}</span>
               </div>
+フォルダ名をダブルクリックすると編集できるようになります！Commitして試してみてください。週間制限のうち75%を使用しました
               {isOpen && (
                 <div style={{ padding: "0 10px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
                   {folderTasks.length === 0 && <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "10px 0" }}>タスクをここにドロップ</div>}
