@@ -231,8 +231,9 @@ function TaskCard({ t, project, onUpdate, onEdit }) {
   );
 }
 
-function DoneColumn({ project, onUpdate, onEdit, onOpenNew }) {
-  const doneTasks = project.tasks.filter(t => t.status === "done");
+function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
+  const tasksForView = viewTasks ?? project.tasks;
+  const doneTasks = tasksForView.filter(t => t.status === "done");
   const folders = project.donefolders || [{ id: "default", name: "完了タスク" }];
   const [openFolders, setOpenFolders] = useState(() => Object.fromEntries(folders.map(f => [f.id, true])));
   const [addingFolder, setAddingFolder] = useState(false);
@@ -348,6 +349,7 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew }) {
 function KanbanPage({ project, onUpdate }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
+  const [assigneeFilter, setAssigneeFilter] = useState("all"); // all | andto | other
 
   const openNew = (status) => { setForm({ id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [] }); setModal({ isNew: true }); };
   const openEdit = (t) => { setForm({ ...t }); setModal({ isNew: false }); };
@@ -359,12 +361,49 @@ function KanbanPage({ project, onUpdate }) {
   const del = () => { onUpdate({ ...project, tasks: project.tasks.filter(t => t.id !== form.id) }); setModal(null); };
   const drop = (taskId, status) => onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, status } : t) });
 
+  const memberAndtoIds = new Set((project.members || []).filter(m => m.isAndto).map(m => m.id));
+  const memberOtherIds = new Set((project.members || []).filter(m => !m.isAndto).map(m => m.id));
+  const viewTasks = (project.tasks || []).filter(t => {
+    if (assigneeFilter === "all") return true;
+    const ids = t.assigneeIds || [];
+    if (assigneeFilter === "andto") return ids.some(id => memberAndtoIds.has(id));
+    if (assigneeFilter === "other") return ids.some(id => memberOtherIds.has(id));
+    return true;
+  });
+
   return (
     <div style={{ padding: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        {[
+          { key: "all", label: "全て" },
+          { key: "andto", label: "andto" },
+          { key: "other", label: "その他" },
+        ].map(x => {
+          const active = assigneeFilter === x.key;
+          return (
+            <button
+              key={x.key}
+              type="button"
+              onClick={() => setAssigneeFilter(x.key)}
+              style={btn({
+                padding: "7px 12px",
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 800,
+                border: `1.5px solid ${active ? C.sage : C.border}`,
+                background: active ? C.sageLight : C.surface,
+                color: active ? C.sage : C.muted,
+              })}
+            >
+              {x.label}
+            </button>
+          );
+        })}
+      </div>
       <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
         {[{ s: "todo", label: "未着手", bg: C.todoLight, col: C.todo }, { s: "doing", label: "進行中", bg: C.doingLight, col: C.doing }].map(({ s, label, bg, col }) => {
           const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
-          const tasks = project.tasks
+          const tasks = viewTasks
             .filter(t => t.status === s)
             .sort((a, b) => {
               const pd = (PRIORITY_ORDER[a.priority]||1) - (PRIORITY_ORDER[b.priority]||1);
@@ -392,7 +431,7 @@ function KanbanPage({ project, onUpdate }) {
             </div>
           );
         })}
-        <DoneColumn project={project} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />
+        <DoneColumn project={project} viewTasks={viewTasks} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />
       </div>
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={() => setModal(null)}>
