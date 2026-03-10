@@ -100,23 +100,23 @@ const SYSTEM_PROMPT = `あなたは議事録作成の専門家です。以下の
 ### ■ 議題 1：（議題名）
 
 *   **【議論の内容】**
-    *   〇（発言内容。だ・である調）。（発言者名様）
+    *   （発言内容。だ・である調）。（発言者名様）
     *   **Q:** （質問内容）。（質問者名様）
     *   **A:** （回答内容）。（回答者名様）
 *   **【決定事項】**
-    *   〇（決定内容。誰が・何を・いつまでに・どのように を明記）
+    *   （決定内容。誰が・何を・いつまでに・どのように を明記）
 *   **【今後のタスク（ToDo）】**
     *   【担当者名様】
-    *   〇（タスク内容）。期限：YYYY/MM/DD
+    *   （タスク内容）。期限：YYYY/MM/DD
 *   **【懸念事項・未確定事項】**
-    *   〇（懸念点）
+    *   （懸念点）
 
 （議題が複数ある場合は ### ■ 議題 2：, ### ■ 議題 3：... と繰り返す）
 
 ---
 
 ### ■ その他/備考
-〇（補足事項）
+・（補足事項）
 
 ### ■ 次回会議予定
 *   日時：（不明な場合は「未定」）
@@ -126,7 +126,7 @@ const SYSTEM_PROMPT = `あなたは議事録作成の専門家です。以下の
 ---
 
 【記述ルール】
-1. 発言の冒頭には必ず「〇」をつける
+1. 発言の冒頭に「〇」はつけない
 2. だ・である調で統一する
 3. 「誰が・何を・いつまでに・どのように」を必ず明記する
 4. andto所属メンバー → 発言者表記は「（andto）」
@@ -154,19 +154,19 @@ const TEMPLATE = `# 【会議名】議事録
 ### ■ 議題 1：議題名
 
 *   **【議論の内容】**
-    *   〇
+    *
 *   **【決定事項】**
-    *   〇
+    *
 *   **【今後のタスク（ToDo）】**
     *   【担当者様】
-    *   〇 期限：YYYY/MM/DD
+    *    期限：YYYY/MM/DD
 *   **【懸念事項・未確定事項】**
-    *   〇
+    *
 
 ---
 
 ### ■ その他/備考
-〇
+・
 
 ### ■ 次回会議予定
 *   日時：
@@ -932,6 +932,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     let headerLines = [];
     let inHeader = true;
     let inList = false;
+    let inOther = false;
     const closeList = () => { if (inList) { body += "</ul>\n"; inList = false; } };
 
     for (const line of minutes.split("\n")) {
@@ -967,6 +968,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
 
       if (t.startsWith("### ")) {
         closeList();
+        inOther = t.includes("その他") || t.includes("備考");
         body += `<h2 class="sh">${esc(t.slice(4))}</h2>\n`;
         continue;
       }
@@ -980,14 +982,15 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
 
       if (t.match(/^\*+\s+/)) {
         if (!inList) { body += `<ul class="ul">\n`; inList = true; }
-        const content = t.replace(/^\*+\s+/, "").replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+        const content = t.replace(/^\*+\s+/, "").replace(/^〇\s*/, "").replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
         body += `<li>${esc(content).replace(/&lt;strong&gt;/g, "<strong>").replace(/&lt;\/strong&gt;/g, "</strong>")}</li>\n`;
         continue;
       }
 
       if (!t) { closeList(); continue; }
       closeList();
-      body += `<p class="p">${esc(t)}</p>\n`;
+      const pText = inOther ? t.replace(/^〇\s*/, "・") : t.replace(/^〇\s*/, "");
+      body += `<p class="p">${esc(pText)}</p>\n`;
     }
     closeList();
 
