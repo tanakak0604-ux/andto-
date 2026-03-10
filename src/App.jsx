@@ -923,9 +923,101 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     if (!minutes) return;
     const win = window.open("", "_blank");
     if (!win) return;
-    const title = `${selProjObj?.name || "議事録"} ${minutesTitle || ""}`.trim();
-    const escaped = escapeHtml(minutes);
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body><pre style="white-space:pre-wrap;font-family:'Courier New',monospace;font-size:12px;line-height:1.6;">${escaped}</pre></body></html>`);
+
+    const projName = selProjObj?.name || "議事録";
+    const docTitle = `${projName} ${minutesTitle || ""}`.trim();
+    const proj = projects.find(p => p.id === selProj);
+    const esc = escapeHtml;
+    const bold = s => s.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+    let body = "";
+    let headerLines = [];
+    let inHeader = true;
+    let inList = false;
+    const closeList = () => { if (inList) { body += "</ul>\n"; inList = false; } };
+
+    for (const line of minutes.split("\n")) {
+      const t = line.trim();
+
+      if (t.startsWith("# ")) {
+        body += `<h1 class="title">${esc(t.slice(2))}</h1>\n`;
+        continue;
+      }
+
+      if (inHeader) {
+        if (t === "---") {
+          if (headerLines.length) {
+            body += "<div class='meta'>" + headerLines.map(l => {
+              if (!l.trim()) return "";
+              const isCont = l.charAt(0) === "　" || l.charAt(0) === " ";
+              const ci = l.indexOf("：");
+              if (!isCont && ci > 0) {
+                return `<div class="mr"><span class="mk">${esc(l.slice(0, ci + 1).trim())}</span><span class="mv">${esc(l.slice(ci + 1).trim())}</span></div>`;
+              }
+              return `<div class="mr"><span class="mk"></span><span class="mv">${esc(l.trim())}</span></div>`;
+            }).join("") + "</div>";
+          }
+          body += `<hr class="div">`;
+          inHeader = false;
+        } else if (t) {
+          headerLines.push(line);
+        }
+        continue;
+      }
+
+      if (t === "---") { closeList(); body += `<hr class="div">`; continue; }
+      if (t.startsWith("### ")) { closeList(); body += `<h2 class="sh">${esc(t.slice(4))}</h2>\n`; continue; }
+      if (t.match(/^\*+\s+\*\*【.+】\*\*/)) {
+        closeList();
+        body += `<div class="subh">${esc(t.replace(/^\*+\s+\*\*/, "").replace(/\*\*$/, ""))}</div>\n`;
+        continue;
+      }
+      if (t.match(/^\*+\s+/)) {
+        if (!inList) { body += `<ul class="ul">\n`; inList = true; }
+        body += `<li>${bold(esc(t.replace(/^\*+\s+/, "")))}</li>\n`;
+        continue;
+      }
+      if (!t) { closeList(); continue; }
+      closeList();
+      body += `<p class="p">${bold(esc(t))}</p>\n`;
+    }
+    closeList();
+
+    const tasks = extracted && extracted.length > 0 ? extracted.filter(t2 => t2.selected !== false) : [];
+    if (tasks.length > 0) {
+      body += `<h2 class="sh" style="margin-top:28px;">■ タスク一覧</h2>\n`;
+      body += `<table class="tt"><thead><tr><th>タスク</th><th>担当者</th><th>期日</th><th>優先度</th></tr></thead><tbody>`;
+      tasks.forEach(t2 => {
+        const names = (t2.assigneeIds || []).map(aid => proj?.members.find(m => m.id === aid)?.name).filter(Boolean);
+        const assignee = names.join("、") || t2.assignee || "—";
+        const priority = { high: "高", medium: "中", low: "低" }[t2.priority] || "—";
+        body += `<tr><td>${esc(t2.title)}</td><td>${esc(assignee)}</td><td>${esc(t2.dueDate || "—")}</td><td>${esc(priority)}</td></tr>`;
+      });
+      body += `</tbody></table>`;
+    }
+
+    const css = `
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: 'Hiragino Kaku Gothic ProN','Meiryo','Yu Gothic',sans-serif; font-size: 10.5pt; color: #1a1a1a; padding: 18mm 20mm; line-height: 1.9; }
+      .title { font-size: 18pt; font-weight: 900; color: #1e3a2f; border-bottom: 3px solid #1e3a2f; padding-bottom: 10px; margin-bottom: 14px; letter-spacing: 0.02em; }
+      .meta { background: #f4f7f5; border-left: 4px solid #4a7c59; padding: 10px 14px; border-radius: 4px; margin-bottom: 8px; font-size: 9.5pt; }
+      .mr { display: flex; gap: 8px; line-height: 1.7; }
+      .mk { font-weight: 700; color: #4a7c59; min-width: 80px; flex-shrink: 0; }
+      .mv { color: #333; }
+      .div { border: none; border-top: 1.5px solid #d0d8d3; margin: 12px 0; }
+      .sh { font-size: 12.5pt; font-weight: 800; color: #fff; background: #1e3a2f; padding: 6px 14px; border-radius: 4px; margin: 20px 0 10px; }
+      .subh { font-size: 10.5pt; font-weight: 700; color: #1e3a2f; border-left: 4px solid #4a7c59; padding-left: 10px; margin: 12px 0 6px; }
+      .ul { padding-left: 18px; margin: 4px 0 8px; }
+      .ul li { margin: 2px 0; font-size: 10pt; line-height: 1.7; }
+      .p { font-size: 10pt; margin: 3px 0 6px; line-height: 1.7; }
+      .tt { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 9.5pt; }
+      .tt th { background: #1e3a2f; color: #fff; padding: 8px 12px; text-align: left; font-weight: 700; }
+      .tt td { padding: 7px 12px; border-bottom: 1px solid #e2e8e4; vertical-align: top; line-height: 1.6; }
+      .tt tr:nth-child(even) td { background: #f4f7f5; }
+      @media print { body { padding: 12mm 15mm; } .sh { break-after: avoid; } }
+    `;
+
+    win.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${esc(docTitle)}</title><style>${css}</style></head><body>${body}</body></html>`);
     win.document.close();
     win.focus();
     win.print();
