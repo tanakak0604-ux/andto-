@@ -1005,22 +1005,23 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
 
     const css = `
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Yu Gothic','游ゴシック','YuGothic','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; font-size: 10.5pt; color: #000; padding: 20mm 22mm; line-height: 1.8; }
-      .title { font-size: 15pt; font-weight: 700; text-align: center; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid #000; letter-spacing: 0.05em; }
-      table.meta { border-collapse: collapse; margin-bottom: 10px; font-size: 10pt; }
-      .mk { font-weight: 700; padding: 2px 12px 2px 0; white-space: nowrap; vertical-align: top; }
-      .mv { padding: 2px 0; vertical-align: top; }
-      .div { border: none; border-top: 1px solid #aaa; margin: 10px 0; }
-      .sh { font-size: 11pt; font-weight: 700; margin: 18px 0 8px; padding: 4px 0 4px 0; border-bottom: 1px solid #000; }
-      .subh { font-size: 10.5pt; font-weight: 700; margin: 10px 0 4px; }
-      .ul { padding-left: 0; margin: 4px 0 8px; list-style: none; }
-      .ul li { margin: 3px 0; font-size: 10pt; line-height: 1.7; padding-left: 1em; text-indent: -1em; }
+      @page { size: A4; margin: 20mm 20mm 25mm 20mm; }
+      body { font-family: 'Yu Gothic','游ゴシック','YuGothic','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; font-size: 10pt; color: #000; padding: 20mm 20mm 25mm 20mm; line-height: 1.75; width: 210mm; min-height: 297mm; }
+      .title { font-size: 14pt; font-weight: 700; text-align: center; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 2px solid #000; letter-spacing: 0.05em; }
+      table.meta { border-collapse: collapse; margin-bottom: 8px; font-size: 9.5pt; }
+      .mk { font-weight: 700; padding: 1px 10px 1px 0; white-space: nowrap; vertical-align: top; }
+      .mv { padding: 1px 0; vertical-align: top; }
+      .div { border: none; border-top: 1px solid #aaa; margin: 8px 0; }
+      .sh { font-size: 10.5pt; font-weight: 700; margin: 14px 0 6px; padding: 3px 0; border-bottom: 1px solid #000; }
+      .subh { font-size: 10pt; font-weight: 700; margin: 8px 0 3px; }
+      .ul { padding-left: 0; margin: 3px 0 6px; list-style: none; }
+      .ul li { margin: 2px 0; font-size: 9.5pt; line-height: 1.7; padding-left: 1em; text-indent: -1em; }
       .ul li::before { content: "・"; }
-      .p { font-size: 10pt; margin: 3px 0 6px; line-height: 1.7; }
-      .tt { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 10pt; }
-      .tt th { background: #f0f0f0; border: 1px solid #999; padding: 6px 10px; text-align: left; font-weight: 700; }
-      .tt td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top; line-height: 1.6; }
-      @media print { body { padding: 15mm 18mm; } .sh { break-after: avoid; } }
+      .p { font-size: 9.5pt; margin: 2px 0 5px; line-height: 1.7; }
+      .tt { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 9.5pt; }
+      .tt th { background: #f0f0f0; border: 1px solid #999; padding: 5px 8px; text-align: left; font-weight: 700; }
+      .tt td { padding: 5px 8px; border: 1px solid #ccc; vertical-align: top; line-height: 1.6; }
+      @media print { body { padding: 0; } .sh { break-after: avoid; } }
     `;
 
     win.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${esc(docTitle)}</title><style>${css}</style></head><body>${body}</body></html>`);
