@@ -173,6 +173,11 @@ const TEMPLATE = `# 【会議名】議事録
 *   場所：
 *   主要議題：`;
 
+function escapeHtml(str = "") {
+  const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" };
+  return str.replace(/[&<>"']/g, m => map[m]);
+}
+
 function uid() { return Math.random().toString(36).slice(2, 9); }
 function btn(extra = {}) { return { border: "none", cursor: "pointer", fontFamily: "inherit", ...extra }; }
 
@@ -795,6 +800,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const [aiEditLoading, setAiEditLoading] = useState(false);
   const [aiEditError, setAiEditError] = useState("");
   const [genError, setGenError] = useState("");
+  const [showPdfConfirm, setShowPdfConfirm] = useState(false);
   const fileRef = useRef();
   const selProjObj = projects.find(p => p.id === selProj);
 
@@ -866,7 +872,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   };
 
   const extractTasks = async () => {
-    saveToProject();
     setLoading(true);
     try {
       const raw = await callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録からアクションアイテムをJSON配列で抽出してください。\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたは空文字","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${minutes}` }] });
@@ -891,6 +896,8 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       return {...t, assigneeIds};
     });
     onAddTasks(selProj, tasks);
+    saveToProject();
+    setShowPdfConfirm(true);
     setStep("save");
   };
 
@@ -912,6 +919,18 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     setSaveMsg("テキストファイルをダウンロードしました。");
   };
 
+  const downloadMinutesPdf = () => {
+    if (!minutes) return;
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const title = `${selProjObj?.name || "議事録"} ${minutesTitle || ""}`.trim();
+    const escaped = escapeHtml(minutes);
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body><pre style="white-space:pre-wrap;font-family:'Courier New',monospace;font-size:12px;line-height:1.6;">${escaped}</pre></body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+
   const reset = () => { setStep("input");setText("");setFileName("");setMinutes("");setMinutesTitle("");setExtracted([]);setSaveMsg("");setAttendees([]);setBunseki("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowRegenConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false}); };
 
   const stepIdx = STEPS.indexOf(step);
@@ -919,6 +938,24 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
 
   return (
     <div style={{ padding:24, maxWidth:800, margin:"0 auto" }}>
+      {showPdfConfirm && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:350 }} onClick={()=>setShowPdfConfirm(false)}>
+          <div style={{ background:C.surface, borderRadius:20, padding:26, width:360, maxWidth:"90vw", boxShadow:"0 24px 70px rgba(0,0,0,0.2)" }} onClick={e=>e.stopPropagation()}>
+            <h3 style={{ margin:"0 0 12px", fontSize:15, fontWeight:900, color:C.text }}>議事録をPDFでダウンロードしますか？</h3>
+            <p style={{ fontSize:12, color:C.muted, marginBottom:18 }}>議事録の全文をPDFとして保存できます。必要に応じてダウンロードしてください。</p>
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button onClick={()=>setShowPdfConfirm(false)}
+                style={btn({padding:"9px 16px",borderRadius:10,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:13,fontWeight:700})}>
+                スキップ
+              </button>
+              <button onClick={()=>{downloadMinutesPdf();setShowPdfConfirm(false);}}
+                style={btn({padding:"9px 20px",borderRadius:10,background:C.accent,color:"#fff",fontSize:13,fontWeight:800})}>
+                ダウンロード
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showMemberConfirm && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:300 }} onClick={()=>setShowMemberConfirm(false)}>
           <div style={{ background:C.surface, borderRadius:20, padding:28, width:420, maxWidth:"90vw", maxHeight:"80vh", overflowY:"auto", boxShadow:"0 24px 70px rgba(0,0,0,0.2)" }} onClick={e=>e.stopPropagation()}>
@@ -1183,19 +1220,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
             <div style={{ fontSize:40, marginBottom:8 }}>🎉</div>
             <div style={{ fontSize:16, fontWeight:900, color:C.text, marginBottom:4 }}>タスクを登録しました！</div>
             <div style={{ fontSize:13, color:C.muted }}><strong style={{color:selProjObj?.color}}>{selProjObj?.name}</strong> のカンバンにタスクが追加されました。</div>
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:14, marginBottom:20 }}>
-            {[
-              { icon:"📁", label:"プロジェクトに保存", desc:"Projectsページに蓄積", action:saveToProject, color:selProjObj?.color||C.sage },
-              { icon:"📄", label:"テキストで保存", desc:".txtファイルをダウンロード", action:downloadTxt, color:C.sage },
-              { icon:"📋", label:"クリップボードにコピー", desc:"NotionやSlackに貼り付け", action:copyToClipboard, color:C.doing },
-            ].map(({icon,label,desc,action,color})=>(
-              <button key={label} onClick={action} style={btn({padding:"18px 16px",borderRadius:14,border:`2px solid ${color}30`,background:color+"12",display:"flex",flexDirection:"column",alignItems:"center",gap:6,cursor:"pointer"})}>
-                <span style={{ fontSize:28 }}>{icon}</span>
-                <span style={{ fontSize:13, fontWeight:800, color }}>{label}</span>
-                <span style={{ fontSize:11, color:C.muted }}>{desc}</span>
-              </button>
-            ))}
           </div>
           {saveMsg&&<div style={{ background:C.sageLight, border:`1.5px solid ${C.sage}`, borderRadius:10, padding:"10px 14px", fontSize:12, color:C.sage, fontWeight:600, marginBottom:16 }}>✓ {saveMsg}</div>}
           <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
