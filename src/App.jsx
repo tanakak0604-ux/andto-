@@ -88,7 +88,10 @@ const SYSTEM_PROMPT = `あなたは議事録作成の専門家です。以下の
 場所　：（入力から読み取る。不明な場合は「—」）
 出席者：（所属ごとにまとめて記載。例：株式会社A：田中様、鈴木様　andto：谷口、山田）
 文責　：（指定された担当者名。未指定の場合は「—」）　作成日：（議事録生成日）
-配布資料：（不明な場合は「—」）
+提出資料：（こちらが提出・画面共有した資料名。不明な場合は「—」）
+受領資料：（先方から受領・先方が画面共有した資料名。不明な場合は「—」）
+フェーズ　：（調査企画・基本計画・基本設計・実施設計・現場のいずれか）
+打合せ概要：（会議の名称）
 
 ---
 
@@ -142,7 +145,10 @@ const TEMPLATE = `# 【会議名】議事録
 出席者：株式会社A：田中様、鈴木様
 　　　　andto：谷口、山田
 文責　：{bunseki}　作成日：{created}
-配布資料：—
+提出資料：{teishutsushiryo}
+受領資料：{juryoshiryo}
+フェーズ　：{phase}
+打合せ概要：{gaiyou}
 
 ---
 
@@ -789,6 +795,10 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const [saveMsg, setSaveMsg] = useState("");
   const [attendees, setAttendees] = useState([]);
   const [bunseki, setBunseki] = useState("");
+  const [teishutsushiryo, setTeishutsushiryo] = useState("");
+  const [juryoshiryo, setJuryoshiryo] = useState("");
+  const [phase, setPhase] = useState("");
+  const [gaiyou, setGaiyou] = useState("");
   const [newMemberCandidates, setNewMemberCandidates] = useState([]);
   const [showMemberConfirm, setShowMemberConfirm] = useState(false);
   const [showQuickAddMember, setShowQuickAddMember] = useState(false);
@@ -846,7 +856,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     const attendeeRule = attendees.length>0
       ? "【出席者】選択された出席者を記載。andtoメンバーは最後に敬称なし。"
       : "【出席者】入力テキストから読み取るか不明な場合は「—」";
-    const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- 情報不明も見出し省略せず「—」または「特になし」\n- 発言冒頭に必ず「〇」\n- だ・である調で統一\n- 「文責　：」欄には「${bunsekiText}」\n- 「作成日：」欄には「${date}」\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}\n\n【テンプレート】\n${TEMPLATE.replace("{date}",date).replace("{bunseki}",bunsekiText).replace("{created}",date)}\n\n【入力テキスト】\n${text}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
+    const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- 情報不明も見出し省略せず「—」または「特になし」\n- 発言冒頭に必ず「〇」\n- だ・である調で統一\n- 「文責　：」欄には「${bunsekiText}」\n- 「作成日：」欄には「${date}」\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}\n\n【テンプレート】\n${TEMPLATE.replace("{date}",date).replace("{bunseki}",bunsekiText).replace("{created}",date).replace("{teishutsushiryo}",teishutsushiryo||"—").replace("{juryoshiryo}",juryoshiryo||"—").replace("{phase}",phase||"—").replace("{gaiyou}",gaiyou||"—")}\n\n【入力テキスト】\n${text}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
     try {
       const result = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: userContent }] });
       setMinutes(result);
@@ -1186,6 +1196,19 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                 </div>
               </div>
             )}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
+              {[["提出資料", "こちらが提出・画面共有した資料名", teishutsushiryo, setTeishutsushiryo],
+                ["受領資料", "先方から受領・先方が画面共有した資料名", juryoshiryo, setJuryoshiryo],
+                ["フェーズ", "調査企画・基本計画・基本設計・実施設計・現場", phase, setPhase],
+                ["打合せ概要", "会議の名称", gaiyou, setGaiyou]
+              ].map(([lbl, ph, val, setter]) => (
+                <div key={lbl}>
+                  <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:4 }}>{lbl}</label>
+                  <input value={val} onChange={e=>setter(e.target.value)} placeholder={ph}
+                    style={{ ...inputStyle, fontSize:12, padding:"7px 10px" }} />
+                </div>
+              ))}
+            </div>
             <label style={{ fontSize:12, fontWeight:700, color:C.muted, display:"block", marginBottom:8 }}>📎 ファイル添付またはテキスト入力</label>
             <div onClick={()=>fileRef.current?.click()}
               onDragOver={e=>{e.preventDefault();setIsDragging(true);}} onDragLeave={()=>setIsDragging(false)}
