@@ -1007,7 +1007,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       * { box-sizing: border-box; margin: 0; padding: 0; }
       @page { size: A4; margin: 20mm 20mm 25mm 20mm; }
       body { font-family: 'Yu Gothic','游ゴシック','YuGothic','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; font-size: 10pt; color: #000; padding: 20mm 20mm 25mm 20mm; line-height: 1.75; width: 210mm; min-height: 297mm; }
-      .title { font-size: 14pt; font-weight: 700; text-align: center; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 2px solid #000; letter-spacing: 0.05em; }
+      .title { font-size: 14pt; font-weight: 700; text-align: left; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 2px solid #000; letter-spacing: 0.05em; }
       table.meta { border-collapse: collapse; margin-bottom: 8px; font-size: 9.5pt; }
       .mk { font-weight: 700; padding: 1px 10px 1px 0; white-space: nowrap; vertical-align: top; }
       .mv { padding: 1px 0; vertical-align: top; }
