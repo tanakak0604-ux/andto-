@@ -1005,7 +1005,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
 
     const css = `
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Hiragino Kaku Gothic ProN','Meiryo','Yu Gothic',sans-serif; font-size: 10.5pt; color: #000; padding: 20mm 22mm; line-height: 1.8; }
+      body { font-family: 'Yu Gothic','游ゴシック','YuGothic','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; font-size: 10.5pt; color: #000; padding: 20mm 22mm; line-height: 1.8; }
       .title { font-size: 15pt; font-weight: 700; text-align: center; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid #000; letter-spacing: 0.05em; }
       table.meta { border-collapse: collapse; margin-bottom: 10px; font-size: 10pt; }
       .mk { font-weight: 700; padding: 2px 12px 2px 0; white-space: nowrap; vertical-align: top; }
