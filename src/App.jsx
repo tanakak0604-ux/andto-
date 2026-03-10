@@ -791,7 +791,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const [bunseki, setBunseki] = useState("");
   const [newMemberCandidates, setNewMemberCandidates] = useState([]);
   const [showMemberConfirm, setShowMemberConfirm] = useState(false);
-  const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const [showQuickAddMember, setShowQuickAddMember] = useState(false);
   const [quickMember, setQuickMember] = useState({ name: "", org: "", isAndto: false });
   const [isDragging, setIsDragging] = useState(false);
@@ -1023,7 +1022,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     win.print();
   };
 
-  const reset = () => { setStep("input");setText("");setFileName("");setMinutes("");setMinutesTitle("");setExtracted([]);setSaveMsg("");setAttendees([]);setBunseki("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowRegenConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false}); };
+  const reset = () => { setStep("input");setText("");setFileName("");setMinutes("");setMinutesTitle("");setExtracted([]);setSaveMsg("");setAttendees([]);setBunseki("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false}); };
 
   const stepIdx = STEPS.indexOf(step);
   const inputStyle = { width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"8px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" };
@@ -1081,22 +1080,8 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                   onUpdateProject({...selProjObj,members:sorted});
                   setAttendees(prev=>[...prev,...toAdd.map(m=>m.id)]);
                 }
-                setShowMemberConfirm(false);setShowRegenConfirm(true);
+                setShowMemberConfirm(false);
               }} style={btn({padding:"9px 22px",borderRadius:10,background:C.sage,color:"#fff",fontSize:13,fontWeight:800})}>追加する</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showRegenConfirm && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:300 }}>
-          <div style={{ background:C.surface, borderRadius:20, padding:28, width:380, maxWidth:"90vw", boxShadow:"0 24px 70px rgba(0,0,0,0.2)" }}>
-            <div style={{ fontSize:24, marginBottom:8 }}>✨</div>
-            <h3 style={{ margin:"0 0 8px", fontSize:15, fontWeight:900, color:C.text }}>議事録を再生成しますか？</h3>
-            <p style={{ fontSize:12, color:C.muted, marginBottom:20 }}>追加されたメンバーを反映して議事録を作り直せます。</p>
-            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-              <button onClick={()=>setShowRegenConfirm(false)} style={btn({padding:"9px 16px",borderRadius:10,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:13,fontWeight:700})}>そのまま編集</button>
-              <button onClick={()=>{setShowRegenConfirm(false);setStep("input");}} style={btn({padding:"9px 16px",borderRadius:10,border:`1.5px solid ${C.sage}`,background:"transparent",color:C.sage,fontSize:13,fontWeight:700})}>入力に戻る</button>
-              <button onClick={()=>{setShowRegenConfirm(false);setMinutes("");setStep("input");setTimeout(()=>generateMinutes(true),50);}} style={btn({padding:"9px 22px",borderRadius:10,background:C.accent,color:"#fff",fontSize:13,fontWeight:800})}>再生成する</button>
             </div>
           </div>
         </div>
