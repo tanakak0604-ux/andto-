@@ -927,7 +927,6 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     const docTitle = `${projName} ${minutesTitle || ""}`.trim();
     const proj = projects.find(p => p.id === selProj);
     const esc = escapeHtml;
-    const bold = s => s.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
     let body = "";
     let headerLines = [];
@@ -946,15 +945,15 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       if (inHeader) {
         if (t === "---") {
           if (headerLines.length) {
-            body += "<div class='meta'>" + headerLines.map(l => {
+            body += "<table class='meta'>" + headerLines.map(l => {
               if (!l.trim()) return "";
               const isCont = l.charAt(0) === "　" || l.charAt(0) === " ";
               const ci = l.indexOf("：");
               if (!isCont && ci > 0) {
-                return `<div class="mr"><span class="mk">${esc(l.slice(0, ci + 1).trim())}</span><span class="mv">${esc(l.slice(ci + 1).trim())}</span></div>`;
+                return `<tr><td class="mk">${esc(l.slice(0, ci + 1).trim())}</td><td class="mv">${esc(l.slice(ci + 1).trim())}</td></tr>`;
               }
-              return `<div class="mr"><span class="mk"></span><span class="mv">${esc(l.trim())}</span></div>`;
-            }).join("") + "</div>";
+              return `<tr><td class="mk"></td><td class="mv">${esc(l.trim())}</td></tr>`;
+            }).join("") + "</table>";
           }
           body += `<hr class="div">`;
           inHeader = false;
@@ -965,55 +964,63 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       }
 
       if (t === "---") { closeList(); body += `<hr class="div">`; continue; }
-      if (t.startsWith("### ")) { closeList(); body += `<h2 class="sh">${esc(t.slice(4))}</h2>\n`; continue; }
+
+      if (t.startsWith("### ")) {
+        closeList();
+        body += `<h2 class="sh">${esc(t.slice(4))}</h2>\n`;
+        continue;
+      }
+
       if (t.match(/^\*+\s+\*\*【.+】\*\*/)) {
         closeList();
-        body += `<div class="subh">${esc(t.replace(/^\*+\s+\*\*/, "").replace(/\*\*$/, ""))}</div>\n`;
+        const label = t.replace(/^\*+\s+\*\*/, "").replace(/\*\*$/, "");
+        body += `<div class="subh">${esc(label)}</div>\n`;
         continue;
       }
+
       if (t.match(/^\*+\s+/)) {
         if (!inList) { body += `<ul class="ul">\n`; inList = true; }
-        body += `<li>${bold(esc(t.replace(/^\*+\s+/, "")))}</li>\n`;
+        const content = t.replace(/^\*+\s+/, "").replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+        body += `<li>${esc(content).replace(/&lt;strong&gt;/g, "<strong>").replace(/&lt;\/strong&gt;/g, "</strong>")}</li>\n`;
         continue;
       }
+
       if (!t) { closeList(); continue; }
       closeList();
-      body += `<p class="p">${bold(esc(t))}</p>\n`;
+      body += `<p class="p">${esc(t)}</p>\n`;
     }
     closeList();
 
     const tasks = extracted && extracted.length > 0 ? extracted.filter(t2 => t2.selected !== false) : [];
     if (tasks.length > 0) {
-      body += `<h2 class="sh" style="margin-top:28px;">■ タスク一覧</h2>\n`;
-      body += `<table class="tt"><thead><tr><th>タスク</th><th>担当者</th><th>期日</th><th>優先度</th></tr></thead><tbody>`;
+      body += `<h2 class="sh" style="margin-top:20px;">■ タスク一覧</h2>\n`;
+      body += `<table class="tt"><thead><tr><th>タスク内容</th><th>担当者</th><th>期日</th></tr></thead><tbody>`;
       tasks.forEach(t2 => {
         const names = (t2.assigneeIds || []).map(aid => proj?.members.find(m => m.id === aid)?.name).filter(Boolean);
         const assignee = names.join("、") || t2.assignee || "—";
-        const priority = { high: "高", medium: "中", low: "低" }[t2.priority] || "—";
-        body += `<tr><td>${esc(t2.title)}</td><td>${esc(assignee)}</td><td>${esc(t2.dueDate || "—")}</td><td>${esc(priority)}</td></tr>`;
+        body += `<tr><td>${esc(t2.title)}</td><td>${esc(assignee)}</td><td>${esc(t2.dueDate || "—")}</td></tr>`;
       });
       body += `</tbody></table>`;
     }
 
     const css = `
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Hiragino Kaku Gothic ProN','Meiryo','Yu Gothic',sans-serif; font-size: 10.5pt; color: #1a1a1a; padding: 18mm 20mm; line-height: 1.9; }
-      .title { font-size: 18pt; font-weight: 900; color: #1e3a2f; border-bottom: 3px solid #1e3a2f; padding-bottom: 10px; margin-bottom: 14px; letter-spacing: 0.02em; }
-      .meta { background: #f4f7f5; border-left: 4px solid #4a7c59; padding: 10px 14px; border-radius: 4px; margin-bottom: 8px; font-size: 9.5pt; }
-      .mr { display: flex; gap: 8px; line-height: 1.7; }
-      .mk { font-weight: 700; color: #4a7c59; min-width: 80px; flex-shrink: 0; }
-      .mv { color: #333; }
-      .div { border: none; border-top: 1.5px solid #d0d8d3; margin: 12px 0; }
-      .sh { font-size: 12.5pt; font-weight: 800; color: #fff; background: #1e3a2f; padding: 6px 14px; border-radius: 4px; margin: 20px 0 10px; }
-      .subh { font-size: 10.5pt; font-weight: 700; color: #1e3a2f; border-left: 4px solid #4a7c59; padding-left: 10px; margin: 12px 0 6px; }
-      .ul { padding-left: 18px; margin: 4px 0 8px; }
-      .ul li { margin: 2px 0; font-size: 10pt; line-height: 1.7; }
+      body { font-family: 'Hiragino Kaku Gothic ProN','Meiryo','Yu Gothic',sans-serif; font-size: 10.5pt; color: #000; padding: 20mm 22mm; line-height: 1.8; }
+      .title { font-size: 15pt; font-weight: 700; text-align: center; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid #000; letter-spacing: 0.05em; }
+      table.meta { border-collapse: collapse; margin-bottom: 10px; font-size: 10pt; }
+      .mk { font-weight: 700; padding: 2px 12px 2px 0; white-space: nowrap; vertical-align: top; }
+      .mv { padding: 2px 0; vertical-align: top; }
+      .div { border: none; border-top: 1px solid #aaa; margin: 10px 0; }
+      .sh { font-size: 11pt; font-weight: 700; margin: 18px 0 8px; padding: 4px 0 4px 0; border-bottom: 1px solid #000; }
+      .subh { font-size: 10.5pt; font-weight: 700; margin: 10px 0 4px; }
+      .ul { padding-left: 0; margin: 4px 0 8px; list-style: none; }
+      .ul li { margin: 3px 0; font-size: 10pt; line-height: 1.7; padding-left: 1em; text-indent: -1em; }
+      .ul li::before { content: "・"; }
       .p { font-size: 10pt; margin: 3px 0 6px; line-height: 1.7; }
-      .tt { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 9.5pt; }
-      .tt th { background: #1e3a2f; color: #fff; padding: 8px 12px; text-align: left; font-weight: 700; }
-      .tt td { padding: 7px 12px; border-bottom: 1px solid #e2e8e4; vertical-align: top; line-height: 1.6; }
-      .tt tr:nth-child(even) td { background: #f4f7f5; }
-      @media print { body { padding: 12mm 15mm; } .sh { break-after: avoid; } }
+      .tt { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 10pt; }
+      .tt th { background: #f0f0f0; border: 1px solid #999; padding: 6px 10px; text-align: left; font-weight: 700; }
+      .tt td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top; line-height: 1.6; }
+      @media print { body { padding: 15mm 18mm; } .sh { break-after: avoid; } }
     `;
 
     win.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${esc(docTitle)}</title><style>${css}</style></head><body>${body}</body></html>`);
