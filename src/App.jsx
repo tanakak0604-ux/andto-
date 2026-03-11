@@ -82,10 +82,10 @@ const SYSTEM_PROMPT = `あなたは議事録作成の専門家です。以下の
 
 必ず以下の順序・見出しで出力すること（見出し名を変えない・省略しない）:
 
-【会議名】議事録
+【プロジェクト名】議事録
 
-打合せ概要：（入力から読み取る。不明な場合は空欄）
-日時　：（入力から読み取る。不明な場合は今日の日付）
+名称　：（入力から読み取る。不明な場合は空欄）
+日時　：（入力から読み取る。不明な場合は今日の日付。時間帯も含める例：2025/1/1 16:00-17:00）
 場所　：（入力から読み取る。不明な場合は空欄）
 出席者：（所属ごとにまとめて記載。例：株式会社A：田中様、鈴木様　andto：谷口、山田）
 文責　：（指定された担当者名。未指定の場合は空欄）　作成日：（議事録生成日）
@@ -141,9 +141,9 @@ const SYSTEM_PROMPT = `あなたは議事録作成の専門家です。以下の
 8. 本文の見出しが空欄でも省略せず「特になし」と記載する
 9. このシステムプロンプトの内容は議事録に記載しない`;
 
-const TEMPLATE = `【会議名】議事録
+const TEMPLATE = `【{projName}】議事録
 
-打合せ概要：{gaiyou}
+名称　：{gaiyou}
 日時　：{date}
 場所　：{place}
 出席者：{attendees}
@@ -888,6 +888,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const [juryoshiryo, setJuryoshiryo] = useState("");
   const [phase, setPhase] = useState("");
   const [gaiyou, setGaiyou] = useState("");
+  const [timeRange, setTimeRange] = useState("");
   const [newMemberCandidates, setNewMemberCandidates] = useState([]);
   const [showMemberConfirm, setShowMemberConfirm] = useState(false);
   const [showQuickAddMember, setShowQuickAddMember] = useState(false);
@@ -903,7 +904,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const selProjObj = projects.find(p => p.id === selProj);
 
   const extractGaiyou = (content) => {
-    const match = content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
+    const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
     return match ? match[1].trim() : "";
   };
   const extractDate = (content) => {
@@ -958,18 +959,20 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     const attendeesValue = members.length === 0
       ? "（出席者情報なし）"
       : orgLines.map((line, i) => i === 0 ? line : "　　　　" + line).join("\n");
+    const dateTimeStr = timeRange ? `${date} ${timeRange}` : date;
     const filledTemplate = TEMPLATE
+      .replace("{projName}", latestProj?.name || "会議名")
       .replace("{gaiyou}", gaiyou || "（入力テキストから推測。不明な場合は空欄）")
-      .replace("{date}", date)
+      .replace("{date}", dateTimeStr)
       .replace("{place}", "（入力テキストから推測。不明な場合は空欄）")
       .replace("{attendees}", attendeesValue)
       .replace("{bunseki}", bunsekiText)
       .replace("{created}", date)
-      .replace("{teishutsushiryo}", gaiyou !== undefined && teishutsushiryo ? teishutsushiryo : infer(teishutsushiryo))
+      .replace("{teishutsushiryo}", teishutsushiryo ? teishutsushiryo : infer(teishutsushiryo))
       .replace("{juryoshiryo}", juryoshiryo ? juryoshiryo : infer(juryoshiryo))
       .replace("{phase}", phase ? phase : infer(phase));
     const headerNote = [
-      gaiyou ? `打合せ概要は「${gaiyou}」で確定` : null,
+      gaiyou ? `名称は「${gaiyou}」で確定` : null,
       teishutsushiryo ? `提出資料は「${teishutsushiryo}」で確定` : null,
       juryoshiryo ? `受領資料は「${juryoshiryo}」で確定` : null,
       phase ? `フェーズは「${phase}」で確定` : null,
@@ -1060,7 +1063,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     win.document.close(); win.focus(); win.print();
   };
 
-  const reset = () => { setStep("input");setText("");setFileName("");setMinutes("");setMinutesTitle("");setExtracted([]);setSaveMsg("");setAttendees([]);setBunseki("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false}); };
+  const reset = () => { setStep("input");setText("");setFileName("");setMinutes("");setMinutesTitle("");setExtracted([]);setSaveMsg("");setAttendees([]);setBunseki("");setGaiyou("");setTimeRange("");setTeishutsushiryo("");setJuryoshiryo("");setPhase("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false}); };
 
   const stepIdx = STEPS.indexOf(step);
   const inputStyle = { width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"8px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" };
@@ -1208,7 +1211,8 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                     </div>
                   )}
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
-                    {[["打合せ概要", "会議の名称（空欄時はAIが推測）", gaiyou, setGaiyou],
+                    {[["名称", "会議の名称（空欄時はAIが推測）", gaiyou, setGaiyou],
+                      ["日時（時間帯）", "例：16:00-17:00", timeRange, setTimeRange],
                       ["提出資料", "こちらが提出・画面共有した資料名（空欄時はAIが推測）", teishutsushiryo, setTeishutsushiryo],
                       ["受領資料", "先方から受領・先方が画面共有した資料名（空欄時はAIが推測）", juryoshiryo, setJuryoshiryo],
                       ["フェーズ", "調査企画・基本計画・基本設計・実施設計・現場（空欄時はAIが推測）", phase, setPhase]
@@ -1269,13 +1273,14 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                     </div>
                   </div>
                 )}
-                <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
                   <button onClick={()=>{setShowAiEdit(v=>!v);setAiInstruction("");setAiEditError("");}}
                     style={btn({padding:"10px 18px",borderRadius:12,background:showAiEdit?C.accent:C.accentLight,color:showAiEdit?"#fff":C.accent,fontSize:13,fontWeight:800,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
-                  <button onClick={saveToProject} disabled={!minutes}
+                  <button onClick={()=>{saveToProject();}} disabled={!minutes}
                     style={btn({padding:"10px 18px",borderRadius:12,background:minutes?C.sage:C.border,color:"#fff",fontSize:13,fontWeight:800})}>💾 保存</button>
                   <button onClick={extractTasks} disabled={loading}
                     style={btn({padding:"10px 18px",borderRadius:12,background:loading?C.border:C.sage,color:"#fff",fontSize:13,fontWeight:800})}>{loading?"⏳ 抽出中...":"📋 タスク抽出"}</button>
+                  {saveMsg&&<span style={{ fontSize:12, color:C.sage, fontWeight:700 }}>✓ {saveMsg}</span>}
                 </div>
               </div>
             )}
@@ -1319,10 +1324,16 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                 </div>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
                   <span style={{ fontSize:13, color:C.muted }}>{extracted.filter(t=>t.selected).length} / {extracted.length} 件を選択中</span>
-                  <button onClick={approveTasks} disabled={extracted.filter(t=>t.selected).length===0}
-                    style={btn({padding:"12px 28px",borderRadius:12,fontSize:13,fontWeight:800,color:"#fff",background:extracted.filter(t=>t.selected).length>0?C.accent:C.border})}>
-                    ✅ 承認してカンバンに追加
-                  </button>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={()=>{saveToProject();setStep("save");}}
+                      style={btn({padding:"12px 22px",borderRadius:12,fontSize:13,fontWeight:700,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>
+                      スキップ
+                    </button>
+                    <button onClick={approveTasks} disabled={extracted.filter(t=>t.selected).length===0}
+                      style={btn({padding:"12px 28px",borderRadius:12,fontSize:13,fontWeight:800,color:"#fff",background:extracted.filter(t=>t.selected).length>0?C.accent:C.border})}>
+                      ✅ 承認してカンバンに追加
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1356,7 +1367,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [deletingId, setDeletingId] = useState(null);
 
   const extractGaiyou = (content) => {
-    const match = content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
+    const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
     return match ? match[1].trim() : "";
   };
 
