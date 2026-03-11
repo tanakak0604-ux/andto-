@@ -1495,6 +1495,13 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractMode, setExtractMode] = useState(false);
+  const [detailExtracted, setDetailExtracted] = useState([]);
+  const [detailExtractedDecisions, setDetailExtractedDecisions] = useState([]);
+  const [detailEditingDecId, setDetailEditingDecId] = useState(null);
+  const [detailEditingDecText, setDetailEditingDecText] = useState("");
+  const [approveMsg, setApproveMsg] = useState("");
 
   const extractGaiyou = (content) => {
     const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
@@ -1534,6 +1541,47 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const saveEdit = () => {
     onUpdate({ ...project, minutes: project.minutes.map(m => m.id===selectedId ? {...m,content:editContent} : m) });
     setIsEditing(false);
+  };
+
+  const extractBothFromSaved = async () => {
+    if (!selectedMinute) return;
+    setExtracting(true); setApproveMsg("");
+    try {
+      const [rawTasks, rawDecs] = await Promise.all([
+        callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録からアクションアイテムをJSON配列で抽出してください。\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたは空文字","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${selectedMinute.content}` }] }),
+        callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n形式: [{"text":"決定事項の内容"}]\nJSONのみ出力。\n\n${selectedMinute.content}` }] })
+      ]);
+      try { const t = JSON.parse(rawTasks.replace(/```json|```/g,"").trim()); setDetailExtracted(t.map(x=>({...x,id:uid(),status:"todo",desc:"",selected:true}))); }
+      catch { setDetailExtracted([{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false}]); }
+      try { const d = JSON.parse(rawDecs.replace(/```json|```/g,"").trim()); setDetailExtractedDecisions(d.map(x=>({...x,id:uid(),selected:true}))); }
+      catch { setDetailExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false}]); }
+    } catch {
+      setDetailExtracted([{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false}]);
+      setDetailExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false}]);
+    }
+    setExtracting(false); setExtractMode(true);
+  };
+
+  const approveBothFromSaved = () => {
+    const tasksToAdd = detailExtracted.filter(t=>t.selected).map(({selected,assignee,...t}) => {
+      let assigneeIds = [];
+      if (assignee && project.members) {
+        const member = project.members.find(m => m.name===assignee || assignee.includes(m.name) || m.name.includes(assignee));
+        if (member) assigneeIds = [member.id];
+      }
+      return {...t, assigneeIds};
+    });
+    const source = extractGaiyou(selectedMinute.content) || selectedMinute.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"");
+    const newDecisions = detailExtractedDecisions.filter(d=>d.selected).map(d=>({
+      id: d.id, text: d.text, source, createdAt: new Date().toISOString()
+    }));
+    onUpdate({
+      ...project,
+      tasks: [...project.tasks, ...tasksToAdd],
+      decisions: [...(project.decisions||[]), ...newDecisions],
+    });
+    setApproveMsg(`決定事項 ${newDecisions.length}件・タスク ${tasksToAdd.length}件を保存しました`);
+    setExtractMode(false);
   };
 
   const deleteMinute = (id) => {
@@ -1582,7 +1630,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
             })();
             const isSel = selectedId === m.id;
             return (
-              <div key={m.id} onClick={() => { setSelectedId(m.id); setIsEditing(false); setAiEditOpen(false); setDeletingId(null); }}
+              <div key={m.id} onClick={() => { setSelectedId(m.id); setIsEditing(false); setAiEditOpen(false); setDeletingId(null); setExtractMode(false); setApproveMsg(""); }}
                 style={{ padding:"10px 11px", borderRadius:10, marginBottom:5, cursor:"pointer", background:isSel?C.accentLight:"transparent", border:`1.5px solid ${isSel?C.accent:C.border}` }}>
                 <div style={{ fontSize:11, color:C.muted, marginBottom:2 }}>{dateStr}</div>
                 <div style={{ fontSize:12, fontWeight:700, color:C.text, lineHeight:1.4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
@@ -1613,16 +1661,26 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
                   </>
                 ) : (
                   <>
-                    <button onClick={()=>{ setIsEditing(true); setEditContent(selectedMinute.content); setAiEditOpen(false); }}
-                      style={btn({padding:"8px 18px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.text,fontSize:12,fontWeight:700})}>✏️ 編集</button>
-                    <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
-                      style={btn({padding:"8px 18px",borderRadius:8,background:aiEditOpen?C.accent:C.accentLight,color:aiEditOpen?"#fff":C.accent,fontSize:12,fontWeight:700,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
-                    <button onClick={()=>downloadPdf(selectedMinute)}
-                      style={btn({padding:"8px 18px",borderRadius:8,background:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
-                    <button onClick={()=>deleteMinute(selectedMinute.id)}
-                      style={btn({padding:"8px 14px",borderRadius:8,fontSize:12,color:deletingId===selectedMinute.id?"#fff":C.muted,background:deletingId===selectedMinute.id?C.accent:"transparent",border:`1.5px solid ${C.border}`})}>
-                      {deletingId===selectedMinute.id?"削除確認":"✕"}
-                    </button>
+                    {extractMode ? (
+                      <button onClick={()=>setExtractMode(false)} style={btn({padding:"8px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12})}>← プレビューに戻る</button>
+                    ) : (
+                      <>
+                        <button onClick={extractBothFromSaved} disabled={extracting}
+                          style={btn({padding:"8px 18px",borderRadius:8,background:extracting?"#B8CAED":"#5B7EC9",color:"#fff",fontSize:12,fontWeight:700})}>
+                          {extracting?"⏳ 抽出中...":"📋 決定事項・タスク抽出"}
+                        </button>
+                        <button onClick={()=>{ setIsEditing(true); setEditContent(selectedMinute.content); setAiEditOpen(false); }}
+                          style={btn({padding:"8px 18px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.text,fontSize:12,fontWeight:700})}>✏️ 編集</button>
+                        <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
+                          style={btn({padding:"8px 18px",borderRadius:8,background:aiEditOpen?C.accent:C.accentLight,color:aiEditOpen?"#fff":C.accent,fontSize:12,fontWeight:700,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
+                        <button onClick={()=>downloadPdf(selectedMinute)}
+                          style={btn({padding:"8px 18px",borderRadius:8,background:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
+                        <button onClick={()=>deleteMinute(selectedMinute.id)}
+                          style={btn({padding:"8px 14px",borderRadius:8,fontSize:12,color:deletingId===selectedMinute.id?"#fff":C.muted,background:deletingId===selectedMinute.id?C.accent:"transparent",border:`1.5px solid ${C.border}`})}>
+                          {deletingId===selectedMinute.id?"削除確認":"✕"}
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
               </div>
@@ -1640,7 +1698,97 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
                 </div>
               </div>
             )}
-            {isEditing ? (
+            {extractMode ? (
+              <div style={{ background:C.surface, borderRadius:16, padding:24, border:`1.5px solid ${C.border}` }}>
+                {approveMsg && <div style={{ background:C.sageLight, border:`1.5px solid ${C.sage}`, borderRadius:10, padding:"10px 14px", fontSize:12, color:C.sage, fontWeight:700, marginBottom:16 }}>✓ {approveMsg}</div>}
+                {/* 決定事項 */}
+                <div style={{ marginBottom:20 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                    <span style={{ fontSize:13, fontWeight:800, color:"#5B7EC9" }}>📋 決定事項</span>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={()=>setDetailExtractedDecisions(ds=>ds.map(d=>({...d,selected:true})))} style={btn({fontSize:11,color:C.sage,background:"transparent"})}>全選択</button>
+                      <button onClick={()=>setDetailExtractedDecisions(ds=>ds.map(d=>({...d,selected:false})))} style={btn({fontSize:11,color:C.muted,background:"transparent"})}>全解除</button>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {detailExtractedDecisions.map(d=>(
+                      <div key={d.id} style={{ background:d.selected?"#EEF3FF":C.bg, border:`1.5px solid ${d.selected?"#5B7EC9":C.border}`, borderRadius:10, overflow:"hidden" }}>
+                        <div onClick={()=>{ if(detailEditingDecId!==d.id) setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,selected:!x.selected}:x)); }}
+                          style={{ padding:"10px 14px", cursor:"pointer", display:"flex", alignItems:"flex-start", gap:10 }}>
+                          <div style={{ width:18, height:18, borderRadius:5, border:`2px solid ${d.selected?"#5B7EC9":C.border}`, background:d.selected?"#5B7EC9":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>
+                            {d.selected&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
+                          </div>
+                          {detailEditingDecId===d.id ? (
+                            <textarea value={detailEditingDecText} onChange={e=>setDetailEditingDecText(e.target.value)} rows={2} onClick={e=>e.stopPropagation()}
+                              style={{ flex:1, border:`1.5px solid #5B7EC9`, borderRadius:7, padding:"5px 8px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit" }} />
+                          ) : (
+                            <span style={{ flex:1, fontSize:12, color:C.text, lineHeight:1.6 }}>{d.text}</span>
+                          )}
+                          <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:4, flexShrink:0 }}>
+                            {detailEditingDecId===d.id ? (
+                              <>
+                                <button onClick={()=>{ setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,text:detailEditingDecText}:x)); setDetailEditingDecId(null); }}
+                                  style={btn({padding:"3px 8px",borderRadius:6,background:"#5B7EC9",color:"#fff",fontSize:11,fontWeight:700})}>保存</button>
+                                <button onClick={()=>setDetailEditingDecId(null)}
+                                  style={btn({padding:"3px 7px",borderRadius:6,background:"transparent",color:C.muted,fontSize:11,border:`1px solid ${C.border}`})}>取消</button>
+                              </>
+                            ) : (
+                              <button onClick={()=>{ setDetailEditingDecId(d.id); setDetailEditingDecText(d.text); }}
+                                style={btn({padding:"3px 7px",borderRadius:6,background:"transparent",color:C.muted,fontSize:11})}>✏️</button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* タスク */}
+                <div style={{ marginBottom:20 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                    <span style={{ fontSize:13, fontWeight:800, color:C.sage }}>✅ タスク</span>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={()=>setDetailExtracted(ts=>ts.map(t=>({...t,selected:true})))} style={btn({fontSize:11,color:C.sage,background:"transparent"})}>全選択</button>
+                      <button onClick={()=>setDetailExtracted(ts=>ts.map(t=>({...t,selected:false})))} style={btn({fontSize:11,color:C.muted,background:"transparent"})}>全解除</button>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {detailExtracted.map(t=>(
+                      <div key={t.id} style={{ background:t.selected?C.sageLight:C.bg, border:`1.5px solid ${t.selected?C.sage:C.border}`, borderRadius:10, overflow:"hidden" }}>
+                        <div onClick={()=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,selected:!x.selected}:x))}
+                          style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", cursor:"pointer" }}>
+                          <div style={{ width:18, height:18, borderRadius:5, border:`2px solid ${t.selected?C.sage:C.border}`, background:t.selected?C.sage:"transparent", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                            {t.selected&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
+                          </div>
+                          <span style={{ flex:1, fontSize:12, fontWeight:700, color:C.text }}>{t.title||"（タイトル未入力）"}</span>
+                          <PriorityDot p={t.priority} />
+                        </div>
+                        <div onClick={e=>e.stopPropagation()} style={{ padding:"0 12px 10px 40px", display:"flex", gap:6, flexWrap:"wrap" }}>
+                          <input value={t.title} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,title:e.target.value}:x))} placeholder="タスク名"
+                            style={{ flex:"2 1 140px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                          <input value={t.assignee||""} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,assignee:e.target.value}:x))} placeholder="👤 担当者"
+                            style={{ flex:"1 1 80px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                          <input type="date" value={t.dueDate||""} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,dueDate:e.target.value}:x))}
+                            style={{ flex:"1 1 110px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                          <select value={t.priority} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,priority:e.target.value}:x))}
+                            style={{ flex:"1 1 60px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }}>
+                            <option value="high">高</option><option value="medium">中</option><option value="low">低</option>
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
+                  <span style={{ fontSize:12, color:C.muted }}>
+                    決定事項 {detailExtractedDecisions.filter(d=>d.selected).length}/{detailExtractedDecisions.length}件　タスク {detailExtracted.filter(t=>t.selected).length}/{detailExtracted.length}件
+                  </span>
+                  <button onClick={approveBothFromSaved}
+                    style={btn({padding:"12px 28px",borderRadius:12,fontSize:13,fontWeight:800,color:"#fff",background:C.accent})}>
+                    ✅ 承認して保存
+                  </button>
+                </div>
+              </div>
+            ) : isEditing ? (
               <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
                 style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
             ) : (
