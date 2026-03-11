@@ -694,8 +694,8 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                 </div>
                 <div style={{ marginTop:"auto", display:"flex", flexDirection:"column", gap:6 }}>
                   <button onClick={() => onNavigate(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: p.color+"18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>タスクを開く →</button>
-                  <button onClick={() => onViewMinutes(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: C.accent+"18", color: C.accent, fontSize: 13, fontWeight: 700, border: `1.5px solid ${C.accent}40` })}>議事録を開く →</button>
-                  <button onClick={() => onViewDecisions(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: "#EEF3FF", color: "#5B7EC9", fontSize: 13, fontWeight: 700, border: `1.5px solid #B8CAED` })}>決定事項を開く →</button>
+                  <button onClick={() => onViewMinutes(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: p.color+"18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>議事録を開く →</button>
+                  <button onClick={() => onViewDecisions(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: p.color+"18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>決定事項を開く →</button>
                 </div>
               </div>
             </div>
@@ -841,23 +841,33 @@ function CalendarPage({ projects }) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
-  const allTasks = projects.flatMap(p => p.tasks.map(t => ({ ...t, pColor: p.color, pName: p.name })));
+  const [filterProj, setFilterProj] = useState("all");
+  const allTasks = projects.flatMap(p => p.tasks.map(t => ({ ...t, pColor: p.color, pName: p.name, pId: p.id })));
+  const filteredTasks = filterProj === "all" ? allTasks : allTasks.filter(t => t.pId === filterProj);
   const firstDayRaw = new Date(year, month, 1).getDay();
   const firstDay = firstDayRaw === 0 ? 6 : firstDayRaw - 1;
   const days = new Date(year, month+1, 0).getDate();
   const cells = [...Array(firstDay).fill(null), ...Array.from({ length: days }, (_,i) => i+1)];
   const byDate = {};
-  allTasks.forEach(t => { if (t.dueDate) { if (!byDate[t.dueDate]) byDate[t.dueDate]=[]; byDate[t.dueDate].push(t); }});
+  filteredTasks.forEach(t => { if (t.dueDate) { if (!byDate[t.dueDate]) byDate[t.dueDate]=[]; byDate[t.dueDate].push(t); }});
   const mn = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
   const dn = ["月","火","水","木","金","土","日"];
   const prev = () => month===0 ? (setMonth(11),setYear(y=>y-1)) : setMonth(m=>m-1);
   const next = () => month===11 ? (setMonth(0),setYear(y=>y+1)) : setMonth(m=>m+1);
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
         <button onClick={prev} style={btn({ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${C.border}`, background: "transparent", fontSize: 16, color: C.text })}>‹</button>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: C.text }}>{year}年 {mn[month]}</h2>
         <button onClick={next} style={btn({ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${C.border}`, background: "transparent", fontSize: 16, color: C.text })}>›</button>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: 8 }}>
+          <button onClick={() => setFilterProj("all")} style={btn({ padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: filterProj === "all" ? C.text : "transparent", color: filterProj === "all" ? "#fff" : C.muted, border: `1.5px solid ${filterProj === "all" ? C.text : C.border}` })}>全体</button>
+          {projects.map(p => (
+            <button key={p.id} onClick={() => setFilterProj(p.id)} style={btn({ padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: filterProj === p.id ? p.color : "transparent", color: filterProj === p.id ? "#fff" : C.muted, border: `1.5px solid ${filterProj === p.id ? p.color : C.border}`, display: "flex", alignItems: "center", gap: 5 })}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: p.color, display: "inline-block" }} />{p.name}
+            </button>
+          ))}
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 1, background: C.border, borderRadius: 16, overflow: "hidden" }}>
         {dn.map((d,i) => <div key={d} style={{ background: C.surface, padding: "10px 0", textAlign: "center", fontSize: 12, fontWeight: 800, color: i===5 ? C.done : i===6 ? C.accent : C.muted }}>{d}</div>)}
@@ -913,6 +923,9 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const [aiEditError, setAiEditError] = useState("");
   const [genError, setGenError] = useState("");
   const [showPdfConfirm, setShowPdfConfirm] = useState(false);
+  const [editingDecisionId, setEditingDecisionId] = useState(null);
+  const [editingDecisionText, setEditingDecisionText] = useState("");
+  const [prevStep, setPrevStep] = useState("tasks");
   const fileRef = useRef();
   const selProjObj = projects.find(p => p.id === selProj);
 
@@ -946,7 +959,17 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
         system: "あなたは議事録編集の専門家です。ユーザーの指示に従って議事録を修正してください。元の構成・フォーマットを極力維持し、指示された箇所のみ修正してください。修正後の議事録全文のみを出力してください。",
         messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。\n\n【修正指示】\n${aiInstruction}\n\n【議事録】\n${minutes}` }]
       });
-      if (revised) { setMinutes(revised); setShowAiEdit(false); setAiInstruction(""); }
+      if (revised) {
+        setMinutes(revised);
+        setShowAiEdit(false);
+        // Save learning pattern to project
+        const latestProj = projects.find(p => p.id === selProj);
+        if (latestProj && aiInstruction.trim()) {
+          const learning = [...(latestProj.minutesLearning || []), { instruction: aiInstruction.trim(), date: new Date().toISOString() }].slice(-10);
+          onUpdateProject({ ...latestProj, minutesLearning: learning });
+        }
+        setAiInstruction("");
+      }
     } catch(e) { setAiEditError(e.message); }
     setAiEditLoading(false);
   };
@@ -990,7 +1013,11 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       juryoshiryo ? `受領資料は「${juryoshiryo}」で確定` : null,
       phase ? `フェーズは「${phase}」で確定` : null,
     ].filter(Boolean).join("、");
-    const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${text}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
+    const learningPatterns = (latestProj?.minutesLearning || []).slice(-5);
+    const learningNote = learningPatterns.length > 0
+      ? `\n\n【過去の修正パターン（参考にして議事録の質を向上させてください）】\n${learningPatterns.map((l, i) => `${i+1}. ${l.instruction}`).join("\n")}`
+      : "";
+    const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}${learningNote}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${text}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
     try {
       const result = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: userContent }] });
       setMinutes(result);
@@ -1041,6 +1068,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     onAddTasks(selProj, tasks);
     saveToProject();
     setSavedType("tasks");
+    setPrevStep("tasks");
     setShowPdfConfirm(true);
     setStep("save");
   };
@@ -1064,6 +1092,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     onUpdateProject({...latestProj, decisions:[...(latestProj.decisions||[]),...newDecisions]});
     saveToProject();
     setSavedType("decisions");
+    setPrevStep("decisions");
     setStep("save");
   };
 
@@ -1363,7 +1392,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
                   <span style={{ fontSize:13, color:C.muted }}>{extracted.filter(t=>t.selected).length} / {extracted.length} 件を選択中</span>
                   <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={()=>{saveToProject();setStep("save");}}
+                    <button onClick={()=>{saveToProject();setPrevStep("tasks");setStep("save");}}
                       style={btn({padding:"12px 22px",borderRadius:12,fontSize:13,fontWeight:700,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>
                       スキップ
                     </button>
@@ -1389,19 +1418,39 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
                   {extractedDecisions.map(d=>(
-                    <div key={d.id} onClick={()=>setExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,selected:!x.selected}:x))}
-                      style={{ background:d.selected?"#EEF3FF":C.bg, border:`1.5px solid ${d.selected?"#5B7EC9":C.border}`, borderRadius:12, padding:"12px 16px", cursor:"pointer", display:"flex", alignItems:"flex-start", gap:12 }}>
-                      <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${d.selected?"#5B7EC9":C.border}`, background:d.selected?"#5B7EC9":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1 }}>
-                        {d.selected&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
+                    <div key={d.id} style={{ background:d.selected?"#EEF3FF":C.bg, border:`1.5px solid ${d.selected?"#5B7EC9":C.border}`, borderRadius:12, overflow:"hidden" }}>
+                      <div onClick={()=>{ if(editingDecisionId!==d.id) setExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,selected:!x.selected}:x)); }}
+                        style={{ padding:"12px 16px", cursor:"pointer", display:"flex", alignItems:"flex-start", gap:12 }}>
+                        <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${d.selected?"#5B7EC9":C.border}`, background:d.selected?"#5B7EC9":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1 }}>
+                          {d.selected&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
+                        </div>
+                        {editingDecisionId===d.id ? (
+                          <textarea value={editingDecisionText} onChange={e=>setEditingDecisionText(e.target.value)} rows={3} onClick={e=>e.stopPropagation()}
+                            style={{ flex:1, border:`1.5px solid #5B7EC9`, borderRadius:8, padding:"6px 10px", fontSize:13, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit", lineHeight:1.6 }} />
+                        ) : (
+                          <span style={{ flex:1, fontSize:13, color:C.text, lineHeight:1.6 }}>{d.text}</span>
+                        )}
+                        <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:4, flexShrink:0 }}>
+                          {editingDecisionId===d.id ? (
+                            <>
+                              <button onClick={()=>{ setExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,text:editingDecisionText}:x)); setEditingDecisionId(null); }}
+                                style={btn({padding:"4px 10px",borderRadius:7,background:"#5B7EC9",color:"#fff",fontSize:11,fontWeight:700})}>保存</button>
+                              <button onClick={()=>setEditingDecisionId(null)}
+                                style={btn({padding:"4px 8px",borderRadius:7,background:"transparent",color:C.muted,fontSize:11,border:`1px solid ${C.border}`})}>取消</button>
+                            </>
+                          ) : (
+                            <button onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); }}
+                              style={btn({padding:"4px 8px",borderRadius:7,background:"transparent",color:C.muted,fontSize:12})}>✏️</button>
+                          )}
+                        </div>
                       </div>
-                      <span style={{ fontSize:13, color:C.text, lineHeight:1.6 }}>{d.text}</span>
                     </div>
                   ))}
                 </div>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
                   <span style={{ fontSize:13, color:C.muted }}>{extractedDecisions.filter(d=>d.selected).length} / {extractedDecisions.length} 件を選択中</span>
                   <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={()=>{saveToProject();setStep("save");setSavedType("minutes");}}
+                    <button onClick={()=>{saveToProject();setPrevStep("decisions");setStep("save");setSavedType("minutes");}}
                       style={btn({padding:"12px 22px",borderRadius:12,fontSize:13,fontWeight:700,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>スキップ</button>
                     <button onClick={approveDecisions} disabled={extractedDecisions.filter(d=>d.selected).length===0}
                       style={btn({padding:"12px 28px",borderRadius:12,fontSize:13,fontWeight:800,color:"#fff",background:extractedDecisions.filter(d=>d.selected).length>0?"#5B7EC9":C.border})}>
@@ -1414,6 +1463,9 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
 
             {step==="save"&&(
               <div style={{ background:C.surface, borderRadius:16, padding:24, border:`1.5px solid ${C.border}` }}>
+                <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:8 }}>
+                  <button onClick={()=>setStep(prevStep)} style={btn({fontSize:12,color:C.muted,background:"transparent"})}>← 戻る</button>
+                </div>
                 <div style={{ textAlign:"center", marginBottom:24 }}>
                   <div style={{ fontSize:40, marginBottom:8 }}>🎉</div>
                   {savedType==="decisions" ? (
