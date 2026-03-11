@@ -1811,40 +1811,212 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
 }
 
 function DecisionsPage({ project, onBack, onUpdate }) {
-  const decisions = [...(project.decisions || [])].reverse();
-  const deleteDecision = (id) => {
-    onUpdate({ ...project, decisions: (project.decisions || []).filter(d => d.id !== id) });
+  const [currentFolderId, setCurrentFolderId] = useState(null);
+  const [editingDecisionId, setEditingDecisionId] = useState(null);
+  const [editingDecisionText, setEditingDecisionText] = useState("");
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [movingDecisionId, setMovingDecisionId] = useState(null);
+  const [renamingFolderId, setRenamingFolderId] = useState(null);
+  const [renamingFolderText, setRenamingFolderText] = useState("");
+
+  const folders = project.decisionFolders || [];
+  const allDecisions = (project.decisions || []).map(d => ({ ...d, folderId: d.folderId ?? null }));
+
+  const currentFolders = folders.filter(f => f.parentId === currentFolderId);
+  const currentDecisions = allDecisions.filter(d => d.folderId === currentFolderId);
+
+  const getBreadcrumb = (folderId) => {
+    if (!folderId) return [];
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) return [];
+    return [...getBreadcrumb(folder.parentId), folder];
   };
+  const breadcrumb = getBreadcrumb(currentFolderId);
+
+  const countDecisions = (folderId) => {
+    const direct = allDecisions.filter(d => d.folderId === folderId).length;
+    const subs = folders.filter(f => f.parentId === folderId);
+    return direct + subs.reduce((sum, f) => sum + countDecisions(f.id), 0);
+  };
+
+  const createFolder = () => {
+    if (!newFolderName.trim()) return;
+    const folder = { id: uid(), name: newFolderName.trim(), parentId: currentFolderId, createdAt: new Date().toISOString() };
+    onUpdate({ ...project, decisionFolders: [...folders, folder] });
+    setNewFolderName(""); setShowCreateFolder(false);
+  };
+
+  const deleteFolder = (folderId) => {
+    const newDecisions = allDecisions.map(d => d.folderId === folderId ? { ...d, folderId: currentFolderId } : d);
+    onUpdate({ ...project, decisionFolders: folders.filter(f => f.id !== folderId), decisions: newDecisions });
+  };
+
+  const renameFolder = () => {
+    if (!renamingFolderText.trim()) return;
+    onUpdate({ ...project, decisionFolders: folders.map(f => f.id === renamingFolderId ? { ...f, name: renamingFolderText.trim() } : f) });
+    setRenamingFolderId(null);
+  };
+
+  const moveDecision = (decisionId, targetFolderId) => {
+    onUpdate({ ...project, decisions: allDecisions.map(d => d.id === decisionId ? { ...d, folderId: targetFolderId } : d) });
+    setMovingDecisionId(null);
+  };
+
+  const saveEditDecision = () => {
+    onUpdate({ ...project, decisions: allDecisions.map(d => d.id === editingDecisionId ? { ...d, text: editingDecisionText } : d) });
+    setEditingDecisionId(null);
+  };
+
+  const deleteDecision = (id) => {
+    onUpdate({ ...project, decisions: allDecisions.filter(d => d.id !== id) });
+  };
+
   return (
     <div style={{ overflowY:"auto", height:"calc(100vh - 52px)", background:C.bg }}>
-      <div style={{ padding:24, maxWidth:960, margin:"0 auto" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
-          <button onClick={onBack} style={btn({fontSize:13,color:C.muted,background:"transparent",padding:"4px 8px",border:`1px solid ${C.border}`,borderRadius:8})}>← 戻る</button>
+      {/* 移動モーダル */}
+      {movingDecisionId && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:300 }} onClick={()=>setMovingDecisionId(null)}>
+          <div style={{ background:C.surface, borderRadius:16, padding:24, width:380, maxWidth:"90vw", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontSize:14, fontWeight:800, color:C.text, marginBottom:14 }}>📁 フォルダへ移動</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:5, maxHeight:300, overflowY:"auto", marginBottom:14 }}>
+              <button onClick={()=>moveDecision(movingDecisionId, null)}
+                style={btn({ padding:"9px 14px", borderRadius:8, border:`1.5px solid ${C.border}`, background:C.bg, color:C.text, fontSize:12, fontWeight:700, textAlign:"left" })}>
+                📁 ルート（未分類）
+              </button>
+              {folders.map(f => (
+                <button key={f.id} onClick={()=>moveDecision(movingDecisionId, f.id)}
+                  style={btn({ padding:"9px 14px", borderRadius:8, border:`1.5px solid ${C.border}`, background:C.bg, color:C.text, fontSize:12, textAlign:"left" })}>
+                  📁 {getBreadcrumb(f.parentId).map(b=>b.name).concat(f.name).join(" › ")}
+                </button>
+              ))}
+            </div>
+            <button onClick={()=>setMovingDecisionId(null)} style={btn({ padding:"8px 18px", borderRadius:8, border:`1.5px solid ${C.border}`, background:"transparent", color:C.muted, fontSize:12, fontWeight:700 })}>キャンセル</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ padding:24, maxWidth:1000, margin:"0 auto" }}>
+        {/* ヘッダー */}
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
+          <button onClick={onBack} style={btn({ fontSize:13, color:C.muted, background:"transparent", padding:"4px 8px", border:`1px solid ${C.border}`, borderRadius:8 })}>← 戻る</button>
           <h2 style={{ fontSize:18, fontWeight:900, color:C.text, margin:0, display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ width:10, height:10, borderRadius:"50%", background:project.color, display:"inline-block" }} />
             {project.name}　決定事項
           </h2>
-          <span style={{ fontSize:12, color:C.muted, background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:"2px 10px", fontWeight:700 }}>{decisions.length}件</span>
+          <span style={{ fontSize:12, color:C.muted, background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:"2px 10px", fontWeight:700 }}>{allDecisions.length}件</span>
+          <button onClick={()=>{ setShowCreateFolder(v=>!v); setNewFolderName(""); }}
+            style={btn({ marginLeft:"auto", padding:"7px 14px", borderRadius:10, border:`1.5px solid ${showCreateFolder?C.sage:C.border}`, background:showCreateFolder?C.sage:"transparent", color:showCreateFolder?"#fff":C.muted, fontSize:12, fontWeight:700 })}>
+            📁 フォルダを作成
+          </button>
         </div>
-        {decisions.length === 0 ? (
-          <div style={{ textAlign:"center", padding:"80px 0", color:C.muted }}>
-            <div style={{ fontSize:40, marginBottom:14 }}>📋</div>
-            <div style={{ fontSize:15, fontWeight:700, marginBottom:8 }}>決定事項がまだありません</div>
-            <div style={{ fontSize:12 }}>「✨ 議事録作成」タブから議事録を生成し、決定事項を抽出・保存できます。</div>
+
+        {/* フォルダ作成フォーム */}
+        {showCreateFolder && (
+          <div style={{ background:C.surface, borderRadius:12, padding:12, border:`1.5px solid ${C.sage}`, marginBottom:14, display:"flex", gap:8, alignItems:"center" }}>
+            <input autoFocus value={newFolderName} onChange={e=>setNewFolderName(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter") createFolder(); if(e.key==="Escape"){ setShowCreateFolder(false); setNewFolderName(""); }}}
+              placeholder={currentFolderId ? `「${breadcrumb[breadcrumb.length-1]?.name}」内のフォルダ名` : "フォルダ名を入力"}
+              style={{ flex:1, border:`1.5px solid ${C.border}`, borderRadius:8, padding:"7px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none" }} />
+            <button onClick={createFolder} style={btn({ padding:"7px 18px", borderRadius:8, background:newFolderName.trim()?C.sage:C.border, color:"#fff", fontSize:12, fontWeight:700 })}>作成</button>
+            <button onClick={()=>{ setShowCreateFolder(false); setNewFolderName(""); }} style={btn({ padding:"7px 12px", borderRadius:8, border:`1px solid ${C.border}`, background:"transparent", color:C.muted, fontSize:12 })}>取消</button>
+          </div>
+        )}
+
+        {/* パンくずリスト */}
+        <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:18, flexWrap:"wrap", background:C.surface, borderRadius:10, padding:"8px 14px", border:`1px solid ${C.border}` }}>
+          <button onClick={()=>setCurrentFolderId(null)}
+            style={btn({ fontSize:12, fontWeight:700, color:currentFolderId===null?project.color:C.muted, background:"transparent", padding:"2px 6px", textDecoration:currentFolderId===null?"none":"underline" })}>
+            ルート
+          </button>
+          {breadcrumb.map((f, i) => (
+            <React.Fragment key={f.id}>
+              <span style={{ color:C.muted, fontSize:13, fontWeight:300 }}>›</span>
+              <button onClick={()=>setCurrentFolderId(f.id)}
+                style={btn({ fontSize:12, fontWeight:700, color:i===breadcrumb.length-1?project.color:C.muted, background:"transparent", padding:"2px 6px", textDecoration:i===breadcrumb.length-1?"none":"underline" })}>
+                {f.name}
+              </button>
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* コンテンツ */}
+        {currentFolders.length === 0 && currentDecisions.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"60px 0", color:C.muted }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>{currentFolderId ? "📁" : "📋"}</div>
+            <div style={{ fontSize:14, fontWeight:700, marginBottom:6 }}>{currentFolderId ? "このフォルダは空です" : "決定事項がまだありません"}</div>
+            {!currentFolderId && <div style={{ fontSize:12 }}>「✨ 議事録作成」タブから議事録を生成し、決定事項を抽出・保存できます。</div>}
           </div>
         ) : (
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:14 }}>
-            {decisions.map(d => (
-              <div key={d.id} style={{ background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:14, padding:18, boxShadow:"0 2px 8px rgba(0,0,0,0.05)" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-                  <div style={{ width:8, height:8, borderRadius:"50%", background:project.color, marginTop:5, flexShrink:0 }} />
-                  <button onClick={()=>deleteDecision(d.id)} style={btn({color:C.muted,background:"transparent",fontSize:15,lineHeight:1})}>✕</button>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:12 }}>
+            {/* フォルダ */}
+            {currentFolders.map(f => {
+              const count = countDecisions(f.id);
+              return (
+                <div key={f.id} onClick={()=>setCurrentFolderId(f.id)}
+                  style={{ background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:14, padding:16, boxShadow:"0 2px 8px rgba(0,0,0,0.05)", cursor:"pointer" }}>
+                  {renamingFolderId === f.id ? (
+                    <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:6, alignItems:"center" }}>
+                      <input autoFocus value={renamingFolderText} onChange={e=>setRenamingFolderText(e.target.value)}
+                        onKeyDown={e=>{ if(e.key==="Enter") renameFolder(); if(e.key==="Escape") setRenamingFolderId(null); }}
+                        style={{ flex:1, border:`1.5px solid ${C.sage}`, borderRadius:7, padding:"5px 9px", fontSize:13, background:C.bg, color:C.text, outline:"none" }} />
+                      <button onClick={renameFolder} style={btn({ padding:"4px 10px", borderRadius:7, background:C.sage, color:"#fff", fontSize:11, fontWeight:700 })}>保存</button>
+                      <button onClick={()=>setRenamingFolderId(null)} style={btn({ padding:"4px 8px", borderRadius:7, background:"transparent", color:C.muted, fontSize:11, border:`1px solid ${C.border}` })}>取消</button>
+                    </div>
+                  ) : (
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:0 }}>
+                        <span style={{ fontSize:20 }}>📁</span>
+                        <span style={{ fontSize:13, fontWeight:800, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</span>
+                      </div>
+                      <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:2, flexShrink:0, marginLeft:4 }}>
+                        <button onClick={()=>{ setRenamingFolderId(f.id); setRenamingFolderText(f.name); }}
+                          style={btn({ padding:"3px 6px", borderRadius:6, background:"transparent", color:C.muted, fontSize:11 })}>✏️</button>
+                        <button onClick={()=>deleteFolder(f.id)}
+                          style={btn({ padding:"3px 6px", borderRadius:6, background:"transparent", color:C.muted, fontSize:13 })}>✕</button>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:11, color:"#5B7EC9", background:"#EEF3FF", borderRadius:20, padding:"2px 10px", fontWeight:700 }}>{count}件</span>
+                    <span style={{ fontSize:11, color:C.muted }}>クリックして開く →</span>
+                  </div>
                 </div>
-                <p style={{ fontSize:13, color:C.text, lineHeight:1.75, margin:"0 0 14px", fontWeight:500 }}>{d.text}</p>
-                <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                  <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>📝 {d.source}</span>
-                  <span style={{ fontSize:10, color:C.muted }}>{new Date(d.createdAt).toLocaleDateString("ja-JP")}</span>
-                </div>
+              );
+            })}
+            {/* 決定事項カード */}
+            {currentDecisions.map(d => (
+              <div key={d.id} style={{ background:C.surface, border:`1.5px solid ${editingDecisionId===d.id?project.color:C.border}`, borderRadius:14, padding:16, boxShadow:"0 2px 8px rgba(0,0,0,0.05)" }}>
+                {editingDecisionId === d.id ? (
+                  <>
+                    <textarea value={editingDecisionText} onChange={e=>setEditingDecisionText(e.target.value)} rows={4} autoFocus
+                      style={{ width:"100%", border:`1.5px solid ${project.color}`, borderRadius:8, padding:"8px 10px", fontSize:13, background:C.bg, color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit", lineHeight:1.7, marginBottom:8 }} />
+                    <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
+                      <button onClick={()=>setEditingDecisionId(null)} style={btn({ padding:"5px 12px", borderRadius:7, border:`1px solid ${C.border}`, background:"transparent", color:C.muted, fontSize:12 })}>取消</button>
+                      <button onClick={saveEditDecision} style={btn({ padding:"5px 14px", borderRadius:7, background:project.color, color:"#fff", fontSize:12, fontWeight:700 })}>保存</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:project.color, marginTop:5, flexShrink:0 }} />
+                      <div style={{ display:"flex", gap:3 }}>
+                        <button onClick={()=>setMovingDecisionId(d.id)} title="フォルダへ移動"
+                          style={btn({ color:C.muted, background:"transparent", fontSize:12, padding:"2px 5px" })}>📁</button>
+                        <button onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); }}
+                          style={btn({ color:C.muted, background:"transparent", fontSize:12, padding:"2px 5px" })}>✏️</button>
+                        <button onClick={()=>deleteDecision(d.id)}
+                          style={btn({ color:C.muted, background:"transparent", fontSize:14, padding:"2px 5px" })}>✕</button>
+                      </div>
+                    </div>
+                    <p onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); }}
+                      style={{ fontSize:13, color:C.text, lineHeight:1.75, margin:"0 0 12px", fontWeight:500, cursor:"pointer" }}>{d.text}</p>
+                    <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>📝 {d.source}</span>
+                      <span style={{ fontSize:10, color:C.muted }}>{new Date(d.createdAt).toLocaleDateString("ja-JP")}</span>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
