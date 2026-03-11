@@ -655,9 +655,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                 )}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => onNavigate(p.id)} style={btn({ flex: 1, padding: "9px 0", borderRadius: 10, background: p.color+"18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>カンバンを開く →</button>
-                  <button onClick={() => onViewMinutes(p.id)} style={btn({ padding: "9px 14px", borderRadius: 10, background: C.bg, color: C.muted, fontSize: 12, fontWeight: 700, border: `1.5px solid ${C.border}`, position: "relative" })}>
-                    📝{(p.minutes||[]).length > 0 && <span style={{ position: "absolute", top: -4, right: -4, background: C.accent, color: "#fff", borderRadius: "50%", width: 16, height: 16, fontSize: 9, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center" }}>{p.minutes.length}</span>}
-                  </button>
+                  <button onClick={() => onViewMinutes(p.id)} style={btn({ flex: 1, padding: "9px 0", borderRadius: 10, background: C.accent+"18", color: C.accent, fontSize: 13, fontWeight: 700, border: `1.5px solid ${C.accent}40` })}>議事録を開く →</button>
                 </div>
               </div>
             </div>
@@ -872,15 +870,8 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const [aiEditError, setAiEditError] = useState("");
   const [genError, setGenError] = useState("");
   const [showPdfConfirm, setShowPdfConfirm] = useState(false);
-  const [viewMinute, setViewMinute] = useState(null);
-  const [isEditingView, setIsEditingView] = useState(false);
-  const [viewEditContent, setViewEditContent] = useState("");
   const fileRef = useRef();
   const selProjObj = projects.find(p => p.id === selProj);
-
-  const allMinutes = projects
-    .flatMap(p => (p.minutes||[]).map(m => ({...m, projName: p.name, projColor: p.color, projId: p.id})))
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const extractGaiyou = (content) => {
     const match = content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
@@ -993,8 +984,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       return {...t, assigneeIds};
     });
     onAddTasks(selProj, tasks);
-    const saved = saveToProject();
-    if (saved) setViewMinute(saved);
+    saveToProject();
     setShowPdfConfirm(true);
     setStep("save");
   };
@@ -1009,25 +999,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     return {...entry, projName: latestProj.name, projColor: latestProj.color, projId: latestProj.id};
   };
 
-  const saveViewEdit = () => {
-    const proj = projects.find(p => p.id === viewMinute.projId);
-    if (!proj) return;
-    onUpdateProject({...proj, minutes: proj.minutes.map(m => m.id===viewMinute.id ? {...m, content:viewEditContent} : m)});
-    setViewMinute({...viewMinute, content:viewEditContent});
-    setIsEditingView(false);
-  };
-
   const PDF_CSS = `* { box-sizing: border-box; margin: 0; padding: 0; } @page { size: A4; margin: 20mm 20mm 25mm 20mm; } body { font-family: 'Yu Gothic','游ゴシック','YuGothic','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; font-size: 10pt; color: #000; padding: 20mm 20mm 25mm 20mm; line-height: 1.75; width: 210mm; min-height: 297mm; } .title { font-size: 14pt; font-weight: 700; text-align: left; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 2px solid #000; letter-spacing: 0.05em; } table.meta { border-collapse: collapse; margin-bottom: 8px; font-size: 9.5pt; } .mk { font-weight: 700; padding: 1px 10px 1px 0; white-space: nowrap; vertical-align: top; } .mv { padding: 1px 0; vertical-align: top; } .div { border: none; border-top: 1px solid #aaa; margin: 8px 0; } .sh { font-size: 10.5pt; font-weight: 700; margin: 14px 0 6px; padding: 3px 0; border-bottom: 1px solid #000; } .subh { font-size: 10pt; font-weight: 700; margin: 8px 0 3px; } .ul { padding-left: 0; margin: 3px 0 6px; list-style: none; } .ul li { margin: 2px 0; font-size: 9.5pt; line-height: 1.7; padding-left: 1em; text-indent: -1em; } .ul li::before { content: "・"; } .p { font-size: 9.5pt; margin: 2px 0 5px; line-height: 1.7; } .tt { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 9.5pt; } .tt th { background: #f0f0f0; border: 1px solid #999; padding: 5px 8px; text-align: left; font-weight: 700; } .tt td { padding: 5px 8px; border: 1px solid #ccc; vertical-align: top; line-height: 1.6; } @media print { body { padding: 0; } .sh { break-after: avoid; } }`;
-
-  const downloadPdfForMinute = (m) => {
-    const proj = projects.find(p => p.id === m.projId);
-    const docTitle = `${proj?.name||""} ${m.title}`.trim();
-    const win = window.open("", "_blank");
-    if (!win) return;
-    const body = buildMinutesBody(m.content);
-    win.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${escapeHtml(docTitle)}</title><style>${PDF_CSS}</style></head><body>${body}</body></html>`);
-    win.document.close(); win.focus(); win.print();
-  };
 
   const downloadMinutesPdf = () => {
     if (!minutes) return;
@@ -1055,7 +1027,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const inputStyle = { width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"8px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" };
 
   return (
-    <div style={{ display:"flex", height:"calc(100vh - 52px)", overflow:"hidden" }}>
+    <div style={{ overflowY:"auto", height:"calc(100vh - 52px)", background:C.bg }}>
       {/* モーダル */}
       {showPdfConfirm && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:350 }} onClick={()=>setShowPdfConfirm(false)}>
@@ -1109,83 +1081,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
         </div>
       )}
 
-      {/* 左カラム：議事録一覧 */}
-      <div style={{ width:270, borderRight:`1.5px solid ${C.border}`, display:"flex", flexDirection:"column", background:C.surface, flexShrink:0 }}>
-        <div style={{ padding:"14px 14px 10px", borderBottom:`1px solid ${C.border}` }}>
-          <button onClick={()=>{ setViewMinute(null); if(step==="save") reset(); }}
-            style={btn({width:"100%", padding:"9px", borderRadius:10, background:C.accent, color:"#fff", fontSize:13, fontWeight:800, textAlign:"center"})}>
-            ＋ 新規作成
-          </button>
-        </div>
-        <div style={{ flex:1, overflowY:"auto", padding:"8px 10px" }}>
-          {allMinutes.length===0 ? (
-            <div style={{ textAlign:"center", padding:"40px 12px", color:C.muted, fontSize:12 }}>
-              <div style={{ fontSize:28, marginBottom:8 }}>📝</div>保存済みの議事録はありません
-            </div>
-          ) : allMinutes.map(m => {
-            const gaiyou = extractGaiyou(m.content);
-            const dateStr = extractDate(m.content) || new Date(m.createdAt).toLocaleDateString("ja-JP");
-            const isSel = viewMinute?.id === m.id;
-            return (
-              <div key={m.id} onClick={()=>{ setViewMinute(m); setIsEditingView(false); }}
-                style={{ padding:"10px 11px", borderRadius:10, marginBottom:5, cursor:"pointer", background:isSel?C.accentLight:"transparent", border:`1.5px solid ${isSel?C.accent:C.border}` }}>
-                <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:3 }}>
-                  <div style={{ width:6, height:6, borderRadius:"50%", background:m.projColor, flexShrink:0 }} />
-                  <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>{m.projName}</span>
-                </div>
-                <div style={{ fontSize:12, fontWeight:700, color:C.text, lineHeight:1.4, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                  {gaiyou || m.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"")}
-                </div>
-                <div style={{ fontSize:11, color:C.muted }}>{dateStr}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 右カラム */}
-      <div style={{ flex:1, overflowY:"auto", background:C.bg }}>
-        {viewMinute ? (
-          /* プレビュー／編集モード */
-          <div style={{ padding:28, maxWidth:820, margin:"0 auto" }}>
-            <style dangerouslySetInnerHTML={{ __html: PREVIEW_CSS }} />
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18, gap:12 }}>
-              <div style={{ minWidth:0 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
-                  <div style={{ width:8, height:8, borderRadius:"50%", background:viewMinute.projColor }} />
-                  <span style={{ fontSize:11, color:C.muted }}>{viewMinute.projName}</span>
-                </div>
-                <div style={{ fontSize:15, fontWeight:900, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                  {extractGaiyou(viewMinute.content) || viewMinute.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"")}
-                </div>
-              </div>
-              <div style={{ display:"flex", gap:8, flexShrink:0 }}>
-                {isEditingView ? (
-                  <>
-                    <button onClick={saveViewEdit} style={btn({padding:"8px 18px",borderRadius:8,background:C.sage,color:"#fff",fontSize:12,fontWeight:700})}>💾 保存</button>
-                    <button onClick={()=>setIsEditingView(false)} style={btn({padding:"8px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12})}>キャンセル</button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={()=>{ setIsEditingView(true); setViewEditContent(viewMinute.content); }}
-                      style={btn({padding:"8px 18px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.text,fontSize:12,fontWeight:700})}>✏️ 編集</button>
-                    <button onClick={()=>downloadPdfForMinute(viewMinute)}
-                      style={btn({padding:"8px 18px",borderRadius:8,background:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
-                  </>
-                )}
-              </div>
-            </div>
-            {isEditingView ? (
-              <textarea value={viewEditContent} onChange={e=>setViewEditContent(e.target.value)} rows={30}
-                style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
-            ) : (
-              <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}` }}
-                dangerouslySetInnerHTML={{ __html: buildMinutesBody(viewMinute.content) }} />
-            )}
-          </div>
-        ) : (
-          /* 生成フロー */
-          <div style={{ padding:24, maxWidth:760, margin:"0 auto" }}>
+      <div style={{ padding:24, maxWidth:760, margin:"0 auto" }}>
             <div style={{ display:"flex", alignItems:"center", marginBottom:20 }}>
               {STEP_LABELS.map((lbl,i)=>(
                 <div key={i} style={{ display:"flex", alignItems:"center", flex:i<STEP_LABELS.length-1?1:"none" }}>
@@ -1337,7 +1233,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                 <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                   <button onClick={()=>{setShowAiEdit(v=>!v);setAiInstruction("");setAiEditError("");}}
                     style={btn({padding:"10px 18px",borderRadius:12,background:showAiEdit?C.accent:C.accentLight,color:showAiEdit?"#fff":C.accent,fontSize:13,fontWeight:800,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
-                  <button onClick={()=>{ const saved=saveToProject(); if(saved) setViewMinute(saved); }} disabled={!minutes}
+                  <button onClick={saveToProject} disabled={!minutes}
                     style={btn({padding:"10px 18px",borderRadius:12,background:minutes?C.sage:C.border,color:"#fff",fontSize:13,fontWeight:800})}>💾 保存</button>
                   <button onClick={extractTasks} disabled={loading}
                     style={btn({padding:"10px 18px",borderRadius:12,background:loading?C.border:C.sage,color:"#fff",fontSize:13,fontWeight:800})}>{loading?"⏳ 抽出中...":"📋 タスク抽出"}</button>
@@ -1401,50 +1297,28 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                 </div>
                 {saveMsg&&<div style={{ background:C.sageLight, border:`1.5px solid ${C.sage}`, borderRadius:10, padding:"10px 14px", fontSize:12, color:C.sage, fontWeight:600, marginBottom:16 }}>✓ {saveMsg}</div>}
                 <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
-                  <button onClick={()=>{ reset(); setViewMinute(null); }} style={btn({padding:"10px 22px",borderRadius:10,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:13,fontWeight:700})}>＋ 新しい議事録を作成</button>
+                  <button onClick={reset} style={btn({padding:"10px 22px",borderRadius:10,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:13,fontWeight:700})}>＋ 新しい議事録を作成</button>
                 </div>
               </div>
             )}
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
 function MinutesDetailPage({ project, onBack, onUpdate }) {
-  const [editingId, setEditingId] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
-  const [aiEditId, setAiEditId] = useState(null);
+  const [aiEditOpen, setAiEditOpen] = useState(false);
   const [aiInstruction, setAiInstruction] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
 
-  const runAiEdit = async (m) => {
-    if (!aiInstruction.trim()) return;
-    setAiLoading(true); setAiError("");
-    try {
-      const revised = await callClaude({
-        system: "あなたは議事録編集の専門家です。ユーザーの指示に従って議事録を修正してください。元の構成・フォーマットを極力維持し、指示された箇所のみ修正してください。修正後の議事録全文のみを出力してください。",
-        messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。\n\n【修正指示】\n${aiInstruction}\n\n【議事録】\n${m.content}` }]
-      });
-      if (revised) {
-        onUpdate({ ...project, minutes: project.minutes.map(x => x.id===m.id ? {...x,content:revised} : x) });
-        setAiEditId(null); setAiInstruction("");
-      }
-    } catch(e) { setAiError("エラー："+e.message); }
-    setAiLoading(false);
-  };
-
-  const saveEdit = () => {
-    onUpdate({ ...project, minutes: project.minutes.map(m => m.id===editingId ? {...m,content:editContent} : m) });
-    setEditingId(null);
-  };
-
-  const deleteMinute = (id) => {
-    if (deletingId===id) { onUpdate({...project,minutes:project.minutes.filter(m=>m.id!==id)}); setDeletingId(null); }
-    else setDeletingId(id);
+  const extractGaiyou = (content) => {
+    const match = content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
+    return match ? match[1].trim() : "";
   };
 
   const extractMeetingDate = (content) => {
@@ -1459,65 +1333,150 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
     return db-da;
   });
 
+  const selectedMinute = minutes.find(m => m.id === selectedId);
+
+  const runAiEdit = async () => {
+    if (!aiInstruction.trim() || !selectedMinute) return;
+    setAiLoading(true); setAiError("");
+    try {
+      const revised = await callClaude({
+        system: "あなたは議事録編集の専門家です。ユーザーの指示に従って議事録を修正してください。元の構成・フォーマットを極力維持し、指示された箇所のみ修正してください。修正後の議事録全文のみを出力してください。",
+        messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。\n\n【修正指示】\n${aiInstruction}\n\n【議事録】\n${selectedMinute.content}` }]
+      });
+      if (revised) {
+        onUpdate({ ...project, minutes: project.minutes.map(x => x.id===selectedId ? {...x,content:revised} : x) });
+        setAiEditOpen(false); setAiInstruction("");
+      }
+    } catch(e) { setAiError("エラー："+e.message); }
+    setAiLoading(false);
+  };
+
+  const saveEdit = () => {
+    onUpdate({ ...project, minutes: project.minutes.map(m => m.id===selectedId ? {...m,content:editContent} : m) });
+    setIsEditing(false);
+  };
+
+  const deleteMinute = (id) => {
+    if (deletingId===id) {
+      onUpdate({...project, minutes:project.minutes.filter(m=>m.id!==id)});
+      setDeletingId(null);
+      if (selectedId === id) setSelectedId(null);
+    } else setDeletingId(id);
+  };
+
+  const downloadPdf = (m) => {
+    const PDF_CSS = `* { box-sizing: border-box; margin: 0; padding: 0; } @page { size: A4; margin: 20mm 20mm 25mm 20mm; } body { font-family: 'Yu Gothic','游ゴシック','YuGothic','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; font-size: 10pt; color: #000; padding: 20mm 20mm 25mm 20mm; line-height: 1.75; width: 210mm; min-height: 297mm; } .title { font-size: 14pt; font-weight: 700; text-align: left; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 2px solid #000; letter-spacing: 0.05em; } table.meta { border-collapse: collapse; margin-bottom: 8px; font-size: 9.5pt; } .mk { font-weight: 700; padding: 1px 10px 1px 0; white-space: nowrap; vertical-align: top; } .mv { padding: 1px 0; vertical-align: top; } .div { border: none; border-top: 1px solid #aaa; margin: 8px 0; } .sh { font-size: 10.5pt; font-weight: 700; margin: 14px 0 6px; padding: 3px 0; border-bottom: 1px solid #000; } .subh { font-size: 10pt; font-weight: 700; margin: 8px 0 3px; } .ul { padding-left: 0; margin: 3px 0 6px; list-style: none; } .ul li { margin: 2px 0; font-size: 9.5pt; line-height: 1.7; padding-left: 1em; text-indent: -1em; } .ul li::before { content: "・"; } .p { font-size: 9.5pt; margin: 2px 0 5px; line-height: 1.7; } .tt { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 9.5pt; } .tt th { background: #f0f0f0; border: 1px solid #999; padding: 5px 8px; text-align: left; font-weight: 700; } .tt td { padding: 5px 8px; border: 1px solid #ccc; vertical-align: top; line-height: 1.6; } @media print { body { padding: 0; } .sh { break-after: avoid; } }`;
+    const docTitle = `${project.name} ${m.title}`.trim();
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const body = buildMinutesBody(m.content);
+    win.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${escapeHtml(docTitle)}</title><style>${PDF_CSS}</style></head><body>${body}</body></html>`);
+    win.document.close(); win.focus(); win.print();
+  };
+
   return (
-    <div style={{ padding:24, maxWidth:860, margin:"0 auto" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
-        <button onClick={onBack} style={btn({background:"transparent",color:C.muted,fontSize:13,fontWeight:700,padding:"6px 12px",borderRadius:8,border:`1.5px solid ${C.border}`})}>← 戻る</button>
-        <div style={{ width:12, height:12, borderRadius:"50%", background:project.color }} />
-        <h2 style={{ margin:0, fontSize:18, fontWeight:900, color:C.text }}>{project.name} — 議事録</h2>
-        <span style={{ fontSize:12, color:C.muted }}>{minutes.length}件</span>
-      </div>
-      {minutes.length===0&&<div style={{ textAlign:"center", padding:"60px 0", color:C.muted, fontSize:14 }}><div style={{ fontSize:40, marginBottom:12 }}>📝</div>議事録がまだ保存されていません</div>}
-      <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-        {minutes.map(m=>(
-          <div key={m.id} style={{ background:C.surface, borderRadius:16, border:`1.5px solid ${C.border}`, overflow:"hidden" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 18px", borderBottom:editingId===m.id?`1.5px solid ${C.border}`:"none" }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:project.color }} />
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
-                  <span style={{ fontSize:12, fontWeight:700, color:C.muted }}>{new Date(m.createdAt).toLocaleDateString("ja-JP")}</span>
-                  <span style={{ fontSize:14, fontWeight:800, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"")}</span>
+    <div style={{ display:"flex", height:"calc(100vh - 52px)", overflow:"hidden" }}>
+      {/* 左カラム：議事録一覧 */}
+      <div style={{ width:280, borderRight:`1.5px solid ${C.border}`, display:"flex", flexDirection:"column", background:C.surface, flexShrink:0 }}>
+        <div style={{ padding:"14px 16px 12px", borderBottom:`1px solid ${C.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+            <button onClick={onBack} style={btn({background:"transparent",color:C.muted,fontSize:12,fontWeight:700,padding:"4px 10px",borderRadius:8,border:`1.5px solid ${C.border}`})}>← 戻る</button>
+            <div style={{ display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:project.color, flexShrink:0 }} />
+              <span style={{ fontSize:13, fontWeight:800, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{project.name}</span>
+            </div>
+          </div>
+          <div style={{ fontSize:11, color:C.muted }}>{minutes.length}件の議事録</div>
+        </div>
+        <div style={{ flex:1, overflowY:"auto", padding:"8px 10px" }}>
+          {minutes.length===0 ? (
+            <div style={{ textAlign:"center", padding:"40px 12px", color:C.muted, fontSize:12 }}>
+              <div style={{ fontSize:28, marginBottom:8 }}>📝</div>
+              議事録がまだ保存されていません
+            </div>
+          ) : minutes.map(m => {
+            const gaiyou = extractGaiyou(m.content);
+            const dateStr = (() => {
+              const d = extractMeetingDate(m.content);
+              return d ? d.toLocaleDateString("ja-JP") : new Date(m.createdAt).toLocaleDateString("ja-JP");
+            })();
+            const isSel = selectedId === m.id;
+            return (
+              <div key={m.id} onClick={() => { setSelectedId(m.id); setIsEditing(false); setAiEditOpen(false); setDeletingId(null); }}
+                style={{ padding:"10px 11px", borderRadius:10, marginBottom:5, cursor:"pointer", background:isSel?C.accentLight:"transparent", border:`1.5px solid ${isSel?C.accent:C.border}` }}>
+                <div style={{ fontSize:11, color:C.muted, marginBottom:2 }}>{dateStr}</div>
+                <div style={{ fontSize:12, fontWeight:700, color:C.text, lineHeight:1.4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {gaiyou || m.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"")}
                 </div>
               </div>
-              <div style={{ display:"flex", gap:4 }}>
-                <button onClick={()=>editingId===m.id?saveEdit():setEditingId(m.id)||setEditContent(m.content)}
-                  style={btn({padding:"5px 12px",borderRadius:8,fontSize:12,fontWeight:700,background:editingId===m.id?C.sage:"transparent",color:editingId===m.id?"#fff":C.muted,border:`1.5px solid ${editingId===m.id?C.sage:C.border}`})}>
-                  {editingId===m.id?"💾 保存":"✏️ 編集"}
-                </button>
-                {editingId===m.id&&<button onClick={()=>setEditingId(null)} style={btn({padding:"5px 12px",borderRadius:8,fontSize:12,color:C.muted,border:`1.5px solid ${C.border}`,background:"transparent"})}>キャンセル</button>}
-                <button onClick={()=>{setAiEditId(aiEditId===m.id?null:m.id);setAiInstruction("");setAiError("");}}
-                  style={btn({padding:"5px 12px",borderRadius:8,fontSize:12,fontWeight:700,background:aiEditId===m.id?C.accent:"transparent",color:aiEditId===m.id?"#fff":C.accent,border:`1.5px solid ${C.accent}`})}>
-                  ✨ AI修正
-                </button>
-                <button onClick={()=>deleteMinute(m.id)}
-                  style={btn({padding:"5px 12px",borderRadius:8,fontSize:12,color:deletingId===m.id?"#fff":C.accent,background:deletingId===m.id?C.accent:"transparent",border:`1.5px solid ${C.accent}`})}>
-                  {deletingId===m.id?"確認":"✕"}
-                </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 右カラム：プレビュー／編集 */}
+      <div style={{ flex:1, overflowY:"auto", background:C.bg }}>
+        {selectedMinute ? (
+          <div style={{ padding:28, maxWidth:820, margin:"0 auto" }}>
+            <style dangerouslySetInnerHTML={{ __html: PREVIEW_CSS }} />
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18, gap:12 }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:15, fontWeight:900, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {extractGaiyou(selectedMinute.content) || selectedMinute.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"")}
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:8, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
+                {isEditing ? (
+                  <>
+                    <button onClick={saveEdit} style={btn({padding:"8px 18px",borderRadius:8,background:C.sage,color:"#fff",fontSize:12,fontWeight:700})}>💾 保存</button>
+                    <button onClick={()=>setIsEditing(false)} style={btn({padding:"8px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12})}>キャンセル</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={()=>{ setIsEditing(true); setEditContent(selectedMinute.content); setAiEditOpen(false); }}
+                      style={btn({padding:"8px 18px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.text,fontSize:12,fontWeight:700})}>✏️ 編集</button>
+                    <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
+                      style={btn({padding:"8px 18px",borderRadius:8,background:aiEditOpen?C.accent:C.accentLight,color:aiEditOpen?"#fff":C.accent,fontSize:12,fontWeight:700,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
+                    <button onClick={()=>downloadPdf(selectedMinute)}
+                      style={btn({padding:"8px 18px",borderRadius:8,background:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
+                    <button onClick={()=>deleteMinute(selectedMinute.id)}
+                      style={btn({padding:"8px 14px",borderRadius:8,fontSize:12,color:deletingId===selectedMinute.id?"#fff":C.muted,background:deletingId===selectedMinute.id?C.accent:"transparent",border:`1.5px solid ${C.border}`})}>
+                      {deletingId===selectedMinute.id?"削除確認":"✕"}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-            {aiEditId===m.id&&(
-              <div style={{ padding:"14px 18px", background:C.accentLight, borderBottom:`1.5px solid ${C.border}` }}>
+            {aiEditOpen && !isEditing && (
+              <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
                 <div style={{ fontSize:12, fontWeight:700, color:C.accent, marginBottom:8 }}>✨ AI修正指示</div>
                 <textarea value={aiInstruction} onChange={e=>setAiInstruction(e.target.value)} rows={3}
                   placeholder="例：決定事項をより明確に書き直してください"
                   style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
-                {aiError&&<div style={{ fontSize:12, color:C.accent, marginTop:6 }}>{aiError}</div>}
+                {aiError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>{aiError}</div>}
                 <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
-                  <button onClick={()=>{setAiEditId(null);setAiInstruction("");}} style={btn({padding:"6px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12,fontWeight:700})}>キャンセル</button>
-                  <button onClick={()=>runAiEdit(m)} disabled={aiLoading||!aiInstruction.trim()}
-                    style={btn({padding:"6px 18px",borderRadius:8,background:aiLoading||!aiInstruction.trim()?C.border:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>
-                    {aiLoading?"修正中...":"修正する"}
-                  </button>
+                  <button onClick={()=>{setAiEditOpen(false);setAiInstruction("");setAiError("");}} style={btn({padding:"6px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12,fontWeight:700})}>キャンセル</button>
+                  <button onClick={runAiEdit} disabled={aiLoading||!aiInstruction.trim()} style={btn({padding:"6px 18px",borderRadius:8,background:aiLoading||!aiInstruction.trim()?C.border:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>{aiLoading?"修正中...":"修正する"}</button>
                 </div>
               </div>
             )}
-            {editingId===m.id
-              ? <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={20}
-                  style={{ width:"100%", border:"none", outline:"none", padding:"16px 18px", fontSize:12, lineHeight:1.8, fontFamily:"monospace", background:C.bg, color:C.text, resize:"vertical", boxSizing:"border-box" }} />
-              : <pre style={{ margin:0, padding:"16px 18px", fontSize:12, lineHeight:1.8, color:C.text, whiteSpace:"pre-wrap", wordWrap:"break-word", fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif" }}>{m.content}</pre>
-            }
+            {isEditing ? (
+              <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
+                style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
+            ) : (
+              <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}` }}
+                dangerouslySetInnerHTML={{ __html: buildMinutesBody(selectedMinute.content) }} />
+            )}
           </div>
-        ))}
+        ) : (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:C.muted }}>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:40, marginBottom:12 }}>📄</div>
+              <div style={{ fontSize:14, fontWeight:700 }}>左の一覧から議事録を選択してください</div>
+              {minutes.length===0 && <div style={{ fontSize:12, marginTop:8, lineHeight:1.8 }}>まだ議事録が保存されていません。<br/>「✨ 議事録」タブから作成できます。</div>}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
