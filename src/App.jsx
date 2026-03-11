@@ -82,7 +82,7 @@ const SYSTEM_PROMPT = `あなたは議事録作成の専門家です。以下の
 
 必ず以下の順序・見出しで出力すること（見出し名を変えない・省略しない）:
 
-# 【会議名】議事録
+【会議名】議事録
 
 打合せ概要：（入力から読み取る。不明な場合は空欄）
 日時　：（入力から読み取る。不明な場合は今日の日付）
@@ -95,35 +95,38 @@ const SYSTEM_PROMPT = `あなたは議事録作成の専門家です。以下の
 
 ---
 
-### ■ 本日の会議目的・ゴール
-* ①（目的を箇条書き）
+■ 本日の会議目的・ゴール
+①（目的を記載）
 
 ---
 
-### ■ 議題 1：（議題名）
+■ 議題 1：（議題名）
 
-*   **【議論の内容】**
-    *   （発言内容。だ・である調）。（発言者名様）
-    *   **Q:** （質問内容）。（質問者名様）
-    *   **A:** （回答内容）。（回答者名様）
-*   **【決定事項】**
-    *   （決定内容。誰が・何を・いつまでに・どのように を明記）
-*   **【今後のタスク（ToDo）】**
-    *   ・（タスク内容）。担当：（担当者名）　期限：YYYY/MM/DD
-*   **【懸念事項・未確定事項】**
-    *   （懸念点）
+【議論の内容】
+・（発言内容。だ・である調）。（発言者名様）
+・Q：（質問内容）。（質問者名様）
+・A：（回答内容）。（回答者名様）
 
-（議題が複数ある場合は ### ■ 議題 2：, ### ■ 議題 3：... と繰り返す）
+【決定事項】
+・（決定内容。誰が・何を・いつまでに・どのように を明記）
+
+【今後のタスク（ToDo）】
+・（タスク内容）。担当：（担当者名）　期限：YYYY/MM/DD
+
+【懸念事項・未確定事項】
+・（懸念点）
+
+（議題が複数ある場合は ■ 議題 2：, ■ 議題 3：... と繰り返す）
 
 ---
 
-### ■ その他/備考
+■ その他/備考
 ・（補足事項）
 
-### ■ 次回会議予定
-*   日時：（不明な場合は「未定」）
-*   場所：
-*   主要議題：
+■ 次回会議予定
+- 日時：（不明な場合は「未定」）
+- 場所：
+- 主要議題：
 
 ---
 
@@ -191,12 +194,19 @@ function buildMinutesBody(content) {
   let body = "";
   let headerLines = [];
   let inHeader = true;
+  let titleDone = false;
   let inList = false;
   let inOther = false;
   const closeList = () => { if (inList) { body += "</ul>\n"; inList = false; } };
   for (const line of content.split("\n")) {
     const t = line.trim();
-    if (t.startsWith("# ")) { body += `<h1 class="title">${esc(t.slice(2))}</h1>\n`; continue; }
+    // Title: first non-empty line (handles both "# タイトル" and plain "タイトル")
+    if (!titleDone && inHeader && t && t !== "---") {
+      const titleText = t.startsWith("# ") ? t.slice(2) : t;
+      body += `<h1 class="title">${esc(titleText)}</h1>\n`;
+      titleDone = true;
+      continue;
+    }
     if (inHeader) {
       if (t === "---") {
         if (headerLines.length) {
@@ -214,11 +224,31 @@ function buildMinutesBody(content) {
       continue;
     }
     if (t === "---") { closeList(); body += `<hr class="div">`; continue; }
-    if (t.startsWith("### ")) { closeList(); inOther = t.includes("その他") || t.includes("備考"); body += `<h2 class="sh">${esc(t.slice(4))}</h2>\n`; continue; }
-    if (t.match(/^\*+\s+\*\*【.+】\*\*/)) { closeList(); const label = t.replace(/^\*+\s+\*\*/, "").replace(/\*\*$/, ""); body += `<div class="subh">${esc(label)}</div>\n`; continue; }
-    if (t.match(/^\*+\s+/)) {
+    // Section headers: "### ■ ..." (旧形式) or "■ ..." (新形式)
+    if (t.startsWith("### ") || (t.startsWith("■ ") && !t.match(/^■\s*$/))) {
+      closeList();
+      inOther = t.includes("その他") || t.includes("備考");
+      const label = t.startsWith("### ") ? t.slice(4) : t;
+      body += `<h2 class="sh">${esc(label)}</h2>\n`;
+      continue;
+    }
+    // Subheaders: "* **【...】**" (旧形式) or "【...】" alone (新形式)
+    if (t.match(/^\*+\s+\*\*【.+】\*\*/)) {
+      closeList();
+      const label = t.replace(/^\*+\s+\*\*/, "").replace(/\*\*$/, "");
+      body += `<div class="subh">${esc(label)}</div>\n`;
+      continue;
+    }
+    if (t.match(/^【.+】$/) && !t.includes("：")) {
+      closeList();
+      body += `<div class="subh">${esc(t)}</div>\n`;
+      continue;
+    }
+    // Bullet items: "* ..." (旧形式) or "・..." (新形式)
+    if (t.match(/^\*+\s+/) || t.startsWith("・")) {
       if (!inList) { body += `<ul class="ul">\n`; inList = true; }
-      const c2 = t.replace(/^\*+\s+/, "").replace(/^〇\s*/, "").replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+      let c2 = t.startsWith("・") ? t.slice(1) : t.replace(/^\*+\s+/, "").replace(/^〇\s*/, "");
+      c2 = c2.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
       body += `<li>${esc(c2).replace(/&lt;strong&gt;/g, "<strong>").replace(/&lt;\/strong&gt;/g, "</strong>")}</li>\n`;
       continue;
     }
