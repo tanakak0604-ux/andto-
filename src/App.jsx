@@ -891,9 +891,9 @@ function CalendarPage({ projects }) {
 }
 
 const STEPS = ["input","minutes","tasks","save"];
-const STEP_LABELS = ["① 入力","② 議事録確認","③ タスク承認","④ 保存"];
+const STEP_LABELS = ["① 入力","② 議事録確認","③ 決定事項・タスク承認","④ 保存"];
 
-function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
+function MinutesPage({ projects, onUpdateProject }) {
   const [selProj, setSelProj] = useState(projects[0]?.id||"");
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState("");
@@ -926,6 +926,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const [editingDecisionId, setEditingDecisionId] = useState(null);
   const [editingDecisionText, setEditingDecisionText] = useState("");
   const [prevStep, setPrevStep] = useState("tasks");
+  const [minutesSaved, setMinutesSaved] = useState(false);
   const fileRef = useRef();
   const selProjObj = projects.find(p => p.id === selProj);
 
@@ -1041,69 +1042,66 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     setLoading(false);
   };
 
-  const extractTasks = async () => {
-    setLoading(true);
-    try {
-      const raw = await callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録からアクションアイテムをJSON配列で抽出してください。\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたは空文字","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${minutes}` }] });
-      const tasks = JSON.parse(raw.replace(/```json|```/g,"").trim());
-      setExtracted(tasks.map(t=>({...t,id:uid(),status:"todo",desc:"",selected:true})));
-    } catch { setExtracted([{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false}]); }
-    setLoading(false); setStep("tasks");
-  };
 
-  const approveTasks = () => {
-    const proj = projects.find(p=>p.id===selProj);
-    const tasks = extracted.filter(t=>t.selected).map(({selected,assignee,...t}) => {
-      let assigneeIds = [];
-      if (assignee && proj?.members) {
-        const member = proj.members.find(m =>
-          m.name === assignee ||
-          assignee.includes(m.name) ||
-          m.name.includes(assignee)
-        );
-        if (member) assigneeIds = [member.id];
-      }
-      return {...t, assigneeIds};
-    });
-    onAddTasks(selProj, tasks);
-    saveToProject();
-    setSavedType("tasks");
-    setPrevStep("tasks");
-    setShowPdfConfirm(true);
-    setStep("save");
-  };
-
-  const extractDecisions = async () => {
-    setLoading(true);
-    try {
-      const raw = await callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n形式: [{"text":"決定事項の内容"}]\nJSONのみ出力。\n\n${minutes}` }] });
-      const decs = JSON.parse(raw.replace(/```json|```/g,"").trim());
-      setExtractedDecisions(decs.map(d=>({...d, id:uid(), selected:true})));
-    } catch { setExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false}]); }
-    setLoading(false); setStep("decisions");
-  };
-
-  const approveDecisions = () => {
-    const latestProj = projects.find(p=>p.id===selProj);
-    if (!latestProj) return;
-    const newDecisions = extractedDecisions.filter(d=>d.selected).map(d=>({
-      id: d.id, text: d.text, source: minutesTitle || "議事録", createdAt: new Date().toISOString()
-    }));
-    onUpdateProject({...latestProj, decisions:[...(latestProj.decisions||[]),...newDecisions]});
-    saveToProject();
-    setSavedType("decisions");
-    setPrevStep("decisions");
-    setStep("save");
+  const buildMinutesEntry = () => {
+    const dateStr = new Date().toLocaleDateString("ja-JP");
+    return { id:"min_"+Date.now(), title:`${dateStr}　${minutesTitle||"議事録"}`, content:minutes, createdAt:new Date().toISOString() };
   };
 
   const saveToProject = () => {
     const latestProj = projects.find(p=>p.id===selProj);
     if (!latestProj||!minutes) return null;
-    const dateStr = new Date().toLocaleDateString("ja-JP");
-    const entry = { id:"min_"+Date.now(), title:`${dateStr}　${minutesTitle||"議事録"}`, content:minutes, createdAt:new Date().toISOString() };
+    const entry = buildMinutesEntry();
     onUpdateProject({...latestProj, minutes:[...(latestProj.minutes||[]),entry]});
-    setSaveMsg("保存しました。");
+    setSaveMsg("議事録を保存しました");
+    setMinutesSaved(true);
     return {...entry, projName: latestProj.name, projColor: latestProj.color, projId: latestProj.id};
+  };
+
+  const extractBoth = async () => {
+    setLoading(true);
+    try {
+      const [rawTasks, rawDecs] = await Promise.all([
+        callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録からアクションアイテムをJSON配列で抽出してください。\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたは空文字","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${minutes}` }] }),
+        callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n形式: [{"text":"決定事項の内容"}]\nJSONのみ出力。\n\n${minutes}` }] })
+      ]);
+      try { const tasks = JSON.parse(rawTasks.replace(/```json|```/g,"").trim()); setExtracted(tasks.map(t=>({...t,id:uid(),status:"todo",desc:"",selected:true}))); }
+      catch { setExtracted([{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false}]); }
+      try { const decs = JSON.parse(rawDecs.replace(/```json|```/g,"").trim()); setExtractedDecisions(decs.map(d=>({...d,id:uid(),selected:true}))); }
+      catch { setExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false}]); }
+    } catch {
+      setExtracted([{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false}]);
+      setExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false}]);
+    }
+    setLoading(false); setStep("tasks");
+  };
+
+  const approveBoth = () => {
+    const latestProj = projects.find(p=>p.id===selProj);
+    if (!latestProj) return;
+    const tasksToAdd = extracted.filter(t=>t.selected).map(({selected,assignee,...t}) => {
+      let assigneeIds = [];
+      if (assignee && latestProj.members) {
+        const member = latestProj.members.find(m => m.name===assignee || assignee.includes(m.name) || m.name.includes(assignee));
+        if (member) assigneeIds = [member.id];
+      }
+      return {...t, assigneeIds};
+    });
+    const newDecisions = extractedDecisions.filter(d=>d.selected).map(d=>({
+      id: d.id, text: d.text, source: minutesTitle||"議事録", createdAt: new Date().toISOString()
+    }));
+    const updatedProj = {
+      ...latestProj,
+      tasks: [...latestProj.tasks, ...tasksToAdd],
+      decisions: [...(latestProj.decisions||[]), ...newDecisions],
+      minutes: minutesSaved ? (latestProj.minutes||[]) : [...(latestProj.minutes||[]), buildMinutesEntry()],
+    };
+    onUpdateProject(updatedProj);
+    if (!minutesSaved) setMinutesSaved(true);
+    setSavedType("tasks");
+    setPrevStep("tasks");
+    setShowPdfConfirm(true);
+    setStep("save");
   };
 
   const PDF_CSS = `* { box-sizing: border-box; margin: 0; padding: 0; } @page { size: A4; margin: 20mm 20mm 25mm 20mm; } body { font-family: 'Yu Gothic','游ゴシック','YuGothic','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; font-size: 10pt; color: #000; padding: 20mm 20mm 25mm 20mm; line-height: 1.75; width: 210mm; min-height: 297mm; } .title { font-size: 14pt; font-weight: 700; text-align: left; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 2px solid #000; letter-spacing: 0.05em; } table.meta { border-collapse: collapse; margin-bottom: 8px; font-size: 9.5pt; } .mk { font-weight: 700; padding: 1px 10px 1px 0; white-space: nowrap; vertical-align: top; } .mv { padding: 1px 0; vertical-align: top; } .div { border: none; border-top: 1px solid #aaa; margin: 8px 0; } .sh { font-size: 10.5pt; font-weight: 700; margin: 14px 0 6px; padding: 3px 0; border-bottom: 1px solid #000; } .subh { font-size: 10pt; font-weight: 700; margin: 8px 0 3px; } .ul { padding-left: 0; margin: 3px 0 6px; list-style: none; } .ul li { margin: 2px 0; font-size: 9.5pt; line-height: 1.7; padding-left: 1em; text-indent: -1em; } .ul li::before { content: "・"; } .p { font-size: 9.5pt; margin: 2px 0 5px; line-height: 1.7; } .tt { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 9.5pt; } .tt th { background: #f0f0f0; border: 1px solid #999; padding: 5px 8px; text-align: left; font-weight: 700; } .tt td { padding: 5px 8px; border: 1px solid #ccc; vertical-align: top; line-height: 1.6; } @media print { body { padding: 0; } .sh { break-after: avoid; } }`;
@@ -1128,7 +1126,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     win.document.close(); win.focus(); win.print();
   };
 
-  const reset = () => { setStep("input");setText("");setFileName("");setMinutes("");setMinutesTitle("");setExtracted([]);setExtractedDecisions([]);setSavedType("tasks");setSaveMsg("");setAttendees([]);setBunseki("");setGaiyou("");setTimeRange("");setTeishutsushiryo("");setJuryoshiryo("");setPhase("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false}); };
+  const reset = () => { setStep("input");setText("");setFileName("");setMinutes("");setMinutesTitle("");setExtracted([]);setExtractedDecisions([]);setSavedType("tasks");setSaveMsg("");setAttendees([]);setBunseki("");setGaiyou("");setTimeRange("");setTeishutsushiryo("");setJuryoshiryo("");setPhase("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false});setMinutesSaved(false); };
 
   const stepIdx = STEPS.indexOf(step);
   const inputStyle = { width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"8px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" };
@@ -1341,12 +1339,12 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                 <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
                   <button onClick={()=>{setShowAiEdit(v=>!v);setAiInstruction("");setAiEditError("");}}
                     style={btn({padding:"10px 18px",borderRadius:12,background:showAiEdit?C.accent:C.accentLight,color:showAiEdit?"#fff":C.accent,fontSize:13,fontWeight:800,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
-                  <button onClick={()=>{saveToProject();}} disabled={!minutes}
-                    style={btn({padding:"10px 18px",borderRadius:12,background:minutes?C.sage:C.border,color:"#fff",fontSize:13,fontWeight:800})}>💾 保存</button>
-                  <button onClick={extractTasks} disabled={loading}
-                    style={btn({padding:"10px 18px",borderRadius:12,background:loading?C.border:C.sage,color:"#fff",fontSize:13,fontWeight:800})}>{loading?"⏳ 抽出中...":"📋 タスク抽出"}</button>
-                  <button onClick={extractDecisions} disabled={loading}
-                    style={btn({padding:"10px 18px",borderRadius:12,background:loading?C.border:"#5B7EC9",color:"#fff",fontSize:13,fontWeight:800})}>{loading?"⏳ 抽出中...":"📋 決定事項を抽出"}</button>
+                  <button onClick={()=>{saveToProject();}} disabled={!minutes||minutesSaved}
+                    style={btn({padding:"10px 18px",borderRadius:12,background:minutesSaved?C.border:minutes?C.sage:C.border,color:"#fff",fontSize:13,fontWeight:800})}>
+                    {minutesSaved?"✓ 保存済み":"💾 保存"}
+                  </button>
+                  <button onClick={extractBoth} disabled={loading||!minutes}
+                    style={btn({padding:"10px 18px",borderRadius:12,background:loading||!minutes?C.border:"#5B7EC9",color:"#fff",fontSize:13,fontWeight:800})}>{loading?"⏳ 抽出中...":"📋 決定事項・タスク抽出"}</button>
                   {saveMsg&&<span style={{ fontSize:12, color:C.sage, fontWeight:700 }}>✓ {saveMsg}</span>}
                 </div>
               </div>
@@ -1355,105 +1353,97 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
             {step==="tasks"&&(
               <div style={{ background:C.surface, borderRadius:16, padding:24, border:`1.5px solid ${C.border}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                  <span style={{ fontWeight:800, color:C.text, fontSize:15 }}>タスクの承認</span>
+                  <span style={{ fontWeight:800, color:C.text, fontSize:15 }}>決定事項・タスクの承認</span>
                   <button onClick={()=>setStep("minutes")} style={btn({fontSize:12,color:C.muted,background:"transparent"})}>← 戻る</button>
                 </div>
-                <p style={{ fontSize:12, color:C.muted, marginBottom:16 }}>追加するタスクにチェックを入れ、内容を編集してください。承認後、<strong style={{color:selProjObj?.color}}>{selProjObj?.name}</strong> のカンバンに登録されます。</p>
-                <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:10 }}>
-                  <button onClick={()=>setExtracted(ex=>ex.map(x=>({...x,selected:true})))} style={btn({fontSize:12,color:C.sage,background:"transparent",marginRight:12})}>全選択</button>
-                  <button onClick={()=>setExtracted(ex=>ex.map(x=>({...x,selected:false})))} style={btn({fontSize:12,color:C.muted,background:"transparent"})}>全解除</button>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
-                  {extracted.map(t=>(
-                    <div key={t.id} style={{ background:t.selected?C.sageLight:C.bg, border:`1.5px solid ${t.selected?C.sage:C.border}`, borderRadius:12, overflow:"hidden" }}>
-                      <div onClick={()=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,selected:!x.selected}:x))}
-                        style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", cursor:"pointer" }}>
-                        <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${t.selected?C.sage:C.border}`, background:t.selected?C.sage:"transparent", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                          {t.selected&&<span style={{color:"#fff",fontSize:12,fontWeight:900}}>✓</span>}
-                        </div>
-                        <span style={{ flex:1, fontSize:13, fontWeight:700, color:C.text }}>{t.title||"（タイトル未入力）"}</span>
-                        <PriorityDot p={t.priority} />
-                      </div>
-                      <div onClick={e=>e.stopPropagation()} style={{ padding:"0 14px 12px 46px", display:"flex", gap:8, flexWrap:"wrap" }}>
-                        <input value={t.title} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,title:e.target.value}:x))} placeholder="タスク名"
-                          style={{ flex:"2 1 160px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:7, padding:"5px 9px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
-                        <input value={t.assignee} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,assignee:e.target.value}:x))} placeholder="👤 担当者"
-                          style={{ flex:"1 1 90px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:7, padding:"5px 9px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
-                        <input type="date" value={t.dueDate} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,dueDate:e.target.value}:x))}
-                          style={{ flex:"1 1 120px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:7, padding:"5px 9px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
-                        <select value={t.priority} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,priority:e.target.value}:x))}
-                          style={{ flex:"1 1 70px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:7, padding:"5px 9px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }}>
-                          <option value="high">高</option><option value="medium">中</option><option value="low">低</option>
-                        </select>
-                      </div>
+                <p style={{ fontSize:12, color:C.muted, marginBottom:18 }}>承認後、<strong style={{color:selProjObj?.color}}>{selProjObj?.name}</strong> に保存されます。</p>
+
+                {/* 決定事項セクション */}
+                <div style={{ marginBottom:20 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                    <span style={{ fontSize:13, fontWeight:800, color:"#5B7EC9" }}>📋 決定事項</span>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={()=>setExtractedDecisions(ds=>ds.map(d=>({...d,selected:true})))} style={btn({fontSize:11,color:C.sage,background:"transparent"})}>全選択</button>
+                      <button onClick={()=>setExtractedDecisions(ds=>ds.map(d=>({...d,selected:false})))} style={btn({fontSize:11,color:C.muted,background:"transparent"})}>全解除</button>
                     </div>
-                  ))}
-                </div>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
-                  <span style={{ fontSize:13, color:C.muted }}>{extracted.filter(t=>t.selected).length} / {extracted.length} 件を選択中</span>
-                  <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={()=>{saveToProject();setPrevStep("tasks");setStep("save");}}
-                      style={btn({padding:"12px 22px",borderRadius:12,fontSize:13,fontWeight:700,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>
-                      スキップ
-                    </button>
-                    <button onClick={approveTasks} disabled={extracted.filter(t=>t.selected).length===0}
-                      style={btn({padding:"12px 28px",borderRadius:12,fontSize:13,fontWeight:800,color:"#fff",background:extracted.filter(t=>t.selected).length>0?C.accent:C.border})}>
-                      ✅ 承認してカンバンに追加
-                    </button>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {extractedDecisions.map(d=>(
+                      <div key={d.id} style={{ background:d.selected?"#EEF3FF":C.bg, border:`1.5px solid ${d.selected?"#5B7EC9":C.border}`, borderRadius:10, overflow:"hidden" }}>
+                        <div onClick={()=>{ if(editingDecisionId!==d.id) setExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,selected:!x.selected}:x)); }}
+                          style={{ padding:"10px 14px", cursor:"pointer", display:"flex", alignItems:"flex-start", gap:10 }}>
+                          <div style={{ width:18, height:18, borderRadius:5, border:`2px solid ${d.selected?"#5B7EC9":C.border}`, background:d.selected?"#5B7EC9":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>
+                            {d.selected&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
+                          </div>
+                          {editingDecisionId===d.id ? (
+                            <textarea value={editingDecisionText} onChange={e=>setEditingDecisionText(e.target.value)} rows={2} onClick={e=>e.stopPropagation()}
+                              style={{ flex:1, border:`1.5px solid #5B7EC9`, borderRadius:7, padding:"5px 8px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit" }} />
+                          ) : (
+                            <span style={{ flex:1, fontSize:12, color:C.text, lineHeight:1.6 }}>{d.text}</span>
+                          )}
+                          <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:4, flexShrink:0 }}>
+                            {editingDecisionId===d.id ? (
+                              <>
+                                <button onClick={()=>{ setExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,text:editingDecisionText}:x)); setEditingDecisionId(null); }}
+                                  style={btn({padding:"3px 8px",borderRadius:6,background:"#5B7EC9",color:"#fff",fontSize:11,fontWeight:700})}>保存</button>
+                                <button onClick={()=>setEditingDecisionId(null)}
+                                  style={btn({padding:"3px 7px",borderRadius:6,background:"transparent",color:C.muted,fontSize:11,border:`1px solid ${C.border}`})}>取消</button>
+                              </>
+                            ) : (
+                              <button onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); }}
+                                style={btn({padding:"3px 7px",borderRadius:6,background:"transparent",color:C.muted,fontSize:11})}>✏️</button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            )}
 
-            {step==="decisions"&&(
-              <div style={{ background:C.surface, borderRadius:16, padding:24, border:`1.5px solid ${C.border}` }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                  <span style={{ fontWeight:800, color:C.text, fontSize:15 }}>決定事項の確認</span>
-                  <button onClick={()=>setStep("minutes")} style={btn({fontSize:12,color:C.muted,background:"transparent"})}>← 戻る</button>
-                </div>
-                <p style={{ fontSize:12, color:C.muted, marginBottom:16 }}>承認する決定事項にチェックを入れてください。承認後、<strong style={{color:selProjObj?.color}}>{selProjObj?.name}</strong> の決定事項ページに保存されます。</p>
-                <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:10 }}>
-                  <button onClick={()=>setExtractedDecisions(ds=>ds.map(d=>({...d,selected:true})))} style={btn({fontSize:12,color:C.sage,background:"transparent",marginRight:12})}>全選択</button>
-                  <button onClick={()=>setExtractedDecisions(ds=>ds.map(d=>({...d,selected:false})))} style={btn({fontSize:12,color:C.muted,background:"transparent"})}>全解除</button>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
-                  {extractedDecisions.map(d=>(
-                    <div key={d.id} style={{ background:d.selected?"#EEF3FF":C.bg, border:`1.5px solid ${d.selected?"#5B7EC9":C.border}`, borderRadius:12, overflow:"hidden" }}>
-                      <div onClick={()=>{ if(editingDecisionId!==d.id) setExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,selected:!x.selected}:x)); }}
-                        style={{ padding:"12px 16px", cursor:"pointer", display:"flex", alignItems:"flex-start", gap:12 }}>
-                        <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${d.selected?"#5B7EC9":C.border}`, background:d.selected?"#5B7EC9":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1 }}>
-                          {d.selected&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
+                {/* タスクセクション */}
+                <div style={{ marginBottom:20 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                    <span style={{ fontSize:13, fontWeight:800, color:C.sage }}>✅ タスク</span>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={()=>setExtracted(ex=>ex.map(x=>({...x,selected:true})))} style={btn({fontSize:11,color:C.sage,background:"transparent"})}>全選択</button>
+                      <button onClick={()=>setExtracted(ex=>ex.map(x=>({...x,selected:false})))} style={btn({fontSize:11,color:C.muted,background:"transparent"})}>全解除</button>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {extracted.map(t=>(
+                      <div key={t.id} style={{ background:t.selected?C.sageLight:C.bg, border:`1.5px solid ${t.selected?C.sage:C.border}`, borderRadius:10, overflow:"hidden" }}>
+                        <div onClick={()=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,selected:!x.selected}:x))}
+                          style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", cursor:"pointer" }}>
+                          <div style={{ width:18, height:18, borderRadius:5, border:`2px solid ${t.selected?C.sage:C.border}`, background:t.selected?C.sage:"transparent", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                            {t.selected&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
+                          </div>
+                          <span style={{ flex:1, fontSize:12, fontWeight:700, color:C.text }}>{t.title||"（タイトル未入力）"}</span>
+                          <PriorityDot p={t.priority} />
                         </div>
-                        {editingDecisionId===d.id ? (
-                          <textarea value={editingDecisionText} onChange={e=>setEditingDecisionText(e.target.value)} rows={3} onClick={e=>e.stopPropagation()}
-                            style={{ flex:1, border:`1.5px solid #5B7EC9`, borderRadius:8, padding:"6px 10px", fontSize:13, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit", lineHeight:1.6 }} />
-                        ) : (
-                          <span style={{ flex:1, fontSize:13, color:C.text, lineHeight:1.6 }}>{d.text}</span>
-                        )}
-                        <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:4, flexShrink:0 }}>
-                          {editingDecisionId===d.id ? (
-                            <>
-                              <button onClick={()=>{ setExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,text:editingDecisionText}:x)); setEditingDecisionId(null); }}
-                                style={btn({padding:"4px 10px",borderRadius:7,background:"#5B7EC9",color:"#fff",fontSize:11,fontWeight:700})}>保存</button>
-                              <button onClick={()=>setEditingDecisionId(null)}
-                                style={btn({padding:"4px 8px",borderRadius:7,background:"transparent",color:C.muted,fontSize:11,border:`1px solid ${C.border}`})}>取消</button>
-                            </>
-                          ) : (
-                            <button onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); }}
-                              style={btn({padding:"4px 8px",borderRadius:7,background:"transparent",color:C.muted,fontSize:12})}>✏️</button>
-                          )}
+                        <div onClick={e=>e.stopPropagation()} style={{ padding:"0 12px 10px 40px", display:"flex", gap:6, flexWrap:"wrap" }}>
+                          <input value={t.title} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,title:e.target.value}:x))} placeholder="タスク名"
+                            style={{ flex:"2 1 140px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                          <input value={t.assignee} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,assignee:e.target.value}:x))} placeholder="👤 担当者"
+                            style={{ flex:"1 1 80px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                          <input type="date" value={t.dueDate} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,dueDate:e.target.value}:x))}
+                            style={{ flex:"1 1 110px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                          <select value={t.priority} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,priority:e.target.value}:x))}
+                            style={{ flex:"1 1 60px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }}>
+                            <option value="high">高</option><option value="medium">中</option><option value="low">低</option>
+                          </select>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
-                  <span style={{ fontSize:13, color:C.muted }}>{extractedDecisions.filter(d=>d.selected).length} / {extractedDecisions.length} 件を選択中</span>
+
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
+                  <span style={{ fontSize:12, color:C.muted }}>
+                    決定事項 {extractedDecisions.filter(d=>d.selected).length}/{extractedDecisions.length}件　タスク {extracted.filter(t=>t.selected).length}/{extracted.length}件
+                  </span>
                   <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={()=>{saveToProject();setPrevStep("decisions");setStep("save");setSavedType("minutes");}}
-                      style={btn({padding:"12px 22px",borderRadius:12,fontSize:13,fontWeight:700,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>スキップ</button>
-                    <button onClick={approveDecisions} disabled={extractedDecisions.filter(d=>d.selected).length===0}
-                      style={btn({padding:"12px 28px",borderRadius:12,fontSize:13,fontWeight:800,color:"#fff",background:extractedDecisions.filter(d=>d.selected).length>0?"#5B7EC9":C.border})}>
+                    <button onClick={()=>{approveBoth();}}
+                      style={btn({padding:"12px 28px",borderRadius:12,fontSize:13,fontWeight:800,color:"#fff",background:C.accent})}>
                       ✅ 承認して保存
                     </button>
                   </div>
