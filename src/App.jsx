@@ -581,7 +581,18 @@ function KanbanPage({ project, onUpdate }) {
               </label>
               <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
                 {(form.subtasks||[]).map((s,i) => (
-                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: C.bg, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                  <div key={s.id}
+                    draggable
+                    onDragStart={e => { e.dataTransfer.setData("subtaskIdx", String(i)); e.dataTransfer.effectAllowed = "move"; }}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => {
+                      e.preventDefault();
+                      const from = parseInt(e.dataTransfer.getData("subtaskIdx"));
+                      if (from === i || isNaN(from)) return;
+                      setForm(f => { const subs = [...f.subtasks]; const [moved] = subs.splice(from, 1); subs.splice(i, 0, moved); return { ...f, subtasks: subs }; });
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: C.bg, borderRadius: 8, border: `1px solid ${C.border}`, cursor: "grab" }}>
+                    <span style={{ color: C.border, fontSize: 15, userSelect: "none", cursor: "grab" }}>⠿</span>
                     <input type="checkbox" checked={s.done} onChange={() => setForm(f => ({ ...f, subtasks: f.subtasks.map((x,j) => j===i ? {...x,done:!x.done} : x) }))} style={{ width: 14, height: 14, cursor: "pointer", accentColor: C.sage }} />
                     <input value={s.title} onChange={e => setForm(f => ({ ...f, subtasks: f.subtasks.map((x,j) => j===i ? {...x,title:e.target.value} : x) }))}
                       style={{ flex: 1, border: "none", background: "transparent", fontSize: 12, color: s.done ? C.muted : C.text, outline: "none", textDecoration: s.done ? "line-through" : "none" }} />
@@ -608,7 +619,7 @@ function KanbanPage({ project, onUpdate }) {
 
 const COLOR_PALETTE = ["#6B8F71","#C8A84B","#7B9EC0","#C8694A","#9B8EC0","#4A9B8E","#C8697A","#8E9B4A"];
 
-function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes }) {
+function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes, onViewDecisions }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({});
@@ -645,9 +656,9 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
           const todo = p.tasks.filter(t => t.status==="todo").length;
           const pct = p.tasks.length ? Math.round(done/p.tasks.length*100) : 0;
           return (
-            <div key={p.id} style={{ background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+            <div key={p.id} style={{ background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display:"flex", flexDirection:"column" }}>
               <div style={{ height: 6, background: p.color }} />
-              <div style={{ padding: 20 }}>
+              <div style={{ padding: 20, display:"flex", flexDirection:"column", flex:1 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -677,14 +688,14 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes 
                   ))}
                   {p.tasks.filter(t => t.status!=="done").length===0 && <div style={{ fontSize: 12, color: C.muted, textAlign: "center", padding: "8px 0" }}>進行中のタスクなし</div>}
                 </div>
-                {(p.minutes||[]).length > 0 && (
-                  <div style={{ marginBottom: 10 }}>
-                    <span style={{ fontSize: 11, color: C.muted, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: "3px 10px", fontWeight: 700 }}>📝 議事録 {p.minutes.length}件</span>
-                  </div>
-                )}
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => onNavigate(p.id)} style={btn({ flex: 1, padding: "9px 0", borderRadius: 10, background: p.color+"18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>カンバンを開く →</button>
-                  <button onClick={() => onViewMinutes(p.id)} style={btn({ flex: 1, padding: "9px 0", borderRadius: 10, background: C.accent+"18", color: C.accent, fontSize: 13, fontWeight: 700, border: `1.5px solid ${C.accent}40` })}>議事録を開く →</button>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+                  {(p.minutes||[]).length > 0 && <span style={{ fontSize: 11, color: C.muted, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: "3px 10px", fontWeight: 700 }}>📝 議事録 {p.minutes.length}件</span>}
+                  {(p.decisions||[]).length > 0 && <span style={{ fontSize: 11, color: "#5B7EC9", background: "#EEF3FF", border: `1px solid #B8CAED`, borderRadius: 20, padding: "3px 10px", fontWeight: 700 }}>📋 決定事項 {p.decisions.length}件</span>}
+                </div>
+                <div style={{ marginTop:"auto", display:"flex", flexDirection:"column", gap:6 }}>
+                  <button onClick={() => onNavigate(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: p.color+"18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>タスクを開く →</button>
+                  <button onClick={() => onViewMinutes(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: C.accent+"18", color: C.accent, fontSize: 13, fontWeight: 700, border: `1.5px solid ${C.accent}40` })}>議事録を開く →</button>
+                  <button onClick={() => onViewDecisions(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: "#EEF3FF", color: "#5B7EC9", fontSize: 13, fontWeight: 700, border: `1.5px solid #B8CAED` })}>決定事項を開く →</button>
                 </div>
               </div>
             </div>
@@ -889,6 +900,8 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
   const [phase, setPhase] = useState("");
   const [gaiyou, setGaiyou] = useState("");
   const [timeRange, setTimeRange] = useState("");
+  const [extractedDecisions, setExtractedDecisions] = useState([]);
+  const [savedType, setSavedType] = useState("tasks");
   const [newMemberCandidates, setNewMemberCandidates] = useState([]);
   const [showMemberConfirm, setShowMemberConfirm] = useState(false);
   const [showQuickAddMember, setShowQuickAddMember] = useState(false);
@@ -1027,7 +1040,30 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     });
     onAddTasks(selProj, tasks);
     saveToProject();
+    setSavedType("tasks");
     setShowPdfConfirm(true);
+    setStep("save");
+  };
+
+  const extractDecisions = async () => {
+    setLoading(true);
+    try {
+      const raw = await callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n形式: [{"text":"決定事項の内容"}]\nJSONのみ出力。\n\n${minutes}` }] });
+      const decs = JSON.parse(raw.replace(/```json|```/g,"").trim());
+      setExtractedDecisions(decs.map(d=>({...d, id:uid(), selected:true})));
+    } catch { setExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false}]); }
+    setLoading(false); setStep("decisions");
+  };
+
+  const approveDecisions = () => {
+    const latestProj = projects.find(p=>p.id===selProj);
+    if (!latestProj) return;
+    const newDecisions = extractedDecisions.filter(d=>d.selected).map(d=>({
+      id: d.id, text: d.text, source: minutesTitle || "議事録", createdAt: new Date().toISOString()
+    }));
+    onUpdateProject({...latestProj, decisions:[...(latestProj.decisions||[]),...newDecisions]});
+    saveToProject();
+    setSavedType("decisions");
     setStep("save");
   };
 
@@ -1063,7 +1099,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
     win.document.close(); win.focus(); win.print();
   };
 
-  const reset = () => { setStep("input");setText("");setFileName("");setMinutes("");setMinutesTitle("");setExtracted([]);setSaveMsg("");setAttendees([]);setBunseki("");setGaiyou("");setTimeRange("");setTeishutsushiryo("");setJuryoshiryo("");setPhase("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false}); };
+  const reset = () => { setStep("input");setText("");setFileName("");setMinutes("");setMinutesTitle("");setExtracted([]);setExtractedDecisions([]);setSavedType("tasks");setSaveMsg("");setAttendees([]);setBunseki("");setGaiyou("");setTimeRange("");setTeishutsushiryo("");setJuryoshiryo("");setPhase("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false}); };
 
   const stepIdx = STEPS.indexOf(step);
   const inputStyle = { width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"8px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" };
@@ -1280,6 +1316,8 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                     style={btn({padding:"10px 18px",borderRadius:12,background:minutes?C.sage:C.border,color:"#fff",fontSize:13,fontWeight:800})}>💾 保存</button>
                   <button onClick={extractTasks} disabled={loading}
                     style={btn({padding:"10px 18px",borderRadius:12,background:loading?C.border:C.sage,color:"#fff",fontSize:13,fontWeight:800})}>{loading?"⏳ 抽出中...":"📋 タスク抽出"}</button>
+                  <button onClick={extractDecisions} disabled={loading}
+                    style={btn({padding:"10px 18px",borderRadius:12,background:loading?C.border:"#5B7EC9",color:"#fff",fontSize:13,fontWeight:800})}>{loading?"⏳ 抽出中...":"📋 決定事項を抽出"}</button>
                   {saveMsg&&<span style={{ fontSize:12, color:C.sage, fontWeight:700 }}>✓ {saveMsg}</span>}
                 </div>
               </div>
@@ -1338,12 +1376,62 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
               </div>
             )}
 
+            {step==="decisions"&&(
+              <div style={{ background:C.surface, borderRadius:16, padding:24, border:`1.5px solid ${C.border}` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <span style={{ fontWeight:800, color:C.text, fontSize:15 }}>決定事項の確認</span>
+                  <button onClick={()=>setStep("minutes")} style={btn({fontSize:12,color:C.muted,background:"transparent"})}>← 戻る</button>
+                </div>
+                <p style={{ fontSize:12, color:C.muted, marginBottom:16 }}>承認する決定事項にチェックを入れてください。承認後、<strong style={{color:selProjObj?.color}}>{selProjObj?.name}</strong> の決定事項ページに保存されます。</p>
+                <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:10 }}>
+                  <button onClick={()=>setExtractedDecisions(ds=>ds.map(d=>({...d,selected:true})))} style={btn({fontSize:12,color:C.sage,background:"transparent",marginRight:12})}>全選択</button>
+                  <button onClick={()=>setExtractedDecisions(ds=>ds.map(d=>({...d,selected:false})))} style={btn({fontSize:12,color:C.muted,background:"transparent"})}>全解除</button>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
+                  {extractedDecisions.map(d=>(
+                    <div key={d.id} onClick={()=>setExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,selected:!x.selected}:x))}
+                      style={{ background:d.selected?"#EEF3FF":C.bg, border:`1.5px solid ${d.selected?"#5B7EC9":C.border}`, borderRadius:12, padding:"12px 16px", cursor:"pointer", display:"flex", alignItems:"flex-start", gap:12 }}>
+                      <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${d.selected?"#5B7EC9":C.border}`, background:d.selected?"#5B7EC9":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1 }}>
+                        {d.selected&&<span style={{color:"#fff",fontSize:11,fontWeight:900}}>✓</span>}
+                      </div>
+                      <span style={{ fontSize:13, color:C.text, lineHeight:1.6 }}>{d.text}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+                  <span style={{ fontSize:13, color:C.muted }}>{extractedDecisions.filter(d=>d.selected).length} / {extractedDecisions.length} 件を選択中</span>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={()=>{saveToProject();setStep("save");setSavedType("minutes");}}
+                      style={btn({padding:"12px 22px",borderRadius:12,fontSize:13,fontWeight:700,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>スキップ</button>
+                    <button onClick={approveDecisions} disabled={extractedDecisions.filter(d=>d.selected).length===0}
+                      style={btn({padding:"12px 28px",borderRadius:12,fontSize:13,fontWeight:800,color:"#fff",background:extractedDecisions.filter(d=>d.selected).length>0?"#5B7EC9":C.border})}>
+                      ✅ 承認して保存
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {step==="save"&&(
               <div style={{ background:C.surface, borderRadius:16, padding:24, border:`1.5px solid ${C.border}` }}>
                 <div style={{ textAlign:"center", marginBottom:24 }}>
                   <div style={{ fontSize:40, marginBottom:8 }}>🎉</div>
-                  <div style={{ fontSize:16, fontWeight:900, color:C.text, marginBottom:4 }}>タスクを登録しました！</div>
-                  <div style={{ fontSize:13, color:C.muted }}><strong style={{color:selProjObj?.color}}>{selProjObj?.name}</strong> のカンバンにタスクが追加されました。</div>
+                  {savedType==="decisions" ? (
+                    <>
+                      <div style={{ fontSize:16, fontWeight:900, color:C.text, marginBottom:4 }}>決定事項を保存しました！</div>
+                      <div style={{ fontSize:13, color:C.muted }}><strong style={{color:selProjObj?.color}}>{selProjObj?.name}</strong> の決定事項ページに追加されました。</div>
+                    </>
+                  ) : savedType==="tasks" ? (
+                    <>
+                      <div style={{ fontSize:16, fontWeight:900, color:C.text, marginBottom:4 }}>タスクを登録しました！</div>
+                      <div style={{ fontSize:13, color:C.muted }}><strong style={{color:selProjObj?.color}}>{selProjObj?.name}</strong> のカンバンにタスクが追加されました。</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize:16, fontWeight:900, color:C.text, marginBottom:4 }}>保存しました！</div>
+                      <div style={{ fontSize:13, color:C.muted }}><strong style={{color:selProjObj?.color}}>{selProjObj?.name}</strong> に議事録を保存しました。</div>
+                    </>
+                  )}
                 </div>
                 {saveMsg&&<div style={{ background:C.sageLight, border:`1.5px solid ${C.sage}`, borderRadius:10, padding:"10px 14px", fontSize:12, color:C.sage, fontWeight:600, marginBottom:16 }}>✓ {saveMsg}</div>}
                 <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
@@ -1532,12 +1620,57 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   );
 }
 
+function DecisionsPage({ project, onBack, onUpdate }) {
+  const decisions = [...(project.decisions || [])].reverse();
+  const deleteDecision = (id) => {
+    onUpdate({ ...project, decisions: (project.decisions || []).filter(d => d.id !== id) });
+  };
+  return (
+    <div style={{ overflowY:"auto", height:"calc(100vh - 52px)", background:C.bg }}>
+      <div style={{ padding:24, maxWidth:960, margin:"0 auto" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+          <button onClick={onBack} style={btn({fontSize:13,color:C.muted,background:"transparent",padding:"4px 8px",border:`1px solid ${C.border}`,borderRadius:8})}>← 戻る</button>
+          <h2 style={{ fontSize:18, fontWeight:900, color:C.text, margin:0, display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ width:10, height:10, borderRadius:"50%", background:project.color, display:"inline-block" }} />
+            {project.name}　決定事項
+          </h2>
+          <span style={{ fontSize:12, color:C.muted, background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:"2px 10px", fontWeight:700 }}>{decisions.length}件</span>
+        </div>
+        {decisions.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"80px 0", color:C.muted }}>
+            <div style={{ fontSize:40, marginBottom:14 }}>📋</div>
+            <div style={{ fontSize:15, fontWeight:700, marginBottom:8 }}>決定事項がまだありません</div>
+            <div style={{ fontSize:12 }}>「✨ 議事録作成」タブから議事録を生成し、決定事項を抽出・保存できます。</div>
+          </div>
+        ) : (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:14 }}>
+            {decisions.map(d => (
+              <div key={d.id} style={{ background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:14, padding:18, boxShadow:"0 2px 8px rgba(0,0,0,0.05)" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:project.color, marginTop:5, flexShrink:0 }} />
+                  <button onClick={()=>deleteDecision(d.id)} style={btn({color:C.muted,background:"transparent",fontSize:15,lineHeight:1})}>✕</button>
+                </div>
+                <p style={{ fontSize:13, color:C.text, lineHeight:1.75, margin:"0 0 14px", fontWeight:500 }}>{d.text}</p>
+                <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>📝 {d.source}</span>
+                  <span style={{ fontSize:10, color:C.muted }}>{new Date(d.createdAt).toLocaleDateString("ja-JP")}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [projects, setProjects] = useState(INIT_PROJECTS);
   const [tab, setTab] = useState("projects");
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [minutesProjectId, setMinutesProjectId] = useState(null);
+  const [decisionsProjectId, setDecisionsProjectId] = useState(null);
   const [storageReady, setStorageReady] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
 
@@ -1618,11 +1751,13 @@ export default function App() {
         </div>
       </div>
 
-      {minutesProjectId ? (
+      {decisionsProjectId ? (
+        <DecisionsPage project={projects.find(p=>p.id===decisionsProjectId)} onBack={()=>setDecisionsProjectId(null)} onUpdate={updateProject} />
+      ) : minutesProjectId ? (
         <MinutesDetailPage project={projects.find(p=>p.id===minutesProjectId)} onBack={()=>setMinutesProjectId(null)} onUpdate={updateProject} />
       ) : (
         <>
-          <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={projects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} /></div>
+          <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={projects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} onViewDecisions={id=>setDecisionsProjectId(id)} /></div>
           <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} /></div>
           <div style={{ display:tab==="minutes"?"block":"none" }}><MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} /></div>
           {active&&tab===active.id&&<KanbanPage key={active.id} project={active} onUpdate={updateProject} />}
