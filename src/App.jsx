@@ -146,8 +146,7 @@ const TEMPLATE = `【会議名】議事録
 打合せ概要：{gaiyou}
 日時　：{date}
 場所　：{place}
-出席者：株式会社A：田中様、鈴木様
-　　　　andto：谷口、山田
+出席者：{attendees}
 文責　：{bunseki}　作成日：{created}
 提出資料：{teishutsushiryo}
 受領資料：{juryoshiryo}
@@ -956,16 +955,26 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
       ? "【出席者】選択された出席者を記載。andtoメンバーは最後に敬称なし。"
       : "【出席者】入力テキストから読み取るか不明な場合は「—」";
     const infer = v => v || "（入力テキストから推測。不明な場合は空欄）";
+    const attendeesValue = members.length === 0
+      ? "（出席者情報なし）"
+      : orgLines.map((line, i) => i === 0 ? line : "　　　　" + line).join("\n");
     const filledTemplate = TEMPLATE
       .replace("{gaiyou}", gaiyou || "（入力テキストから推測。不明な場合は空欄）")
       .replace("{date}", date)
       .replace("{place}", "（入力テキストから推測。不明な場合は空欄）")
+      .replace("{attendees}", attendeesValue)
       .replace("{bunseki}", bunsekiText)
       .replace("{created}", date)
-      .replace("{teishutsushiryo}", infer(teishutsushiryo))
-      .replace("{juryoshiryo}", infer(juryoshiryo))
-      .replace("{phase}", infer(phase));
-    const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一\n- 「文責　：」欄には「${bunsekiText}」\n- 「作成日：」欄には「${date}」\n- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${text}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
+      .replace("{teishutsushiryo}", gaiyou !== undefined && teishutsushiryo ? teishutsushiryo : infer(teishutsushiryo))
+      .replace("{juryoshiryo}", juryoshiryo ? juryoshiryo : infer(juryoshiryo))
+      .replace("{phase}", phase ? phase : infer(phase));
+    const headerNote = [
+      gaiyou ? `打合せ概要は「${gaiyou}」で確定` : null,
+      teishutsushiryo ? `提出資料は「${teishutsushiryo}」で確定` : null,
+      juryoshiryo ? `受領資料は「${juryoshiryo}」で確定` : null,
+      phase ? `フェーズは「${phase}」で確定` : null,
+    ].filter(Boolean).join("、");
+    const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${text}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
     try {
       const result = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: userContent }] });
       setMinutes(result);
@@ -1178,7 +1187,7 @@ function MinutesPage({ projects, onAddTasks, onUpdateProject }) {
                             );
                           })}
                         </div>
-                        {attendees.length>0&&<div style={{ marginTop:8, fontSize:11, color:C.muted, background:C.bg, borderRadius:8, padding:"6px 10px" }}>出席者：{(selProjObj.members||[]).filter(m=>attendees.includes(m.id)).map(m=>m.isAndto?`${m.name}（andto）`:`${m.name}様`).join("、")}</div>}
+                        {attendees.length>0&&<div style={{ marginTop:8, fontSize:11, color:C.muted, background:C.bg, borderRadius:8, padding:"6px 10px", whiteSpace:"pre-line" }}>{(()=>{const sel=(selProjObj.members||[]).filter(m=>attendees.includes(m.id));const nonA=sel.filter(m=>!m.isAndto);const andtoMs=sel.filter(m=>m.isAndto);const groups={};nonA.forEach(m=>{const k=m.org||"所属未設定";if(!groups[k])groups[k]=[];groups[k].push(m.name+"様");});const lines=Object.entries(groups).map(([org,names])=>org+"："+names.join("、"));if(andtoMs.length>0)lines.push("andto："+andtoMs.map(m=>m.name).join("、"));return lines.join("\n");})()}</div>}
                       </>
                     )}
                     {(selProjObj.members||[]).length===0&&!showQuickAddMember&&<div style={{ fontSize:12, color:C.muted }}>メンバーが未登録です。追加ボタンから登録してください。</div>}
@@ -1572,7 +1581,7 @@ export default function App() {
         <div style={{ paddingRight:20, display:"flex", alignItems:"center", borderRight:`1px solid ${C.border}`, marginRight:4, flexShrink:0 }}>
   <img src={logo} alt="logo" style={{ height:32, objectFit:"contain" }} />
 </div>
-        {[["projects","📁 Projects"],["calendar","📅 カレンダー"],["minutes","✨ 議事録"]].map(([id,lbl])=>(
+        {[["projects","📁 Projects"],["calendar","📅 カレンダー"],["minutes","✨ 議事録作成"]].map(([id,lbl])=>(
           <button key={id} onClick={()=>setTab(id)} style={btn({padding:"0 16px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===id?C.accent:C.muted,borderBottom:tab===id?`2.5px solid ${C.accent}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap"})}>{lbl}</button>
         ))}
         <div style={{ width:1, background:C.border, margin:"10px 8px", flexShrink:0 }} />
