@@ -643,6 +643,7 @@ function KanbanPage({ project, onUpdate }) {
 }
 
 const COLOR_PALETTE = ["#6B8F71","#C8A84B","#7B9EC0","#C8694A","#9B8EC0","#4A9B8E","#C8697A","#8E9B4A"];
+const PHASE_LABELS = ["調査企画", "基本計画", "基本設計", "実施設計", "現場"];
 
 function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes, onViewDecisions }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -659,10 +660,10 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
     return (a.org || "ん").localeCompare(b.org || "ん", "ja");
   });
 
-  const openEdit = (p) => { setForm({ name: p.name, desc: p.desc||"", color: p.color, members: p.members||[] }); setModalTab("info"); setEditingId(p.id); };
+  const openEdit = (p) => { setForm({ name: p.name, desc: p.desc||"", color: p.color, members: p.members||[], phase: p.phase||"" }); setModalTab("info"); setEditingId(p.id); };
   const saveEdit = () => {
     if (!form.name.trim()) return;
-    onUpdate({ ...projects.find(p => p.id === editingId), name: form.name, desc: form.desc, color: form.color, members: form.members });
+    onUpdate({ ...projects.find(p => p.id === editingId), name: form.name, desc: form.desc, color: form.color, members: form.members, phase: form.phase });
     setEditingId(null);
   };
   const addMember = () => {
@@ -697,12 +698,39 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                 <div style={{ height: 6, background: C.border, borderRadius: 10, marginBottom: 10, overflow: "hidden" }}>
                   <div style={{ height: "100%", width: `${pct}%`, background: p.color, borderRadius: 10 }} />
                 </div>
-                <div style={{ display: "flex", gap: 12, fontSize: 12, marginBottom: 14 }}>
+                <div style={{ display: "flex", gap: 12, fontSize: 12, marginBottom: 12 }}>
                   <span style={{ color: C.todo, fontWeight: 700 }}>未着手 {todo}</span>
                   <span style={{ color: C.doing, fontWeight: 700 }}>進行中 {doing}</span>
                   <span style={{ color: C.done, fontWeight: 700 }}>完了 {done}</span>
                   <span style={{ marginLeft: "auto", color: p.color, fontWeight: 900 }}>{pct}%</span>
                 </div>
+                {/* フェーズ進捗ステッパー */}
+                {(() => {
+                  const ci = PHASE_LABELS.indexOf(p.phase || "");
+                  return (
+                    <div style={{ marginBottom: 14, background: C.bg, borderRadius: 10, padding: "8px 10px" }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, marginBottom: 6 }}>📍 フェーズ</div>
+                      <div style={{ display: "flex", alignItems: "center" }}>
+                        {PHASE_LABELS.map((ph, i) => {
+                          const done = ci >= 0 && i < ci;
+                          const cur = i === ci;
+                          return (
+                            <React.Fragment key={ph}>
+                              {i > 0 && <div style={{ flex: 1, height: 1.5, background: done || cur ? p.color : C.border, minWidth: 4, margin: "0 1px", marginBottom: 14 }} />}
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flexShrink: 0 }}>
+                                <div style={{ width: 16, height: 16, borderRadius: "50%", background: cur ? p.color : done ? p.color : "transparent", border: `2px solid ${done || cur ? p.color : C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  {done && <span style={{ color: "#fff", fontSize: 7, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+                                  {cur && <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#fff" }} />}
+                                </div>
+                                <span style={{ fontSize: 8, fontWeight: cur ? 900 : 600, color: done || cur ? p.color : C.muted, whiteSpace: "nowrap" }}>{ph}</span>
+                              </div>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 14 }}>
                   {p.tasks.filter(t => t.status !== "done").slice(0,3).map(t => (
                     <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: C.bg, borderRadius: 8, fontSize: 12 }}>
@@ -757,6 +785,31 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                         style={{ width: 30, height: 30, borderRadius: "50%", background: c, cursor: "pointer", border: form.color===c ? `3px solid ${C.text}` : "3px solid transparent", boxShadow: form.color===c ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : "none" }} />
                     ))}
                   </div>
+                </div>
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 8 }}>📍 フェーズ</label>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    {PHASE_LABELS.map((ph, i) => {
+                      const ci = PHASE_LABELS.indexOf(form.phase || "");
+                      const done = ci >= 0 && i < ci;
+                      const cur = form.phase === ph;
+                      return (
+                        <React.Fragment key={ph}>
+                          {i > 0 && <div style={{ flex: 1, height: 2, background: done || cur ? form.color : C.border, minWidth: 4, margin: "0 1px", marginBottom: 20 }} />}
+                          <div onClick={() => setForm(f => ({ ...f, phase: ph }))} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", flexShrink: 0 }}>
+                            <div style={{ width: 22, height: 22, borderRadius: "50%", background: cur ? form.color : done ? form.color : "transparent", border: `2.5px solid ${done || cur ? form.color : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
+                              {done && <span style={{ color: "#fff", fontSize: 9, fontWeight: 900 }}>✓</span>}
+                              {cur && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#fff" }} />}
+                            </div>
+                            <span style={{ fontSize: 9, fontWeight: cur ? 900 : 600, color: done || cur ? form.color : C.muted, whiteSpace: "nowrap" }}>{ph}</span>
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                  {form.phase && (
+                    <button onClick={() => setForm(f => ({ ...f, phase: "" }))} style={btn({ marginTop: 8, fontSize: 10, color: C.muted, background: "transparent", padding: "2px 6px" })}>✕ フェーズをリセット</button>
+                  )}
                 </div>
                 <div style={{ background: C.bg, borderRadius: 12, padding: "12px 14px", marginBottom: 16, display: "flex", gap: 18 }}>
                   {[["総タスク", target.tasks.length, C.text], ["完了", target.tasks.filter(t=>t.status==="done").length, C.done], ["進行中", target.tasks.filter(t=>t.status==="doing").length, C.doing]].map(([lbl,val,col]) => (
