@@ -290,7 +290,10 @@ function StatusBadge({ s }) {
 
 function TaskCard({ t, project, onUpdate, onEdit }) {
   return (
-    <div draggable onDragStart={e => e.dataTransfer.setData("id", t.id)} onClick={() => onEdit(t)}
+    <div draggable
+      onDragStart={e => { e.dataTransfer.setData("id", t.id); e.currentTarget.style.opacity = "0.4"; }}
+      onDragEnd={e => { e.currentTarget.style.opacity = "1"; }}
+      onClick={() => onEdit(t)}
       style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "11px 13px", cursor: "grab", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginBottom: 5 }}>
         <div style={{ marginTop: 4 }}><PriorityDot p={t.priority} /></div>
@@ -583,7 +586,8 @@ function KanbanPage({ project, onUpdate }) {
                 {(form.subtasks||[]).map((s,i) => (
                   <div key={s.id}
                     draggable
-                    onDragStart={e => { e.dataTransfer.setData("subtaskIdx", String(i)); e.dataTransfer.effectAllowed = "move"; }}
+                    onDragStart={e => { e.dataTransfer.setData("subtaskIdx", String(i)); e.dataTransfer.effectAllowed = "move"; e.currentTarget.style.opacity = "0.4"; }}
+                    onDragEnd={e => { e.currentTarget.style.opacity = "1"; }}
                     onDragOver={e => e.preventDefault()}
                     onDrop={e => {
                       e.preventDefault();
