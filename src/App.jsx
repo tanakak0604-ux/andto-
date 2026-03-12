@@ -660,10 +660,10 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
     return (a.org || "ん").localeCompare(b.org || "ん", "ja");
   });
 
-  const openEdit = (p) => { setForm({ name: p.name, desc: p.desc||"", color: p.color, members: p.members||[], phase: p.phase||"" }); setModalTab("info"); setEditingId(p.id); };
+  const openEdit = (p) => { setForm({ name: p.name, desc: p.desc||"", color: p.color, members: p.members||[], phase: p.phase||"", slackChannelId: p.slackChannelId||"" }); setModalTab("info"); setEditingId(p.id); };
   const saveEdit = () => {
     if (!form.name.trim()) return;
-    onUpdate({ ...projects.find(p => p.id === editingId), name: form.name, desc: form.desc, color: form.color, members: form.members, phase: form.phase });
+    onUpdate({ ...projects.find(p => p.id === editingId), name: form.name, desc: form.desc, color: form.color, members: form.members, phase: form.phase, slackChannelId: form.slackChannelId });
     setEditingId(null);
   };
   const addMember = () => {
@@ -785,6 +785,18 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                         style={{ width: 30, height: 30, borderRadius: "50%", background: c, cursor: "pointer", border: form.color===c ? `3px solid ${C.text}` : "3px solid transparent", boxShadow: form.color===c ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : "none" }} />
                     ))}
                   </div>
+                </div>
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 4 }}>
+                    <span style={{ marginRight: 4 }}>💬</span>連携 Slack チャンネル ID
+                    <span style={{ fontSize: 10, color: C.muted, fontWeight: 400, marginLeft: 6 }}>（✅リアクションでタスク自動登録）</span>
+                  </label>
+                  <input value={form.slackChannelId} onChange={e => setForm(f => ({ ...f, slackChannelId: e.target.value.trim() }))}
+                    placeholder="例: C08PRV56NSF"
+                    style={{ width: "100%", border: `1.5px solid ${form.slackChannelId ? form.color : C.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, background: C.bg, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "monospace" }} />
+                  {form.slackChannelId && (
+                    <div style={{ fontSize: 10, color: C.sage, marginTop: 4 }}>✓ チャンネル {form.slackChannelId} と連携します</div>
+                  )}
                 </div>
                 <div style={{ marginBottom: 20 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 8 }}>📍 フェーズ</label>
