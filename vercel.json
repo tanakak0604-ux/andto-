@@ -4,6 +4,10 @@
     {
       "path": "/api/notify-slack",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/weekly-summary",
+      "schedule": "0 0 * * 1"
     }
   ]
 }
