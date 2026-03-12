@@ -305,6 +305,9 @@ function TaskCard({ t, project, onUpdate, onEdit }) {
           👤 {(t.assigneeIds || []).map(id => project.members.find(m => m.id === id)?.name).filter(Boolean).join("・")}
         </div>
       )}
+      {(t.relatedDecisionIds || []).length > 0 && (
+        <div style={{ fontSize: 10, color: "#5B7EC9", marginLeft: 15, marginTop: 2, fontWeight: 600 }}>📋 決定事項 {t.relatedDecisionIds.length}件紐付き</div>
+      )}
       {(t.subtasks || []).length > 0 && (() => {
         const done = (t.subtasks || []).filter(s => s.done).length;
         const total = t.subtasks.length;
@@ -456,7 +459,7 @@ function KanbanPage({ project, onUpdate }) {
   const [form, setForm] = useState({});
   const [assigneeFilter, setAssigneeFilter] = useState("all"); // all | andto | other
 
-  const openNew = (status) => { setForm({ id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [] }); setModal({ isNew: true }); };
+  const openNew = (status) => { setForm({ id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }); setModal({ isNew: true }); };
   const openEdit = (t) => { setForm({ ...t }); setModal({ isNew: false }); };
   const save = () => {
     if (!form.title.trim()) return;
@@ -609,6 +612,24 @@ function KanbanPage({ project, onUpdate }) {
                 + サブタスクを追加
               </button>
             </div>
+            {(project.decisions || []).length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 6 }}>📋 関連する決定事項</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 150, overflowY: "auto" }}>
+                  {(project.decisions || []).map(d => {
+                    const sel = (form.relatedDecisionIds || []).includes(d.id);
+                    return (
+                      <button key={d.id} type="button"
+                        onClick={() => setForm(f => ({ ...f, relatedDecisionIds: sel ? (f.relatedDecisionIds||[]).filter(id=>id!==d.id) : [...(f.relatedDecisionIds||[]), d.id] }))}
+                        style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", borderRadius:8, border:`1.5px solid ${sel?"#5B7EC9":C.border}`, background:sel?"#EEF3FF":C.bg, cursor:"pointer", textAlign:"left" }}>
+                        <span style={{ width:6, height:6, borderRadius:"50%", background:sel?"#5B7EC9":C.muted, flexShrink:0 }} />
+                        <span style={{ fontSize:12, color:sel?"#5B7EC9":C.text, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.text}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               {!modal.isNew && <button onClick={del} style={btn({ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${C.accent}`, background: "transparent", color: C.accent, fontSize: 13, fontWeight: 700 })}>削除</button>}
               <button onClick={() => setModal(null)} style={btn({ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700 })}>キャンセル</button>
@@ -931,6 +952,7 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [editingDecisionText, setEditingDecisionText] = useState("");
   const [prevStep, setPrevStep] = useState("tasks");
   const [minutesSaved, setMinutesSaved] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const fileRef = useRef();
   const selProjObj = projects.find(p => p.id === selProj);
 
@@ -1189,6 +1211,45 @@ function MinutesPage({ projects, onUpdateProject }) {
           </div>
         </div>
       )}
+
+      {/* 横断検索バー */}
+      <div style={{ borderBottom:`1px solid ${C.border}`, background:C.surface, padding:"12px 24px" }}>
+        <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}
+          placeholder="🔍 全プロジェクトの議事録を横断検索..."
+          style={{ width:"100%", border:`1.5px solid ${searchQuery?C.sage:C.border}`, borderRadius:12, padding:"10px 16px", fontSize:13, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" }} />
+        {searchQuery.trim() && (() => {
+          const q = searchQuery.trim().toLowerCase();
+          const results = [];
+          projects.forEach(p => (p.minutes||[]).forEach(m => {
+            if ((m.content||"").toLowerCase().includes(q) || (m.title||"").toLowerCase().includes(q))
+              results.push({ p, m });
+          }));
+          return (
+            <div style={{ marginTop:12 }}>
+              <div style={{ fontSize:11, color:C.muted, fontWeight:700, marginBottom:8 }}>{results.length}件ヒット</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8, maxHeight:360, overflowY:"auto" }}>
+                {results.length === 0 ? (
+                  <div style={{ fontSize:13, color:C.muted, textAlign:"center", padding:"20px 0" }}>ヒットなし</div>
+                ) : results.map(({p,m}) => {
+                  const idx = (m.content||"").toLowerCase().indexOf(q);
+                  const snippet = idx>=0 ? (m.content||"").slice(Math.max(0,idx-20),idx+80).replace(/\n+/g," ") : "";
+                  return (
+                    <div key={`${p.id}-${m.id}`} style={{ background:C.bg, border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:snippet?6:0 }}>
+                        <span style={{ width:8, height:8, borderRadius:"50%", background:p.color, flexShrink:0 }} />
+                        <span style={{ fontSize:12, fontWeight:700, color:p.color }}>{p.name}</span>
+                        <span style={{ fontSize:12, fontWeight:600, color:C.text }}>{m.title||"（タイトル未設定）"}</span>
+                        <span style={{ fontSize:10, color:C.muted, marginLeft:"auto" }}>{new Date(m.createdAt).toLocaleDateString("ja-JP")}</span>
+                      </div>
+                      {snippet && <div style={{ fontSize:11, color:C.muted, lineHeight:1.6 }}>…{snippet}…</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
 
       <div style={{ padding:24, maxWidth:760, margin:"0 auto" }}>
             <div style={{ display:"flex", alignItems:"center", marginBottom:20 }}>
@@ -2100,7 +2161,21 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                       </div>
                     </div>
                     <p onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); }}
-                      style={{ fontSize:13, color:C.text, lineHeight:1.75, margin:"0 0 12px", fontWeight:500, cursor:"pointer" }}>{d.text}</p>
+                      style={{ fontSize:13, color:C.text, lineHeight:1.75, margin:"0 0 10px", fontWeight:500, cursor:"pointer" }}>{d.text}</p>
+                    {(() => {
+                      const linked = (project.tasks || []).filter(t => (t.relatedDecisionIds || []).includes(d.id));
+                      return linked.length > 0 && (
+                        <div style={{ background:"#EEF3FF", borderRadius:8, padding:"6px 10px", marginBottom:10 }}>
+                          <div style={{ fontSize:10, color:"#5B7EC9", fontWeight:700, marginBottom:4 }}>🔗 関連タスク {linked.length}件</div>
+                          {linked.map(t => (
+                            <div key={t.id} style={{ display:"flex", alignItems:"center", gap:6, padding:"2px 0" }}>
+                              <StatusBadge s={t.status} />
+                              <span style={{ fontSize:11, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{t.title}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                       <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>📝 {d.source}</span>
                       <span style={{ fontSize:10, color:C.muted }}>{new Date(d.createdAt).toLocaleDateString("ja-JP")}</span>
@@ -2109,6 +2184,75 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                 )}
               </div>
             ); })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MemberTasksPage({ projects }) {
+  const [filterStatus, setFilterStatus] = useState("active");
+
+  // メンバー名でグルーピング（複数プロジェクトに同名メンバーが存在する場合もまとめる）
+  const memberMap = {};
+  projects.forEach(p => {
+    (p.members || []).forEach(m => {
+      const key = m.name;
+      if (!memberMap[key]) memberMap[key] = { name: m.name, isAndto: m.isAndto, tasks: [] };
+      (p.tasks || []).filter(t => (t.assigneeIds || []).includes(m.id)).forEach(t => {
+        memberMap[key].tasks.push({ task: t, project: p });
+      });
+    });
+  });
+
+  const entries = Object.values(memberMap).map(e => ({
+    ...e,
+    tasks: filterStatus === "active" ? e.tasks.filter(({task}) => task.status !== "done") : e.tasks
+  })).filter(e => e.tasks.length > 0);
+
+  return (
+    <div style={{ overflowY:"auto", height:"calc(100vh - 52px)", background:C.bg }}>
+      <div style={{ padding:24, maxWidth:960, margin:"0 auto" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20, flexWrap:"wrap" }}>
+          <h2 style={{ fontSize:18, fontWeight:900, color:C.text, margin:0 }}>👥 メンバー別タスク</h2>
+          <div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
+            {[["active","進行中のみ"],["all","全て"]].map(([key,lbl]) => (
+              <button key={key} onClick={()=>setFilterStatus(key)}
+                style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700, border:`1.5px solid ${filterStatus===key?C.sage:C.border}`, background:filterStatus===key?C.sageLight:"transparent", color:filterStatus===key?C.sage:C.muted })}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+        {entries.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"60px 0", color:C.muted }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>👥</div>
+            <div style={{ fontSize:14, fontWeight:700 }}>担当タスクがありません</div>
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            {entries.map(e => (
+              <div key={e.name} style={{ background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:16, overflow:"hidden" }}>
+                <div style={{ padding:"12px 20px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:10, background:e.isAndto?C.sageLight:"#f9f7f3" }}>
+                  <div style={{ width:32, height:32, borderRadius:"50%", background:e.isAndto?C.sage:C.muted, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, flexShrink:0 }}>{e.name[0]}</div>
+                  <span style={{ fontSize:15, fontWeight:800, color:C.text }}>{e.name}</span>
+                  {e.isAndto && <span style={{ fontSize:10, color:C.sage, background:C.sageLight, border:`1px solid ${C.sage}`, borderRadius:20, padding:"2px 8px", fontWeight:700 }}>andto</span>}
+                  <span style={{ marginLeft:"auto", fontSize:12, color:C.muted, fontWeight:700 }}>{e.tasks.length}件</span>
+                </div>
+                <div>
+                  {e.tasks.map(({task:t, project:p}, i) => (
+                    <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 20px", borderBottom:i<e.tasks.length-1?`1px solid ${C.border}`:"none" }}>
+                      <PriorityDot p={t.priority} />
+                      <span style={{ flex:1, fontSize:13, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.title}</span>
+                      <StatusBadge s={t.status} />
+                      <span style={{ fontSize:11, color:C.muted, minWidth:80, textAlign:"right", flexShrink:0 }}>{t.dueDate||"期日未設定"}</span>
+                      <span style={{ fontSize:11, color:p.color, fontWeight:700, background:`${p.color}18`, borderRadius:20, padding:"2px 10px", minWidth:80, textAlign:"center", flexShrink:0 }}>{p.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -2177,7 +2321,7 @@ export default function App() {
         <div style={{ paddingRight:20, display:"flex", alignItems:"center", borderRight:`1px solid ${C.border}`, marginRight:4, flexShrink:0 }}>
   <img src={logo} alt="logo" style={{ height:32, objectFit:"contain" }} />
 </div>
-        {[["projects","📁 Projects"],["calendar","📅 カレンダー"],["minutes","✨ 議事録作成"]].map(([id,lbl])=>(
+        {[["projects","📁 Projects"],["calendar","📅 カレンダー"],["minutes","✨ 議事録作成"],["members","👥 メンバー"]].map(([id,lbl])=>(
           <button key={id} onClick={()=>setTab(id)} style={btn({padding:"0 16px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===id?C.accent:C.muted,borderBottom:tab===id?`2.5px solid ${C.accent}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap"})}>{lbl}</button>
         ))}
         <div style={{ width:1, background:C.border, margin:"10px 8px", flexShrink:0 }} />
@@ -2212,6 +2356,7 @@ export default function App() {
           <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={projects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} onViewDecisions={id=>setDecisionsProjectId(id)} /></div>
           <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} /></div>
           <div style={{ display:tab==="minutes"?"block":"none" }}><MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} /></div>
+          <div style={{ display:tab==="members"?"block":"none" }}><MemberTasksPage projects={projects} /></div>
           {active&&tab===active.id&&<KanbanPage key={active.id} project={active} onUpdate={updateProject} />}
         </>
       )}
