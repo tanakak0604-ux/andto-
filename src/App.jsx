@@ -1819,6 +1819,9 @@ function DecisionsPage({ project, onBack, onUpdate }) {
   const [movingDecisionId, setMovingDecisionId] = useState(null);
   const [renamingFolderId, setRenamingFolderId] = useState(null);
   const [renamingFolderText, setRenamingFolderText] = useState("");
+  const [dragItem, setDragItem] = useState(null); // { type:'decision'|'folder', id }
+  const [dragOverId, setDragOverId] = useState(null);
+  const [dropSide, setDropSide] = useState('after'); // 'before'|'after'|'into'
 
   const folders = project.decisionFolders || [];
   const allDecisions = (project.decisions || []).map(d => ({ ...d, folderId: d.folderId ?? null }));
@@ -1870,6 +1873,70 @@ function DecisionsPage({ project, onBack, onUpdate }) {
 
   const deleteDecision = (id) => {
     onUpdate({ ...project, decisions: allDecisions.filter(d => d.id !== id) });
+  };
+
+  // ── Drag & Drop ──────────────────────────────────────────────
+  const handleDragStart = (e, type, id) => {
+    setDragItem({ type, id });
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const handleDragOver = (e, overId, overType) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverId(overId);
+    if (overType === 'folder') {
+      setDropSide('into');
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setDropSide(e.clientY < rect.top + rect.height / 2 ? 'before' : 'after');
+    }
+  };
+  const handleDragLeave = (e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setDragOverId(null);
+  };
+  const handleDragEnd = () => { setDragItem(null); setDragOverId(null); };
+  const handleDrop = (e, targetId, targetType) => {
+    e.preventDefault();
+    setDragOverId(null);
+    if (!dragItem || dragItem.id === targetId) { setDragItem(null); return; }
+    if (dragItem.type === 'decision') {
+      if (targetType === 'folder') {
+        onUpdate({ ...project, decisions: allDecisions.map(d => d.id === dragItem.id ? { ...d, folderId: targetId } : d) });
+      } else {
+        // reorder within current folder
+        const cur = allDecisions.filter(d => d.folderId === currentFolderId);
+        const rest = allDecisions.filter(d => d.folderId !== currentFolderId);
+        const fromIdx = cur.findIndex(d => d.id === dragItem.id);
+        const toIdx = cur.findIndex(d => d.id === targetId);
+        if (fromIdx === -1 || toIdx === -1) { setDragItem(null); return; }
+        const reordered = [...cur];
+        const [moved] = reordered.splice(fromIdx, 1);
+        const insertAt = dropSide === 'before' ? toIdx : toIdx + 1;
+        reordered.splice(insertAt > fromIdx ? insertAt - 1 : insertAt, 0, moved);
+        onUpdate({ ...project, decisions: [...rest, ...reordered] });
+      }
+    } else if (dragItem.type === 'folder') {
+      if (targetType === 'folder') {
+        // prevent circular: cannot drop into own descendant
+        const isDesc = (fid, anc) => { if (!fid) return false; if (fid === anc) return true; const f = folders.find(x=>x.id===fid); return f ? isDesc(f.parentId, anc) : false; };
+        if (isDesc(targetId, dragItem.id)) { setDragItem(null); return; }
+        onUpdate({ ...project, decisionFolders: folders.map(f => f.id === dragItem.id ? { ...f, parentId: targetId } : f) });
+      } else if (targetType === 'decision') {
+        // reorder folders by inserting dragged folder before/after target folder is N/A here; skip
+      }
+    }
+    setDragItem(null);
+  };
+  // drop onto grid container (move item to current folder)
+  const handleDropOnContainer = (e) => {
+    e.preventDefault();
+    if (!dragItem) return;
+    if (dragItem.type === 'decision') {
+      onUpdate({ ...project, decisions: allDecisions.map(d => d.id === dragItem.id ? { ...d, folderId: currentFolderId } : d) });
+    } else if (dragItem.type === 'folder') {
+      onUpdate({ ...project, decisionFolders: folders.map(f => f.id === dragItem.id ? { ...f, parentId: currentFolderId } : f) });
+    }
+    setDragItem(null); setDragOverId(null);
   };
 
   return (
@@ -1948,13 +2015,22 @@ function DecisionsPage({ project, onBack, onUpdate }) {
             {!currentFolderId && <div style={{ fontSize:12 }}>「✨ 議事録作成」タブから議事録を生成し、決定事項を抽出・保存できます。</div>}
           </div>
         ) : (
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:12 }}>
+          <div onDragOver={e=>{ if(dragItem) e.preventDefault(); }} onDrop={handleDropOnContainer}
+            style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:12 }}>
             {/* フォルダ */}
             {currentFolders.map(f => {
               const count = countDecisions(f.id);
+              const isOver = dragOverId === f.id && dropSide === 'into';
               return (
-                <div key={f.id} onClick={()=>setCurrentFolderId(f.id)}
-                  style={{ background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:14, padding:16, boxShadow:"0 2px 8px rgba(0,0,0,0.05)", cursor:"pointer" }}>
+                <div key={f.id}
+                  draggable
+                  onDragStart={e=>handleDragStart(e,'folder',f.id)}
+                  onDragOver={e=>handleDragOver(e,f.id,'folder')}
+                  onDragLeave={handleDragLeave}
+                  onDrop={e=>{ e.stopPropagation(); handleDrop(e,f.id,'folder'); }}
+                  onDragEnd={handleDragEnd}
+                  onClick={()=>setCurrentFolderId(f.id)}
+                  style={{ background:isOver?`${project.color}15`:C.surface, border:`1.5px solid ${isOver?project.color:C.border}`, borderRadius:14, padding:16, boxShadow:"0 2px 8px rgba(0,0,0,0.05)", cursor:"pointer", opacity:dragItem?.id===f.id?0.4:1, transition:"border-color 0.15s, background 0.15s" }}>
                   {renamingFolderId === f.id ? (
                     <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:6, alignItems:"center" }}>
                       <input autoFocus value={renamingFolderText} onChange={e=>setRenamingFolderText(e.target.value)}
@@ -1985,8 +2061,18 @@ function DecisionsPage({ project, onBack, onUpdate }) {
               );
             })}
             {/* 決定事項カード */}
-            {currentDecisions.map(d => (
-              <div key={d.id} style={{ background:C.surface, border:`1.5px solid ${editingDecisionId===d.id?project.color:C.border}`, borderRadius:14, padding:16, boxShadow:"0 2px 8px rgba(0,0,0,0.05)" }}>
+            {currentDecisions.map(d => {
+              const isOver = dragOverId === d.id;
+              const shadow = isOver && dropSide==='before' ? `inset 0 4px 0 ${project.color}` : isOver && dropSide==='after' ? `inset 0 -4px 0 ${project.color}` : "0 2px 8px rgba(0,0,0,0.05)";
+              return (
+              <div key={d.id}
+                draggable={editingDecisionId !== d.id}
+                onDragStart={e=>handleDragStart(e,'decision',d.id)}
+                onDragOver={e=>handleDragOver(e,d.id,'decision')}
+                onDragLeave={handleDragLeave}
+                onDrop={e=>{ e.stopPropagation(); handleDrop(e,d.id,'decision'); }}
+                onDragEnd={handleDragEnd}
+                style={{ background:C.surface, border:`1.5px solid ${editingDecisionId===d.id?project.color:C.border}`, borderRadius:14, padding:16, boxShadow:shadow, opacity:dragItem?.id===d.id?0.4:1, transition:"box-shadow 0.1s" }}>
                 {editingDecisionId === d.id ? (
                   <>
                     <textarea value={editingDecisionText} onChange={e=>setEditingDecisionText(e.target.value)} rows={4} autoFocus
@@ -2018,7 +2104,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                   </>
                 )}
               </div>
-            ))}
+            ); })}
           </div>
         )}
       </div>
