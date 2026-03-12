@@ -8,9 +8,14 @@
  *   CRON_SECRET      - Cron リクエスト認証用シークレット
  */
 
-const SOURCE_CHANNELS = ["C0466A8FAP8", "C08PRV56NSF", "C08LNGU4U10"];
+const SOURCE_CHANNELS = [
+  { id: "C0466A8FAP8", name: "KAM" },
+  { id: "C08PRV56NSF", name: "Pine" },
+  { id: "C08LNGU4U10", name: "代田YK邸" },
+];
 const SUMMARY_CHANNEL = "C06UAGYA1L2";
 const NOTIFY_USER = "U037A6QU4QY";
+const DIVIDER = "━━━━━━━━━━━━━━━";
 
 module.exports = async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
@@ -21,39 +26,30 @@ module.exports = async function handler(req, res) {
 
   const oldest = String(Date.now() / 1000 - 7 * 24 * 60 * 60);
 
-  // ── 1. 各チャンネルのメッセージを取得 ───────────────────
-  const channelMessages = [];
-  for (const channelId of SOURCE_CHANNELS) {
+  // ── 1. チャンネルごとにメッセージ取得 → 個別要約 ───────
+  const sections = [];
+  for (const { id, name } of SOURCE_CHANNELS) {
     try {
-      const messages = await fetchChannelHistory(channelId, oldest);
-      if (messages.length > 0) {
-        channelMessages.push({ channelId, messages });
-      }
+      const messages = await fetchChannelHistory(id, oldest);
+      if (messages.length === 0) continue;
+      const messagesText = messages.map(m => m.text || "").filter(Boolean).join("\n");
+      const summary = await generateSummary(messagesText);
+      sections.push(`${DIVIDER}\n📌 #${name}（${id}）\n${summary}`);
     } catch (e) {
-      console.error(`Failed to fetch channel ${channelId}:`, e.message);
+      console.error(`Failed to process channel ${id}:`, e.message);
       // エラーがあっても他チャンネルの処理を継続
     }
   }
 
-  if (channelMessages.length === 0) {
+  if (sections.length === 0) {
     return res.status(200).json({ ok: true, skipped: "no messages" });
   }
 
-  // ── 2. Gemini で要約 ─────────────────────────────────────
-  const allText = channelMessages
-    .map(({ channelId, messages }) => {
-      const lines = messages.map(m => m.text || "").filter(Boolean).join("\n");
-      return `[チャンネル: ${channelId}]\n${lines}`;
-    })
-    .join("\n\n");
-
-  const summary = await generateSummary(allText);
-
-  // ── 3. サマリーを Slack に投稿 ───────────────────────────
-  const text = `<@${NOTIFY_USER}> 今週の進捗サマリーです。\n\n${summary}`;
+  // ── 2. サマリーを Slack に投稿 ───────────────────────────
+  const text = `<@${NOTIFY_USER}> 今週の進捗サマリーです。\n\n${sections.join("\n\n")}`;
   await postToSlack(SUMMARY_CHANNEL, text);
 
-  return res.status(200).json({ ok: true, channelsFetched: channelMessages.length });
+  return res.status(200).json({ ok: true, channelsFetched: sections.length });
 };
 
 // ── ユーティリティ ───────────────────────────────────────────
