@@ -34,6 +34,9 @@
 
 const crypto = require("crypto");
 
+// 処理済み event_id を記録（重複イベント処理防止）
+const processedEventIds = new Set();
+
 // Vercel のボディパーサーを無効化（署名検証のために生の body が必要）
 async function handler(req, res) {
   // GET は無視
@@ -66,6 +69,15 @@ async function handler(req, res) {
     if (!crypto.timingSafeEqual(Buffer.from(myHmac), Buffer.from(slackSig))) {
       return res.status(403).json({ error: "Invalid signature" });
     }
+  }
+
+  // ── 3.5. 重複イベント処理防止 ─────────────────────────────
+  const eventId = payload.event_id;
+  if (eventId) {
+    if (processedEventIds.has(eventId)) {
+      return res.status(200).json({ ok: true, skipped: "duplicate" });
+    }
+    processedEventIds.add(eventId);
   }
 
   // ── 4. reaction_added イベントのみ処理 ────────────────────
