@@ -996,15 +996,13 @@ function CalendarPage({ projects, onUpdate }) {
   const [selectedTask, setSelectedTask] = useState(null);
   const [dragTask, setDragTask] = useState(null);
   const [hoverDate, setHoverDate] = useState(null);
+  const [expandedDates, setExpandedDates] = useState({});
 
-  // andtoメンバーを全プロジェクトから収集（重複なし）
-  const andtoMembers = [];
-  const seenMemberIds = new Set();
-  projects.forEach(p => {
-    (p.members || []).filter(m => m.isAndto).forEach(m => {
-      if (!seenMemberIds.has(m.id)) { seenMemberIds.add(m.id); andtoMembers.push(m); }
-    });
-  });
+  // andtoメンバーを全プロジェクトから収集（id・name両方で重複排除）
+  const allAndtoMembers = projects.flatMap(p => (p.members || []).filter(m => m.isAndto));
+  const andtoMembers = allAndtoMembers.filter(
+    (m, idx, self) => idx === self.findIndex(x => x.id === m.id || x.name === m.name)
+  );
   const andtoIdSet = new Set(andtoMembers.map(m => m.id));
 
   const allTasks = projects.flatMap(p => p.tasks.map(t => ({ ...t, pColor: p.color, pName: p.name, pId: p.id })));
@@ -1091,8 +1089,10 @@ function CalendarPage({ projects, onUpdate }) {
           const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
           const col = i % 7;
           const isHover = !!ds && hoverDate === ds && !!dragTask;
-          const shown = tasks.slice(0, 2);
-          const rest = tasks.length - 2;
+          const LIMIT = 5;
+          const isExpanded = !!expandedDates[ds];
+          const shown = tasks.length > LIMIT && !isExpanded ? tasks.slice(0, LIMIT) : tasks;
+          const rest = tasks.length - LIMIT;
           return (
             <div key={i}
               onDragOver={ds ? e => handleDragOver(e, ds) : undefined}
@@ -1111,7 +1111,14 @@ function CalendarPage({ projects, onUpdate }) {
                     {t.title}
                   </div>
                 ))}
-                {rest > 0 && <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, paddingLeft: 5 }}>+{rest}件</div>}
+                {tasks.length > LIMIT && !isExpanded && (
+                  <div onClick={() => setExpandedDates(prev => ({ ...prev, [ds]: true }))}
+                    style={{ fontSize: 10, color: C.sage, fontWeight: 700, paddingLeft: 5, cursor: "pointer" }}>+{rest}件</div>
+                )}
+                {isExpanded && (
+                  <div onClick={() => setExpandedDates(prev => ({ ...prev, [ds]: false }))}
+                    style={{ fontSize: 10, color: C.muted, fontWeight: 700, paddingLeft: 5, cursor: "pointer", marginTop: 2 }}>閉じる</div>
+                )}
               </>}
             </div>
           );
