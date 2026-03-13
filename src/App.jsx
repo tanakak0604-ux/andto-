@@ -277,7 +277,12 @@ function buildMinutesBody(content) {
       closeList();
       inOther = t.includes("その他") || t.includes("備考");
       const label = t.startsWith("### ") ? t.slice(4) : t;
-      body += `<h2 class="sh">${esc(label)}</h2>\n`;
+      const isAgenda = /■\s*議題/.test(label);
+      if (isAgenda) {
+        body += `<h2 class="sh" style="background:#F0F0F0;padding:8px 12px;border-radius:6px;font-weight:bold;margin-bottom:8px;">${esc(label)}</h2>\n`;
+      } else {
+        body += `<h2 class="sh">${esc(label)}</h2>\n`;
+      }
       continue;
     }
     // Subheaders: "* **【...】**" (旧形式) or "【...】" alone (新形式)
