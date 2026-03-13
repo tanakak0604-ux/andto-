@@ -314,6 +314,58 @@ function buildMinutesBody(content) {
   return body;
 }
 
+function buildAgendaBody(content) {
+  const esc = escapeHtml;
+  let body = "";
+  let firstDone = false;
+  let metaBuffer = [];
+  let metaDone = false;
+  for (const line of content.split("\n")) {
+    const t = line.trim();
+    if (!firstDone && t) {
+      body += `<h1 class="title">${esc(t)}</h1>\n`;
+      firstDone = true;
+      continue;
+    }
+    if (/^■/.test(t)) {
+      if (metaBuffer.length) {
+        body += "<table class='meta'>" + metaBuffer.map(l => {
+          const ci = l.indexOf("：");
+          if (ci > 0) return `<tr><td class="mk">${esc(l.slice(0,ci+1).trim())}</td><td class="mv">${esc(l.slice(ci+1).trim())}</td></tr>`;
+          return `<tr><td class="mk"></td><td class="mv">${esc(l)}</td></tr>`;
+        }).join("") + "</table><hr class='div'>";
+        metaBuffer = [];
+        metaDone = true;
+      }
+      if (/^■\s*議題/.test(t)) {
+        body += `<h2 class="sh" style="background:#F0F0F0;padding:8px 12px;border-radius:0;box-shadow:none;font-weight:bold;margin-bottom:8px;">${esc(t)}</h2>\n`;
+      } else {
+        body += `<h2 class="sh">${esc(t)}</h2>\n`;
+      }
+      continue;
+    }
+    if (!t) continue;
+    if (!metaDone && t.includes("：")) {
+      metaBuffer.push(t);
+      continue;
+    }
+    if (!metaDone && metaBuffer.length === 0 && firstDone) {
+      metaBuffer.push(t);
+      continue;
+    }
+    metaDone = true;
+    body += `<p class="p">${esc(t)}</p>\n`;
+  }
+  if (metaBuffer.length) {
+    body += "<table class='meta'>" + metaBuffer.map(l => {
+      const ci = l.indexOf("：");
+      if (ci > 0) return `<tr><td class="mk">${esc(l.slice(0,ci+1).trim())}</td><td class="mv">${esc(l.slice(ci+1).trim())}</td></tr>`;
+      return `<tr><td class="mk"></td><td class="mv">${esc(l)}</td></tr>`;
+    }).join("") + "</table>";
+  }
+  return body;
+}
+
 function highlightInHtml(html, keyword) {
   if (!keyword || !keyword.trim()) return html;
   const esc = keyword.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1776,6 +1828,8 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [detailEditingDecText, setDetailEditingDecText] = useState("");
   const [approveMsg, setApproveMsg] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [agendaLoading, setAgendaLoading] = useState(false);
+  const [agendaError, setAgendaError] = useState("");
 
   const extractGaiyou = (content) => {
     const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
@@ -1876,6 +1930,62 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
     win.document.close(); win.focus(); win.print();
   };
 
+  const downloadAgendaPdf = (agendaEntry) => {
+    const PDF_CSS = `* { box-sizing: border-box; margin: 0; padding: 0; } @page { size: A4; margin: 20mm 20mm 25mm 20mm; } body { font-family: 'Yu Gothic','游ゴシック','YuGothic','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; font-size: 10pt; color: #000; padding: 20mm 20mm 25mm 20mm; line-height: 1.75; width: 210mm; min-height: 297mm; } .title { font-size: 14pt; font-weight: 700; text-align: left; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 2px solid #000; letter-spacing: 0.05em; } table.meta { border-collapse: collapse; margin-bottom: 8px; font-size: 9.5pt; } .mk { font-weight: 700; padding: 1px 10px 1px 0; white-space: nowrap; vertical-align: top; } .mv { padding: 1px 0; vertical-align: top; } .div { border: none; border-top: 1px solid #aaa; margin: 8px 0; } .sh { font-size: 10.5pt; font-weight: 700; margin: 14px 0 6px; padding: 3px 0; border-bottom: 1px solid #000; } .subh { font-size: 10pt; font-weight: 700; margin: 8px 0 3px; } .ul { padding-left: 0; margin: 3px 0 6px; list-style: none; } .ul li { margin: 2px 0; font-size: 9.5pt; line-height: 1.7; padding-left: 1em; text-indent: -1em; } .ul li::before { content: "・"; } .p { font-size: 9.5pt; margin: 2px 0 5px; line-height: 1.7; } @media print { body { padding: 0; } .sh { break-after: avoid; } }`;
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const body = buildAgendaBody(agendaEntry.content);
+    win.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${escapeHtml(agendaEntry.fileName)}</title><style>${PDF_CSS}</style></head><body>${body}</body></html>`);
+    win.document.close(); win.focus(); win.print();
+  };
+
+  const generateAgenda = async () => {
+    if (!selectedMinute) return;
+    setAgendaLoading(true); setAgendaError("");
+    try {
+      const today = new Date().toLocaleDateString("ja-JP", { year:"numeric", month:"2-digit", day:"2-digit" });
+      const minuteTitle = extractGaiyou(selectedMinute.content) || selectedMinute.title;
+      const prompt = `以下の議事録から次回打合せ用のアジェンダを作成してください。前回の未完了タスク・懸念事項・未確定事項を優先的に議題として抽出し、以下のフォーマットで出力してください。
+
+【出力フォーマット】
+次回打合せアジェンダ
+
+プロジェクト：${project.name}
+前回議事録：${minuteTitle}
+作成日：${today}
+次回日時：（未定）
+
+■ 議題 1：{議題名}
+　確認事項：{前回からの継続事項・タスク}
+　担当：{担当者名}
+
+■ 議題 2：{議題名}
+　確認事項：{前回からの継続事項・タスク}
+　担当：{担当者名}
+
+（以下、必要な議題数分繰り返す）
+
+備考：{その他引き継ぎ事項}
+
+【議事録】
+${selectedMinute.content}`;
+      const result = await callClaude({ max_tokens: 3000, messages: [{ role: "user", content: prompt }] });
+      if (result) {
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const agendaEntry = {
+          id: "a" + Date.now(),
+          title: `アジェンダ_${project.name}_${dateStr}`,
+          content: result,
+          createdAt: dateStr,
+          fileName: `アジェンダ_${project.name}_${dateStr}.pdf`,
+        };
+        onUpdate({ ...project, agendas: [...(project.agendas || []), agendaEntry] });
+        downloadAgendaPdf(agendaEntry);
+      }
+    } catch(e) { setAgendaError("エラー：" + e.message); }
+    setAgendaLoading(false);
+  };
+
   return (
     <div style={{ display:"flex", height:"calc(100vh - 52px)", overflow:"hidden" }}>
       {/* 左カラム：議事録一覧 */}
@@ -1922,7 +2032,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
                 return idx>=0 ? (m.content||"").slice(Math.max(0,idx-15),idx+70).replace(/\n+/g," ") : null;
               })();
               return (
-                <div key={m.id} onClick={() => { setSelectedId(m.id); setIsEditing(false); setAiEditOpen(false); setDeletingId(null); setExtractMode(false); setApproveMsg(""); }}
+                <div key={m.id} onClick={() => { setSelectedId(m.id); setIsEditing(false); setAiEditOpen(false); setDeletingId(null); setExtractMode(false); setApproveMsg(""); setAgendaError(""); }}
                   style={{ padding:"10px 11px", borderRadius:10, marginBottom:5, cursor:"pointer", background:isSel?C.accentLight:"transparent", border:`1.5px solid ${isSel?C.accent:C.border}` }}>
                   <div style={{ fontSize:11, color:C.muted, marginBottom:2 }}>{dateStr}</div>
                   <div style={{ fontSize:12, fontWeight:700, color:C.text, lineHeight:1.4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}
@@ -1969,6 +2079,10 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
                           style={btn({padding:"8px 18px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.text,fontSize:12,fontWeight:700})}>✏️ 編集</button>
                         <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
                           style={btn({padding:"8px 18px",borderRadius:8,background:aiEditOpen?C.accent:C.accentLight,color:aiEditOpen?"#fff":C.accent,fontSize:12,fontWeight:700,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
+                        <button onClick={generateAgenda} disabled={agendaLoading}
+                          style={btn({padding:"8px 18px",borderRadius:8,background:agendaLoading?"#B8CAED":"#6B8F71",color:"#fff",fontSize:12,fontWeight:700})}>
+                          {agendaLoading?"⏳ 生成中...":"📋 アジェンダ作成"}
+                        </button>
                         <button onClick={()=>downloadPdf(selectedMinute)}
                           style={btn({padding:"8px 18px",borderRadius:8,background:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
                         <button onClick={()=>deleteMinute(selectedMinute.id)}
@@ -2090,6 +2204,34 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
             ) : (
               <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}` }}
                 dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
+            )}
+            {agendaError && (
+              <div style={{ marginTop:12, background:"#FFF0F0", border:"1.5px solid #E07070", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#C0392B" }}>
+                {agendaError}
+              </div>
+            )}
+            {(project.agendas||[]).length > 0 && (
+              <div style={{ marginTop:28, borderTop:`1.5px solid ${C.border}`, paddingTop:20 }}>
+                <div style={{ fontSize:13, fontWeight:800, color:C.text, marginBottom:12 }}>📋 作成済みアジェンダ</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {[...(project.agendas||[])].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(ag=>(
+                    <div key={ag.id} style={{ display:"flex", alignItems:"center", gap:10, background:C.surface, borderRadius:10, padding:"10px 14px", border:`1.5px solid ${C.border}` }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ag.title}</div>
+                        <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{ag.createdAt}</div>
+                      </div>
+                      <button onClick={()=>downloadAgendaPdf(ag)}
+                        style={btn({padding:"6px 14px",borderRadius:8,background:"#6B8F71",color:"#fff",fontSize:11,fontWeight:700})}>
+                        ⬇️ PDF
+                      </button>
+                      <button onClick={()=>onUpdate({...project,agendas:(project.agendas||[]).filter(x=>x.id!==ag.id)})}
+                        style={btn({padding:"6px 10px",borderRadius:8,fontSize:11,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         ) : (
