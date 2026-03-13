@@ -8,20 +8,40 @@
  *   CRON_SECRET      - Cron リクエスト認証用シークレット
  */
 
-const SOURCE_CHANNELS = [
-  { id: "C0466A8FAP8", name: "KAM" },
-  { id: "C08PRV56NSF", name: "Pine" },
-  { id: "C08LNGU4U10", name: "代田YK邸" },
-];
-const SUMMARY_CHANNEL = "C06UAGYA1L2";
 const NOTIFY_USER = "U037A6QU4QY";
 const DIVIDER = "━━━━━━━━━━━━━━━";
+
+async function loadSlackSettings() {
+  const res = await fetch(
+    `${process.env.REACT_APP_SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared&select=slack_settings`,
+    {
+      headers: {
+        apikey: process.env.REACT_APP_SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${process.env.REACT_APP_SUPABASE_ANON_KEY}`,
+      },
+    }
+  );
+  const data = await res.json();
+  return data?.[0]?.slack_settings || null;
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
 
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  // Supabase から Slack 設定を取得
+  const slackSettings = await loadSlackSettings();
+  const SOURCE_CHANNELS = slackSettings?.sourceChannels || [];
+  const SUMMARY_CHANNEL = slackSettings?.summaryChannel || "";
+
+  if (!SUMMARY_CHANNEL) {
+    return res.status(500).json({ error: "summaryChannel is not configured in slackSettings" });
+  }
+  if (SOURCE_CHANNELS.length === 0) {
+    return res.status(200).json({ ok: true, skipped: "no sourceChannels configured" });
   }
 
   const oldest = String(Date.now() / 1000 - 7 * 24 * 60 * 60);

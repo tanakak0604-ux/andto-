@@ -43,6 +43,32 @@ async function saveProjects(projects) {
   } catch (_) {}
 }
 
+async function loadSlackSettings() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared&select=slack_settings`, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
+    });
+    const data = await res.json();
+    if (data && data[0] && data[0].slack_settings) return data[0].slack_settings;
+  } catch (_) {}
+  return null;
+}
+
+async function saveSlackSettings(slackSettings) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared`, {
+      method: "PATCH",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({ slack_settings: slackSettings })
+    });
+  } catch (_) {}
+}
+
 const C = {
   bg: "#F5F2EC", surface: "#FDFAF5", border: "#E2DDD4",
   text: "#2D2A24", muted: "#8C8880", accent: "#C8694A",
@@ -76,7 +102,30 @@ const INIT_PROJECTS = [
   ]},
 ];
 
-const SYSTEM_PROMPT = `あなたは議事録作成の専門家です。以下のルールとテンプレート構造を絶対に守って議事録を作成してください。
+const SYSTEM_PROMPT = `あなたは建築設計・ホテル開発プロジェクトに精通した議事録作成の専門家です。
+以下の業界知識を持ち、専門用語を正確に解釈・記録してください。
+
+【建築・設計分野の専門知識】
+- 設計フェーズ：企画・基本計画・基本設計・実施設計・工事監理
+- 図面種別：平面図・立面図・断面図・矩計図・詳細図・施工図・竣工図
+- 申請・法規：確認申請・建築確認・消防申請・開発許可・完了検査
+- 意匠・仕上：意匠設計・外装・内装・仕上げ材・マテリアル・サイン
+- 構造・設備：構造設計・設備設計・MEP・躯体・鉄骨・RC造・SRC造
+- 工事・施工：施工者・ゼネコン・サブコン・工程表・工期・現場監理
+- その他：プログラム・ゾーニング・動線・スキーム・モデルルーム
+
+【ホテル・施設開発分野の専門知識】
+- 施設構成：客室・スイート・ロビー・フロント・バックオフィス・宴会場・レストラン・スパ・フィットネス
+- 運営・管理：オペレーター・運営会社・ブランド・フランチャイズ・管理組合
+- 設備・備品：FF&E（家具・備品・什器）・OS&E・客室設備・共用設備
+- グレード・品質：グレード・スペック・仕様・クオリティ・ラグジュアリー
+- 計画・事業：事業計画・収支計画・開業・ソフトオープン・グランドオープン
+
+これらの用語が会議メモに登場した場合、文脈から正確に意味を推測し、
+適切な専門用語として記録してください。
+略語・口語表現も業界知識をもとに正式名称に補完してください。
+
+以下のルールとテンプレート構造を絶対に守って議事録を作成してください。
 
 【最重要】テンプレート構造の厳守ルール
 
@@ -258,6 +307,17 @@ function buildMinutesBody(content) {
   }
   closeList();
   return body;
+}
+
+function highlightInHtml(html, keyword) {
+  if (!keyword || !keyword.trim()) return html;
+  const esc = keyword.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = html.split(/(<[^>]+>)/g);
+  return parts.map((part, i) => {
+    if (i % 2 === 1) return part;
+    return part.replace(new RegExp(`(${esc})`, 'gi'),
+      '<mark style="background-color:#FFF176;color:#000;border-radius:2px;padding:0 2px">$1</mark>');
+  }).join('');
 }
 
 const PREVIEW_CSS = `
@@ -788,11 +848,11 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                 </div>
                 <div style={{ marginBottom: 20 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 4 }}>
-                    <span style={{ marginRight: 4 }}>💬</span>連携 Slack チャンネル ID
-                    <span style={{ fontSize: 10, color: C.muted, fontWeight: 400, marginLeft: 6 }}>（✅リアクションでタスク自動登録）</span>
+                    <span style={{ marginRight: 4 }}>💬</span>Slack連携チャンネルID
                   </label>
+                  <div style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>このチャンネルの✅リアクションでタスクを自動登録します</div>
                   <input value={form.slackChannelId} onChange={e => setForm(f => ({ ...f, slackChannelId: e.target.value.trim() }))}
-                    placeholder="例: C08PRV56NSF"
+                    placeholder="例：C0466A8FAP8"
                     style={{ width: "100%", border: `1.5px solid ${form.slackChannelId ? form.color : C.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, background: C.bg, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "monospace" }} />
                   {form.slackChannelId && (
                     <div style={{ fontSize: 10, color: C.sage, marginTop: 4 }}>✓ チャンネル {form.slackChannelId} と連携します</div>
@@ -927,55 +987,166 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
   );
 }
 
-function CalendarPage({ projects }) {
+function CalendarPage({ projects, onUpdate }) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [filterProj, setFilterProj] = useState("all");
+  const [filterMember, setFilterMember] = useState("all");
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [dragTask, setDragTask] = useState(null);
+  const [hoverDate, setHoverDate] = useState(null);
+
+  // andtoメンバーを全プロジェクトから収集（重複なし）
+  const andtoMembers = [];
+  const seenMemberIds = new Set();
+  projects.forEach(p => {
+    (p.members || []).filter(m => m.isAndto).forEach(m => {
+      if (!seenMemberIds.has(m.id)) { seenMemberIds.add(m.id); andtoMembers.push(m); }
+    });
+  });
+  const andtoIdSet = new Set(andtoMembers.map(m => m.id));
+
   const allTasks = projects.flatMap(p => p.tasks.map(t => ({ ...t, pColor: p.color, pName: p.name, pId: p.id })));
-  const filteredTasks = filterProj === "all" ? allTasks : allTasks.filter(t => t.pId === filterProj);
+
+  const projFiltered = filterProj === "all" ? allTasks : allTasks.filter(t => t.pId === filterProj);
+
+  const filteredTasks = (() => {
+    if (filterMember === "all") return projFiltered;
+    if (filterMember === "others") return projFiltered.filter(t => !(t.assigneeIds || []).some(id => andtoIdSet.has(id)));
+    return projFiltered.filter(t => (t.assigneeIds || []).includes(filterMember));
+  })();
+
   const firstDayRaw = new Date(year, month, 1).getDay();
   const firstDay = firstDayRaw === 0 ? 6 : firstDayRaw - 1;
-  const days = new Date(year, month+1, 0).getDate();
-  const cells = [...Array(firstDay).fill(null), ...Array.from({ length: days }, (_,i) => i+1)];
+  const days = new Date(year, month + 1, 0).getDate();
+  const cells = [...Array(firstDay).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
   const byDate = {};
-  filteredTasks.forEach(t => { if (t.dueDate) { if (!byDate[t.dueDate]) byDate[t.dueDate]=[]; byDate[t.dueDate].push(t); }});
+  filteredTasks.forEach(t => { if (t.dueDate) { if (!byDate[t.dueDate]) byDate[t.dueDate] = []; byDate[t.dueDate].push(t); } });
+
   const mn = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
   const dn = ["月","火","水","木","金","土","日"];
-  const prev = () => month===0 ? (setMonth(11),setYear(y=>y-1)) : setMonth(m=>m-1);
-  const next = () => month===11 ? (setMonth(0),setYear(y=>y+1)) : setMonth(m=>m+1);
+  const prev = () => month === 0 ? (setMonth(11), setYear(y => y - 1)) : setMonth(m => m - 1);
+  const next = () => month === 11 ? (setMonth(0), setYear(y => y + 1)) : setMonth(m => m + 1);
+
+  const priorityLabel = p => p === "high" ? "高" : p === "medium" ? "中" : "低";
+  const priorityColor = p => p === "high" ? C.accent : p === "medium" ? C.doing : C.done;
+  const statusLabel = s => s === "todo" ? "未着手" : s === "doing" ? "進行中" : "完了";
+
+  const handleDragStart = (e, t) => {
+    setDragTask({ taskId: t.id, pId: t.pId });
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const handleDragOver = (e, ds) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setHoverDate(ds); };
+  const handleDrop = (e, ds) => {
+    e.preventDefault(); setHoverDate(null);
+    if (!dragTask || !ds || !onUpdate) return;
+    const proj = projects.find(p => p.id === dragTask.pId);
+    if (!proj) return;
+    onUpdate({ ...proj, tasks: proj.tasks.map(t => t.id === dragTask.taskId ? { ...t, dueDate: ds } : t) });
+    setDragTask(null);
+  };
+  const handleDragEnd = () => { setDragTask(null); setHoverDate(null); };
+
+  const filterBtn = (active, color, label, onClick) => (
+    <button onClick={onClick} style={btn({ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: active ? color : "transparent", color: active ? "#fff" : C.muted, border: `1.5px solid ${active ? color : C.border}` })}>{label}</button>
+  );
+
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+      {/* ヘッダー */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <button onClick={prev} style={btn({ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${C.border}`, background: "transparent", fontSize: 16, color: C.text })}>‹</button>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: C.text }}>{year}年 {mn[month]}</h2>
         <button onClick={next} style={btn({ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${C.border}`, background: "transparent", fontSize: 16, color: C.text })}>›</button>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: 8 }}>
-          <button onClick={() => setFilterProj("all")} style={btn({ padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: filterProj === "all" ? C.text : "transparent", color: filterProj === "all" ? "#fff" : C.muted, border: `1.5px solid ${filterProj === "all" ? C.text : C.border}` })}>全体</button>
+      </div>
+
+      {/* フィルター */}
+      <div style={{ display: "flex", gap: 16, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>担当者:</span>
+          {filterBtn(filterMember === "all", C.text, "全員", () => setFilterMember("all"))}
+          {andtoMembers.map(m => filterBtn(filterMember === m.id, C.sage, m.name, () => setFilterMember(m.id)))}
+          {filterBtn(filterMember === "others", C.muted, "その他", () => setFilterMember("others"))}
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>プロジェクト:</span>
+          {filterBtn(filterProj === "all", C.text, "全プロジェクト", () => setFilterProj("all"))}
           {projects.map(p => (
-            <button key={p.id} onClick={() => setFilterProj(p.id)} style={btn({ padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: filterProj === p.id ? p.color : "transparent", color: filterProj === p.id ? "#fff" : C.muted, border: `1.5px solid ${filterProj === p.id ? p.color : C.border}`, display: "flex", alignItems: "center", gap: 5 })}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: p.color, display: "inline-block" }} />{p.name}
+            <button key={p.id} onClick={() => setFilterProj(p.id)} style={btn({ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: filterProj === p.id ? p.color : "transparent", color: filterProj === p.id ? "#fff" : C.muted, border: `1.5px solid ${filterProj === p.id ? p.color : C.border}`, display: "flex", alignItems: "center", gap: 5 })}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: p.color }} />{p.name}
             </button>
           ))}
         </div>
       </div>
+
+      {/* カレンダーグリッド */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 1, background: C.border, borderRadius: 16, overflow: "hidden" }}>
-        {dn.map((d,i) => <div key={d} style={{ background: C.surface, padding: "10px 0", textAlign: "center", fontSize: 12, fontWeight: 800, color: i===5 ? C.done : i===6 ? C.accent : C.muted }}>{d}</div>)}
-        {cells.map((day,i) => {
-          const ds = day ? `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}` : "";
-          const tasks = ds ? (byDate[ds]||[]) : [];
-          const isToday = day===today.getDate() && month===today.getMonth() && year===today.getFullYear();
-          const col = i%7;
+        {dn.map((d, i) => (
+          <div key={d} style={{ background: C.surface, padding: "10px 0", textAlign: "center", fontSize: 12, fontWeight: 800, color: i === 5 ? C.done : i === 6 ? C.accent : C.muted }}>{d}</div>
+        ))}
+        {cells.map((day, i) => {
+          const ds = day ? `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}` : "";
+          const tasks = ds ? (byDate[ds] || []) : [];
+          const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+          const col = i % 7;
+          const isHover = !!ds && hoverDate === ds && !!dragTask;
+          const shown = tasks.slice(0, 2);
+          const rest = tasks.length - 2;
           return (
-            <div key={i} style={{ background: C.surface, minHeight: 90, padding: "7px 5px", boxSizing: "border-box" }}>
+            <div key={i}
+              onDragOver={ds ? e => handleDragOver(e, ds) : undefined}
+              onDrop={ds ? e => handleDrop(e, ds) : undefined}
+              onDragLeave={() => setHoverDate(null)}
+              style={{ background: isHover ? C.sageLight : C.surface, minHeight: 90, padding: "7px 5px", boxSizing: "border-box", outline: isHover ? `2px solid ${C.sage}` : "none", outlineOffset: "-2px" }}>
               {day && <>
-                <div style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: isToday ? C.accent : "transparent", color: isToday ? "#fff" : col===5 ? C.done : col===6 ? C.accent : C.text, fontSize: 13, fontWeight: isToday ? 800 : 400, marginBottom: 3 }}>{day}</div>
-                {tasks.map(t => <div key={t.id} style={{ fontSize: 10, padding: "2px 5px", borderRadius: 4, marginBottom: 2, background: t.pColor+"22", color: t.pColor, fontWeight: 700, wordBreak: "break-all", lineHeight: 1.4 }}>{t.title}</div>)}
+                <div style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: isToday ? C.accent : "transparent", color: isToday ? "#fff" : col === 5 ? C.done : col === 6 ? C.accent : C.text, fontSize: 13, fontWeight: isToday ? 800 : 400, marginBottom: 3 }}>{day}</div>
+                {shown.map(t => (
+                  <div key={t.id}
+                    draggable
+                    onDragStart={e => handleDragStart(e, t)}
+                    onDragEnd={handleDragEnd}
+                    onClick={() => setSelectedTask(t)}
+                    style={{ fontSize: 10, padding: "2px 5px", borderRadius: 4, marginBottom: 2, background: t.pColor + "22", color: t.pColor, fontWeight: 700, lineHeight: 1.4, cursor: "grab", opacity: dragTask?.taskId === t.id ? 0.35 : 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", userSelect: "none" }}>
+                    {t.title}
+                  </div>
+                ))}
+                {rest > 0 && <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, paddingLeft: 5 }}>+{rest}件</div>}
               </>}
             </div>
           );
         })}
       </div>
+
+      {/* タスク詳細モーダル */}
+      {selectedTask && (
+        <div onClick={() => setSelectedTask(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 400, width: "100%", boxShadow: "0 16px 48px rgba(0,0,0,0.18)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 900, color: C.text, flex: 1, paddingRight: 12 }}>{selectedTask.title}</div>
+              <button onClick={() => setSelectedTask(null)} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                ["📁 プロジェクト", <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: selectedTask.pColor, flexShrink: 0 }} />{selectedTask.pName}</span>],
+                ["📅 期日", selectedTask.dueDate || "—"],
+                ["👤 担当者", (() => {
+                  const proj = projects.find(p => p.id === selectedTask.pId);
+                  const names = (selectedTask.assigneeIds || []).map(id => (proj?.members || []).find(m => m.id === id)?.name).filter(Boolean);
+                  return names.length ? names.join("・") : "（未割当）";
+                })()],
+                ["📊 ステータス", statusLabel(selectedTask.status)],
+                ["🔺 優先度", <span style={{ color: priorityColor(selectedTask.priority), fontWeight: 700 }}>{priorityLabel(selectedTask.priority)}</span>],
+              ].map(([label, val]) => (
+                <div key={label} style={{ display: "flex", gap: 12, fontSize: 13 }}>
+                  <span style={{ color: C.muted, fontWeight: 700, whiteSpace: "nowrap", minWidth: 90 }}>{label}</span>
+                  <span style={{ color: C.text }}>{val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1017,7 +1188,6 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [editingDecisionText, setEditingDecisionText] = useState("");
   const [prevStep, setPrevStep] = useState("tasks");
   const [minutesSaved, setMinutesSaved] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const fileRef = useRef();
   const selProjObj = projects.find(p => p.id === selProj);
 
@@ -1276,45 +1446,6 @@ function MinutesPage({ projects, onUpdateProject }) {
           </div>
         </div>
       )}
-
-      {/* 横断検索バー */}
-      <div style={{ borderBottom:`1px solid ${C.border}`, background:C.surface, padding:"12px 24px" }}>
-        <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}
-          placeholder="🔍 全プロジェクトの議事録を横断検索..."
-          style={{ width:"100%", border:`1.5px solid ${searchQuery?C.sage:C.border}`, borderRadius:12, padding:"10px 16px", fontSize:13, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" }} />
-        {searchQuery.trim() && (() => {
-          const q = searchQuery.trim().toLowerCase();
-          const results = [];
-          projects.forEach(p => (p.minutes||[]).forEach(m => {
-            if ((m.content||"").toLowerCase().includes(q) || (m.title||"").toLowerCase().includes(q))
-              results.push({ p, m });
-          }));
-          return (
-            <div style={{ marginTop:12 }}>
-              <div style={{ fontSize:11, color:C.muted, fontWeight:700, marginBottom:8 }}>{results.length}件ヒット</div>
-              <div style={{ display:"flex", flexDirection:"column", gap:8, maxHeight:360, overflowY:"auto" }}>
-                {results.length === 0 ? (
-                  <div style={{ fontSize:13, color:C.muted, textAlign:"center", padding:"20px 0" }}>ヒットなし</div>
-                ) : results.map(({p,m}) => {
-                  const idx = (m.content||"").toLowerCase().indexOf(q);
-                  const snippet = idx>=0 ? (m.content||"").slice(Math.max(0,idx-20),idx+80).replace(/\n+/g," ") : "";
-                  return (
-                    <div key={`${p.id}-${m.id}`} style={{ background:C.bg, border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px" }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:snippet?6:0 }}>
-                        <span style={{ width:8, height:8, borderRadius:"50%", background:p.color, flexShrink:0 }} />
-                        <span style={{ fontSize:12, fontWeight:700, color:p.color }}>{p.name}</span>
-                        <span style={{ fontSize:12, fontWeight:600, color:C.text }}>{m.title||"（タイトル未設定）"}</span>
-                        <span style={{ fontSize:10, color:C.muted, marginLeft:"auto" }}>{new Date(m.createdAt).toLocaleDateString("ja-JP")}</span>
-                      </div>
-                      {snippet && <div style={{ fontSize:11, color:C.muted, lineHeight:1.6 }}>…{snippet}…</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-      </div>
 
       <div style={{ padding:24, maxWidth:760, margin:"0 auto" }}>
             <div style={{ display:"flex", alignItems:"center", marginBottom:20 }}>
@@ -1632,6 +1763,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [detailEditingDecId, setDetailEditingDecId] = useState(null);
   const [detailEditingDecText, setDetailEditingDecText] = useState("");
   const [approveMsg, setApproveMsg] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const extractGaiyou = (content) => {
     const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
@@ -1744,31 +1876,53 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
               <span style={{ fontSize:13, fontWeight:800, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{project.name}</span>
             </div>
           </div>
-          <div style={{ fontSize:11, color:C.muted }}>{minutes.length}件の議事録</div>
+          <div style={{ fontSize:11, color:C.muted, marginBottom:10 }}>{minutes.length}件の議事録</div>
+          <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}
+            placeholder="🔍 議事録を検索..."
+            style={{ width:"100%", border:`1.5px solid ${searchQuery?C.sage:C.border}`, borderRadius:10, padding:"7px 11px", fontSize:12, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" }} />
         </div>
         <div style={{ flex:1, overflowY:"auto", padding:"8px 10px" }}>
-          {minutes.length===0 ? (
-            <div style={{ textAlign:"center", padding:"40px 12px", color:C.muted, fontSize:12 }}>
-              <div style={{ fontSize:28, marginBottom:8 }}>📝</div>
-              議事録がまだ保存されていません
-            </div>
-          ) : minutes.map(m => {
-            const gaiyou = extractGaiyou(m.content);
-            const dateStr = (() => {
-              const d = extractMeetingDate(m.content);
-              return d ? d.toLocaleDateString("ja-JP") : new Date(m.createdAt).toLocaleDateString("ja-JP");
-            })();
-            const isSel = selectedId === m.id;
-            return (
-              <div key={m.id} onClick={() => { setSelectedId(m.id); setIsEditing(false); setAiEditOpen(false); setDeletingId(null); setExtractMode(false); setApproveMsg(""); }}
-                style={{ padding:"10px 11px", borderRadius:10, marginBottom:5, cursor:"pointer", background:isSel?C.accentLight:"transparent", border:`1.5px solid ${isSel?C.accent:C.border}` }}>
-                <div style={{ fontSize:11, color:C.muted, marginBottom:2 }}>{dateStr}</div>
-                <div style={{ fontSize:12, fontWeight:700, color:C.text, lineHeight:1.4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                  {gaiyou || m.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"")}
-                </div>
+          {(() => {
+            const q = searchQuery.trim().toLowerCase();
+            const filtered = q
+              ? minutes.filter(m => (m.content||"").toLowerCase().includes(q) || (m.title||"").toLowerCase().includes(q))
+              : minutes;
+            if (minutes.length===0) return (
+              <div style={{ textAlign:"center", padding:"40px 12px", color:C.muted, fontSize:12 }}>
+                <div style={{ fontSize:28, marginBottom:8 }}>📝</div>
+                議事録がまだ保存されていません
               </div>
             );
-          })}
+            if (q && filtered.length===0) return (
+              <div style={{ textAlign:"center", padding:"24px 12px", color:C.muted, fontSize:12 }}>ヒットなし</div>
+            );
+            return filtered.map(m => {
+              const gaiyou = extractGaiyou(m.content);
+              const dateStr = (() => {
+                const d = extractMeetingDate(m.content);
+                return d ? d.toLocaleDateString("ja-JP") : new Date(m.createdAt).toLocaleDateString("ja-JP");
+              })();
+              const isSel = selectedId === m.id;
+              const titleText = gaiyou || m.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"");
+              const snippet = (() => {
+                if (!q) return null;
+                const idx = (m.content||"").toLowerCase().indexOf(q);
+                return idx>=0 ? (m.content||"").slice(Math.max(0,idx-15),idx+70).replace(/\n+/g," ") : null;
+              })();
+              return (
+                <div key={m.id} onClick={() => { setSelectedId(m.id); setIsEditing(false); setAiEditOpen(false); setDeletingId(null); setExtractMode(false); setApproveMsg(""); }}
+                  style={{ padding:"10px 11px", borderRadius:10, marginBottom:5, cursor:"pointer", background:isSel?C.accentLight:"transparent", border:`1.5px solid ${isSel?C.accent:C.border}` }}>
+                  <div style={{ fontSize:11, color:C.muted, marginBottom:2 }}>{dateStr}</div>
+                  <div style={{ fontSize:12, fontWeight:700, color:C.text, lineHeight:1.4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}
+                    dangerouslySetInnerHTML={{ __html: highlightInHtml(titleText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'), q) }} />
+                  {snippet && (
+                    <div style={{ fontSize:11, color:C.muted, lineHeight:1.5, marginTop:4 }}
+                      dangerouslySetInnerHTML={{ __html: "…" + highlightInHtml(snippet.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'), q) + "…" }} />
+                  )}
+                </div>
+              );
+            });
+          })()}
         </div>
       </div>
 
@@ -1923,7 +2077,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
                 style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
             ) : (
               <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}` }}
-                dangerouslySetInnerHTML={{ __html: buildMinutesBody(selectedMinute.content) }} />
+                dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
             )}
           </div>
         ) : (
@@ -2325,6 +2479,83 @@ function MemberTasksPage({ projects }) {
   );
 }
 
+function SlackSettingsPage({ slackSettings, onChange }) {
+  const def = {
+    summaryChannel: "",
+    notifyChannel: "",
+    sourceChannels: [],
+  };
+  const [form, setForm] = useState({ ...def, ...slackSettings });
+  const [saved, setSaved] = useState(false);
+
+  const save = () => {
+    onChange(form);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const addChannel = () => setForm(f => ({ ...f, sourceChannels: [...f.sourceChannels, { id: "", name: "" }] }));
+  const removeChannel = i => setForm(f => ({ ...f, sourceChannels: f.sourceChannels.filter((_, idx) => idx !== i) }));
+  const updateChannel = (i, key, val) => setForm(f => ({
+    ...f, sourceChannels: f.sourceChannels.map((ch, idx) => idx === i ? { ...ch, [key]: val } : ch)
+  }));
+
+  return (
+    <div style={{ padding: "32px 24px", maxWidth: 600, margin: "0 auto" }}>
+      <div style={{ fontSize: 20, fontWeight: 900, color: C.text, marginBottom: 24 }}>💬 Slack設定</div>
+
+      {/* 週次サマリー */}
+      <div style={{ background: C.surface, borderRadius: 14, padding: 20, border: `1.5px solid ${C.border}`, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 16 }}>📊 週次サマリー</div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 4 }}>週次サマリー投稿先チャンネルID</label>
+          <input value={form.summaryChannel} onChange={e => setForm(f => ({ ...f, summaryChannel: e.target.value.trim() }))}
+            placeholder="例：C06UAGYA1L2"
+            style={{ width: "100%", border: `1.5px solid ${form.summaryChannel ? C.sage : C.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, background: C.bg, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "monospace" }} />
+        </div>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>週次サマリー対象チャンネル</label>
+            <button onClick={addChannel} style={btn({ padding: "4px 12px", borderRadius: 8, background: C.sage, color: "#fff", fontSize: 11, fontWeight: 700 })}>＋ 追加</button>
+          </div>
+          {form.sourceChannels.length === 0 && (
+            <div style={{ fontSize: 11, color: C.muted, padding: "8px 0" }}>対象チャンネルがまだ追加されていません</div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {form.sourceChannels.map((ch, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input value={ch.id} onChange={e => updateChannel(i, "id", e.target.value.trim())}
+                  placeholder="チャンネルID（例：C0466A8FAP8）"
+                  style={{ flex: 2, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", fontSize: 12, background: C.bg, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "monospace" }} />
+                <input value={ch.name} onChange={e => updateChannel(i, "name", e.target.value)}
+                  placeholder="チャンネル名（例：KAM）"
+                  style={{ flex: 1, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", fontSize: 12, background: C.bg, color: C.text, outline: "none", boxSizing: "border-box" }} />
+                <button onClick={() => removeChannel(i)} style={btn({ padding: "5px 10px", borderRadius: 8, background: "transparent", color: C.muted, fontSize: 13, border: `1.5px solid ${C.border}` })}>✕</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 期日通知 */}
+      <div style={{ background: C.surface, borderRadius: 14, padding: 20, border: `1.5px solid ${C.border}`, marginBottom: 24 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 16 }}>🔔 期日通知</div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 4 }}>期日通知投稿先チャンネルID</label>
+          <input value={form.notifyChannel} onChange={e => setForm(f => ({ ...f, notifyChannel: e.target.value.trim() }))}
+            placeholder="例：C06UAGYA1L2"
+            style={{ width: "100%", border: `1.5px solid ${form.notifyChannel ? C.sage : C.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, background: C.bg, color: C.text, outline: "none", boxSizing: "border-box", fontFamily: "monospace" }} />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={save} style={btn({ padding: "10px 28px", borderRadius: 10, background: C.sage, color: "#fff", fontSize: 13, fontWeight: 800 })}>💾 保存</button>
+        {saved && <span style={{ fontSize: 12, color: C.sage, fontWeight: 700 }}>✓ 保存しました</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [projects, setProjects] = useState(INIT_PROJECTS);
   const [tab, setTab] = useState("projects");
@@ -2334,6 +2565,7 @@ export default function App() {
   const [decisionsProjectId, setDecisionsProjectId] = useState(null);
   const [storageReady, setStorageReady] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [slackSettings, setSlackSettings] = useState({ summaryChannel: "", notifyChannel: "", sourceChannels: [] });
 
   useEffect(() => {
     loadProjects().then(saved => {
@@ -2344,9 +2576,12 @@ export default function App() {
       }
       setStorageReady(true);
     });
+    loadSlackSettings().then(s => { if (s) setSlackSettings(s); });
   }, []);
 
   useEffect(() => { if (!storageReady) return; saveProjects(projects); }, [projects, storageReady]);
+
+  const updateSlackSettings = s => { setSlackSettings(s); saveSlackSettings(s); };
 
   const updateProject = p => setProjects(ps => ps.map(x => x.id===p.id ? p : x));
   const deleteProject = id => { setProjects(ps => ps.filter(p => p.id!==id)); setTab("projects"); };
@@ -2406,6 +2641,7 @@ export default function App() {
           <button onClick={()=>setShowAdd(true)} style={btn({padding:"0 14px",height:52,background:"transparent",fontSize:13,color:C.muted,flexShrink:0})}>+ プロジェクト</button>
         )}
         <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:4, padding:"0 12px", flexShrink:0 }}>
+          <button onClick={()=>setTab("slack-settings")} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${tab==="slack-settings"?C.sage:C.border}`,background:tab==="slack-settings"?C.sageLight:"transparent",color:tab==="slack-settings"?C.sage:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>💬 Slack設定</button>
           <button onClick={exportData} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>⬆ エクスポート</button>
           <button onClick={()=>importRef.current?.click()} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>⬇ インポート</button>
           <input ref={importRef} type="file" accept=".json" onChange={importData} style={{ display:"none" }} />
@@ -2419,9 +2655,10 @@ export default function App() {
       ) : (
         <>
           <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={projects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} onViewDecisions={id=>setDecisionsProjectId(id)} /></div>
-          <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} /></div>
+          <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} onUpdate={updateProject} /></div>
           <div style={{ display:tab==="minutes"?"block":"none" }}><MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} /></div>
           <div style={{ display:tab==="members"?"block":"none" }}><MemberTasksPage projects={projects} /></div>
+          <div style={{ display:tab==="slack-settings"?"block":"none" }}><SlackSettingsPage slackSettings={slackSettings} onChange={updateSlackSettings} /></div>
           {active&&tab===active.id&&<KanbanPage key={active.id} project={active} onUpdate={updateProject} />}
         </>
       )}

@@ -20,10 +20,24 @@
  *   - 期日の 1 日前
  *
  * 【通知先】
- *   田中航平 (Slack user_id: U037A6QU4QY) へ DM
+ *   Supabase の slack_settings.notifyChannel チャンネルへ投稿（田中航平にメンション）
  */
 
 const NOTIFY_USER_ID = "U037A6QU4QY"; // 田中航平
+
+async function loadSlackSettings() {
+  const res = await fetch(
+    `${process.env.REACT_APP_SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared&select=slack_settings`,
+    {
+      headers: {
+        apikey: process.env.REACT_APP_SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${process.env.REACT_APP_SUPABASE_ANON_KEY}`,
+      },
+    }
+  );
+  const data = await res.json();
+  return data?.[0]?.slack_settings || null;
+}
 
 module.exports = async function handler(req, res) {
   // Vercel Cron からのリクエストのみ受け付ける
@@ -34,6 +48,13 @@ module.exports = async function handler(req, res) {
   const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
   if (!SLACK_BOT_TOKEN) {
     return res.status(500).json({ error: "SLACK_BOT_TOKEN is not set" });
+  }
+
+  // Supabase から Slack 設定を取得
+  const slackSettings = await loadSlackSettings();
+  const NOTIFY_CHANNEL = slackSettings?.notifyChannel || "";
+  if (!NOTIFY_CHANNEL) {
+    return res.status(500).json({ error: "notifyChannel is not configured in slackSettings" });
   }
 
   // Supabase からプロジェクトデータを取得
@@ -78,16 +99,19 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // Slack DM 送信
+  // Slack チャンネル投稿
   let sent = 0;
   for (const { task, project, diffDays, assigneeNames } of notifications) {
     const label = diffDays === 1 ? "⚠️ *明日が期日です*" : "📅 *1週間後が期日です*";
+    const relatedDecision = (project.decisions || []).find((d) => d.source && task.title && d.source.includes(task.title))?.text || "—";
     const text = [
+      `<@${NOTIFY_USER_ID}>`,
       label,
-      `タスク名　: ${task.title}`,
-      `期日　　　: ${task.dueDate}`,
       `プロジェクト: ${project.name}`,
-      `担当者　　: ${assigneeNames}`,
+      `決定事項　　: ${relatedDecision}`,
+      `タスク名　　: ${task.title}`,
+      `期日　　　　: ${task.dueDate}`,
+      `担当者　　　: ${assigneeNames}`,
     ].join("\n");
 
     try {
@@ -97,7 +121,7 @@ module.exports = async function handler(req, res) {
           Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ channel: NOTIFY_USER_ID, text }),
+        body: JSON.stringify({ channel: NOTIFY_CHANNEL, text }),
       });
       sent++;
     } catch (_) {
