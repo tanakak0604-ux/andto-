@@ -279,7 +279,7 @@ function buildMinutesBody(content) {
       const label = t.startsWith("### ") ? t.slice(4) : t;
       const isAgenda = /■\s*議題/.test(label);
       if (isAgenda) {
-        body += `<h2 class="sh" style="background:#F0F0F0;padding:8px 12px;border-radius:6px;font-weight:bold;margin-bottom:8px;">${esc(label)}</h2>\n`;
+        body += `<h2 class="sh" style="background:#F0F0F0;padding:8px 12px;border-radius:0;box-shadow:none;font-weight:bold;margin-bottom:8px;">${esc(label)}</h2>\n`;
       } else {
         body += `<h2 class="sh">${esc(label)}</h2>\n`;
       }
