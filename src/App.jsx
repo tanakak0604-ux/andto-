@@ -1108,7 +1108,7 @@ function CalendarPage({ projects, onUpdate }) {
                     onDragEnd={handleDragEnd}
                     onClick={() => setSelectedTask(t)}
                     style={{ fontSize: 10, padding: "2px 5px", borderRadius: 4, marginBottom: 2, background: t.pColor + "22", color: t.pColor, fontWeight: 700, lineHeight: 1.4, cursor: "grab", opacity: dragTask?.taskId === t.id ? 0.35 : 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", userSelect: "none" }}>
-                    {t.title}
+                    {t.status === "done" ? "✅ " : ""}{t.title}
                   </div>
                 ))}
                 {tasks.length > LIMIT && !isExpanded && (
