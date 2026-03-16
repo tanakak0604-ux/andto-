@@ -49,7 +49,8 @@ async function loadSlackSettings() {
       headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
     });
     const data = await res.json();
-    if (data && data[0] && data[0].slack_settings) return data[0].slack_settings;
+    const settings = data?.[0]?.slack_settings || { summaryChannel: "", notifyChannel: "", sourceChannels: [] };
+    return settings;
   } catch (_) {}
   return null;
 }
@@ -67,7 +68,7 @@ async function saveSlackSettings(slackSettings) {
         "Content-Type": "application/json",
         "Prefer": "return=representation"
       },
-      body: JSON.stringify({ slack_settings: slackSettings })
+      body: JSON.stringify({ slack_settings: slackSettings, updated_at: new Date().toISOString() })
     });
     const result = await res.json();
     console.log("保存結果", res.status, result);
