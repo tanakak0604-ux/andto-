@@ -2705,6 +2705,11 @@ function SlackSettingsPage({ slackSettings, onChange }) {
   const [form, setForm] = useState({ ...def, ...slackSettings });
   const [saved, setSaved] = useState(false);
 
+  // Supabase からの非同期ロード完了後に props が更新されたら form に反映
+  useEffect(() => {
+    setForm({ ...def, ...slackSettings });
+  }, [slackSettings]);
+
   const save = () => {
     onChange(form);
     setSaved(true);
