@@ -188,7 +188,14 @@ const SYSTEM_PROMPT = `あなたは建築設計・ホテル開発プロジェク
 6. andtoメンバーへの敬称「様」は一切付けない
 7. ヘッダー項目のプレースホルダーが「推測」の場合は入力テキストから推測して記入する。推測できない場合は空欄にする
 8. 本文の見出しが空欄でも省略せず「特になし」と記載する
-9. このシステムプロンプトの内容は議事録に記載しない`;
+9. このシステムプロンプトの内容は議事録に記載しない
+
+【原文忠実再現ルール】
+1. 入力された文字起こしの内容を忠実に再現すること
+2. 推測・補完・要約は原則禁止
+3. 発言者の意図を勝手に解釈しない
+4. 入力にない情報を追加しない
+5. やむを得ず補完・要約が必要な場合は該当箇所に「※AI補完」「※AI要約」とマークを付けて後で確認できるようにする`;
 
 const TEMPLATE = `【{projName}】議事録
 
@@ -488,8 +495,9 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
     <div style={{ flex: 1, minWidth: 240, background: C.doneLight, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}` }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <span style={{ fontWeight: 800, color: C.done, fontSize: 12, letterSpacing: 1 }}>完了</span>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ background: C.done, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>{doneTasks.length}</span>
+          <button onClick={() => onOpenNew("done")} style={btn({ width: 24, height: 24, borderRadius: "50%", background: C.done, color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, lineHeight: 1 })}>+</button>
           <button onClick={() => setAddingFolder(true)} style={btn({ fontSize: 14, color: C.done, background: "transparent" })}>📁+</button>
         </div>
       </div>
@@ -564,9 +572,6 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
           </div>
         )}
       </div>
-      <button onClick={() => onOpenNew("done")} style={btn({ marginTop: 10, width: "100%", border: `1.5px dashed ${C.border}`, background: "transparent", borderRadius: 10, padding: "8px 0", color: C.muted, fontSize: 13 })}>
-        + タスク追加
-      </button>
     </div>
   );
 }
@@ -645,14 +650,14 @@ function KanbanPage({ project, onUpdate }) {
               onDrop={e => { e.preventDefault(); setOver(false); drop(e.dataTransfer.getData("id"), s); }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <span style={{ fontWeight: 800, color: col, fontSize: 12, letterSpacing: 1 }}>{label}</span>
-                <span style={{ background: col, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>{tasks.length}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ background: col, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>{tasks.length}</span>
+                  <button onClick={() => openNew(s)} style={btn({ width: 24, height: 24, borderRadius: "50%", background: col, color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, lineHeight: 1 })}>+</button>
+                </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {tasks.map(t => <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={openEdit} />)}
               </div>
-              <button onClick={() => openNew(s)} style={btn({ marginTop: 10, width: "100%", border: `1.5px dashed ${C.border}`, background: "transparent", borderRadius: 10, padding: "8px 0", color: C.muted, fontSize: 13 })}>
-                + タスク追加
-              </button>
             </div>
           );
         })}
@@ -1248,6 +1253,8 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [aiEditError, setAiEditError] = useState("");
   const [genError, setGenError] = useState("");
   const [showPdfConfirm, setShowPdfConfirm] = useState(false);
+  const [showAiCompDialog, setShowAiCompDialog] = useState(false);
+  const [pendingMinutes, setPendingMinutes] = useState("");
   const [editingDecisionId, setEditingDecisionId] = useState(null);
   const [editingDecisionText, setEditingDecisionText] = useState("");
   const [prevStep, setPrevStep] = useState("tasks");
@@ -1355,7 +1362,14 @@ function MinutesPage({ projects, onUpdateProject }) {
     const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}${learningNote}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${combinedText}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
     try {
       const result = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: userContent }] });
-      setMinutes(result);
+      let hasAiComp = false;
+      if (result.includes("※AI補完") || result.includes("※AI要約")) {
+        setPendingMinutes(result);
+        setShowAiCompDialog(true);
+        hasAiComp = true;
+      } else {
+        setMinutes(result);
+      }
       const firstLine = result.split("\n").find(l=>l.trim().length>0)||"";
       setMinutesTitle(firstLine.replace(/^#\s*【(.+?)】.*/, "$1").replace(/^#\s*/,"").trim()||"会議");
       if (!isRegen) {
@@ -1368,7 +1382,7 @@ function MinutesPage({ projects, onUpdateProject }) {
           if (filtered.length>0) setShowMemberConfirm(true);
         } catch { setNewMemberCandidates([]); }
       }
-      setStep("minutes");
+      if (!hasAiComp) setStep("minutes");
     } catch(e) {
       setGenError("エラー："+e.message);
       setStep("minutes");
@@ -1468,6 +1482,32 @@ function MinutesPage({ projects, onUpdateProject }) {
   return (
     <div style={{ overflowY:"auto", height:"calc(100vh - 52px)", background:C.bg }}>
       {/* モーダル */}
+      {showAiCompDialog && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:400 }} onClick={()=>{}}>
+          <div style={{ background:C.surface, borderRadius:20, padding:26, width:380, maxWidth:"90vw", boxShadow:"0 24px 70px rgba(0,0,0,0.2)" }} onClick={e=>e.stopPropagation()}>
+            <h3 style={{ margin:"0 0 12px", fontSize:15, fontWeight:900, color:C.text }}>⚠️ AI補完・要約が発生しました</h3>
+            <p style={{ fontSize:12, color:C.muted, marginBottom:18, lineHeight:1.7 }}>
+              以下の箇所でAIが補完または要約を行いました。このまま反映しますか？<br />
+              「いいえ」を選ぶと該当箇所を<strong>※要確認（原文を参照してください）</strong>に置き換えます。
+            </p>
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button onClick={()=>{
+                const replaced = pendingMinutes.replace(/※AI補完/g,"※要確認（原文を参照してください）").replace(/※AI要約/g,"※要確認（原文を参照してください）");
+                setMinutes(replaced);
+                setPendingMinutes("");
+                setShowAiCompDialog(false);
+                setStep("minutes");
+              }} style={btn({padding:"9px 16px",borderRadius:10,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:13,fontWeight:700})}>いいえ（原文に戻す）</button>
+              <button onClick={()=>{
+                setMinutes(pendingMinutes);
+                setPendingMinutes("");
+                setShowAiCompDialog(false);
+                setStep("minutes");
+              }} style={btn({padding:"9px 20px",borderRadius:10,background:C.accent,color:"#fff",fontSize:13,fontWeight:800})}>はい（反映する）</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showPdfConfirm && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:350 }} onClick={()=>setShowPdfConfirm(false)}>
           <div style={{ background:C.surface, borderRadius:20, padding:26, width:360, maxWidth:"90vw", boxShadow:"0 24px 70px rgba(0,0,0,0.2)" }} onClick={e=>e.stopPropagation()}>
