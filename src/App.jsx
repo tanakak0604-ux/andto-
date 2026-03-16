@@ -494,9 +494,11 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
   return (
     <div style={{ flex: 1, minWidth: 240, background: C.doneLight, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}` }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ fontWeight: 800, color: C.done, fontSize: 12, letterSpacing: 1 }}>完了</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontWeight: 800, color: C.done, fontSize: 12, letterSpacing: 1 }}>完了</span>
           <span style={{ background: C.done, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>{doneTasks.length}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button onClick={() => onOpenNew("done")} style={btn({ width: 24, height: 24, borderRadius: "50%", background: C.done, color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, lineHeight: 1 })}>+</button>
           <button onClick={() => setAddingFolder(true)} style={btn({ fontSize: 14, color: C.done, background: "transparent" })}>📁+</button>
         </div>
@@ -649,11 +651,11 @@ function KanbanPage({ project, onUpdate }) {
               onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
               onDrop={e => { e.preventDefault(); setOver(false); drop(e.dataTransfer.getData("id"), s); }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <span style={{ fontWeight: 800, color: col, fontSize: 12, letterSpacing: 1 }}>{label}</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontWeight: 800, color: col, fontSize: 12, letterSpacing: 1 }}>{label}</span>
                   <span style={{ background: col, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>{tasks.length}</span>
-                  <button onClick={() => openNew(s)} style={btn({ width: 24, height: 24, borderRadius: "50%", background: col, color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, lineHeight: 1 })}>+</button>
                 </div>
+                <button onClick={() => openNew(s)} style={btn({ width: 24, height: 24, borderRadius: "50%", background: col, color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, lineHeight: 1 })}>+</button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {tasks.map(t => <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={openEdit} />)}
