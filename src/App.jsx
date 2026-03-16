@@ -55,18 +55,25 @@ async function loadSlackSettings() {
 }
 
 async function saveSlackSettings(slackSettings) {
+  console.log("保存開始", slackSettings);
+  console.log("SUPABASE_URL", SUPABASE_URL);
+  console.log("SUPABASE_KEY", SUPABASE_KEY ? SUPABASE_KEY.slice(0, 20) + "..." : "未設定");
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared`, {
       method: "PATCH",
       headers: {
         "apikey": SUPABASE_KEY,
         "Authorization": `Bearer ${SUPABASE_KEY}`,
         "Content-Type": "application/json",
-        "Prefer": "return=minimal"
+        "Prefer": "return=representation"
       },
       body: JSON.stringify({ slack_settings: slackSettings })
     });
-  } catch (_) {}
+    const result = await res.json();
+    console.log("保存結果", res.status, result);
+  } catch (e) {
+    console.error("保存エラー", e);
+  }
 }
 
 const C = {
