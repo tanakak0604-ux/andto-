@@ -30,8 +30,8 @@ async function loadProjects() {
   return null;
 }
 
-async function saveProjects(projects, updatedAt) {
-  const now = updatedAt || new Date().toISOString();
+async function saveProjects(projects) {
+  const now = new Date().toISOString();
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared`, {
       method: "PATCH",
@@ -590,14 +590,14 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
   );
 }
 
-function KanbanPage({ project, onUpdate, onEditingChange }) {
+function KanbanPage({ project, onUpdate }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [assigneeFilter, setAssigneeFilter] = useState("all"); // all | andto | other
 
-  const openNew = (status) => { setForm({ id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }); setModal({ isNew: true }); onEditingChange?.(true); };
-  const openEdit = (t) => { setForm({ ...t }); setModal({ isNew: false }); onEditingChange?.(true); };
-  const closeModal = () => { setModal(null); onEditingChange?.(false); };
+  const openNew = (status) => { setForm({ id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }); setModal({ isNew: true }); };
+  const openEdit = (t) => { setForm({ ...t }); setModal({ isNew: false }); };
+  const closeModal = () => { setModal(null); };
   const save = () => {
     if (!form.title.trim()) return;
     const tasks = modal.isNew ? [...project.tasks, form] : project.tasks.map(t => t.id === form.id ? form : t);
@@ -782,7 +782,7 @@ function KanbanPage({ project, onUpdate, onEditingChange }) {
 const COLOR_PALETTE = ["#6B8F71","#C8A84B","#7B9EC0","#C8694A","#9B8EC0","#4A9B8E","#C8697A","#8E9B4A"];
 const PHASE_LABELS = ["調査企画", "基本計画", "基本設計", "実施設計", "現場"];
 
-function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes, onViewDecisions, onEditingChange }) {
+function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes, onViewDecisions }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({});
@@ -797,8 +797,8 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
     return (a.org || "ん").localeCompare(b.org || "ん", "ja");
   });
 
-  const openEdit = (p) => { setForm({ name: p.name, desc: p.desc||"", color: p.color, members: p.members||[], phase: p.phase||"", slackChannelId: p.slackChannelId||"" }); setModalTab("info"); setEditingId(p.id); onEditingChange?.(true); };
-  const closeEdit = () => { setEditingId(null); onEditingChange?.(false); };
+  const openEdit = (p) => { setForm({ name: p.name, desc: p.desc||"", color: p.color, members: p.members||[], phase: p.phase||"", slackChannelId: p.slackChannelId||"" }); setModalTab("info"); setEditingId(p.id); };
+  const closeEdit = () => { setEditingId(null); };
   const saveEdit = () => {
     if (!form.name.trim()) return;
     onUpdate({ ...projects.find(p => p.id === editingId), name: form.name, desc: form.desc, color: form.color, members: form.members, phase: form.phase, slackChannelId: form.slackChannelId });
@@ -2896,18 +2896,19 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [slackSettings, setSlackSettings] = useState({ summaryChannel: "", notifyChannel: "", sourceChannels: [] });
   const [toast, setToast] = useState(null);
-  const [conflictData, setConflictData] = useState(null);
-  const [showConflictDialog, setShowConflictDialog] = useState(false);
-  const lastUpdatedAt = useRef(null);
   const isRemoteUpdate = useRef(false);
-  const isEditingGlobal = useRef(false);
+  const channelRef = useRef(null);
   const saveTimer = useRef(null);
+  const localUserId = useRef(
+    sessionStorage.getItem('taskflow-uid') ||
+    (() => { const id = Math.random().toString(36).slice(2); sessionStorage.setItem('taskflow-uid', id); return id; })()
+  );
   const showToast = (msg) => setToast(msg);
 
   useEffect(() => {
     loadProjects().then(saved => {
       if (saved && Array.isArray(saved) && saved.length > 0) {
-        isRemoteUpdate.current = true; // 初回ロードも保存をスキップ
+        isRemoteUpdate.current = true;
         setProjects(saved);
       } else {
         setShowWelcome(true);
@@ -2916,44 +2917,99 @@ export default function App() {
     });
     loadSlackSettings().then(s => { if (s) setSlackSettings(s); });
 
-    const channel = supabase
-      .channel("taskflow-realtime")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "taskflow_data", filter: "id=eq.shared" }, (payload) => {
-        if (payload.new.updated_at && payload.new.updated_at === lastUpdatedAt.current) return;
-        const newProjects = payload.new.projects;
-        if (!newProjects || !Array.isArray(newProjects)) return;
-        if (isEditingGlobal.current) {
-          // 編集中は競合ダイアログを表示
-          setConflictData(newProjects);
-          setShowConflictDialog(true);
-        } else {
-          // 編集中でなければ自動反映
-          isRemoteUpdate.current = true;
-          setProjects(newProjects);
-          showToast("データを同期しました");
-        }
+    const ch = supabase
+      .channel('taskflow-broadcast', { config: { broadcast: { self: false } } })
+      .on('broadcast', { event: 'task-added' }, ({ payload }) => {
+        if (payload.senderId === localUserId.current) return;
+        isRemoteUpdate.current = true;
+        setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, tasks: [...(p.tasks || []), payload.newTask] } : p));
+        showToast('タスクが追加されました');
+      })
+      .on('broadcast', { event: 'task-updated' }, ({ payload }) => {
+        if (payload.senderId === localUserId.current) return;
+        isRemoteUpdate.current = true;
+        setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, tasks: (p.tasks || []).map(t => t.id === payload.taskId ? payload.updatedTask : t) } : p));
+        showToast('タスクが更新されました');
+      })
+      .on('broadcast', { event: 'task-deleted' }, ({ payload }) => {
+        if (payload.senderId === localUserId.current) return;
+        isRemoteUpdate.current = true;
+        setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, tasks: (p.tasks || []).filter(t => t.id !== payload.taskId) } : p));
+        showToast('タスクが削除されました');
+      })
+      .on('broadcast', { event: 'decision-added' }, ({ payload }) => {
+        if (payload.senderId === localUserId.current) return;
+        isRemoteUpdate.current = true;
+        setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, decisions: [...(p.decisions || []), payload.newDecision] } : p));
+        showToast('決定事項が追加されました');
+      })
+      .on('broadcast', { event: 'decision-updated' }, ({ payload }) => {
+        if (payload.senderId === localUserId.current) return;
+        isRemoteUpdate.current = true;
+        setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, decisions: (p.decisions || []).map(d => d.id === payload.decisionId ? payload.updatedDecision : d) } : p));
+        showToast('決定事項が更新されました');
+      })
+      .on('broadcast', { event: 'decision-deleted' }, ({ payload }) => {
+        if (payload.senderId === localUserId.current) return;
+        isRemoteUpdate.current = true;
+        setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, decisions: (p.decisions || []).filter(d => d.id !== payload.decisionId) } : p));
+        showToast('決定事項が削除されました');
+      })
+      .on('broadcast', { event: 'minutes-added' }, ({ payload }) => {
+        if (payload.senderId === localUserId.current) return;
+        isRemoteUpdate.current = true;
+        setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, minutes: [...(p.minutes || []), payload.newMinutes] } : p));
+        showToast('議事録が追加されました');
+      })
+      .on('broadcast', { event: 'minutes-updated' }, ({ payload }) => {
+        if (payload.senderId === localUserId.current) return;
+        isRemoteUpdate.current = true;
+        setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, minutes: (p.minutes || []).map(m => m.id === payload.minutesId ? payload.updatedMinutes : m) } : p));
+        showToast('議事録が更新されました');
+      })
+      .on('broadcast', { event: 'minutes-deleted' }, ({ payload }) => {
+        if (payload.senderId === localUserId.current) return;
+        isRemoteUpdate.current = true;
+        setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, minutes: (p.minutes || []).filter(m => m.id !== payload.minutesId) } : p));
+        showToast('議事録が削除されました');
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    channelRef.current = ch;
+    return () => { supabase.removeChannel(ch); };
   }, []); // eslint-disable-line
 
   useEffect(() => {
     if (!storageReady) return;
-    // Realtime/ロード由来の更新はSupabaseへの再保存をスキップ
     if (isRemoteUpdate.current) { isRemoteUpdate.current = false; return; }
-    // 連続更新をデバウンス（500ms）
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      const now = new Date().toISOString();
-      lastUpdatedAt.current = now; // fetchより前にセットして競合を防ぐ
-      saveProjects(projects, now);
-    }, 500);
+    saveTimer.current = setTimeout(() => { saveProjects(projects); }, 500);
   }, [projects, storageReady]);
 
   const updateSlackSettings = s => { setSlackSettings(s); saveSlackSettings(s); };
 
-  const updateProject = p => setProjects(ps => ps.map(x => x.id===p.id ? p : x));
+  const updateProject = (newProj) => {
+    setProjects(ps => {
+      const oldProj = ps.find(p => p.id === newProj.id);
+      if (oldProj && channelRef.current) {
+        const projectId = newProj.id;
+        const send = (event, payload) => channelRef.current.send({ type: 'broadcast', event, payload: { ...payload, senderId: localUserId.current, projectId } });
+        const oldTasks = oldProj.tasks || []; const newTasks = newProj.tasks || [];
+        if (newTasks.length > oldTasks.length) { const added = newTasks.find(t => !oldTasks.some(ot => ot.id === t.id)); if (added) send('task-added', { newTask: added }); }
+        else if (newTasks.length < oldTasks.length) { const deleted = oldTasks.find(t => !newTasks.some(nt => nt.id === t.id)); if (deleted) send('task-deleted', { taskId: deleted.id }); }
+        else { const updated = newTasks.find(t => { const old = oldTasks.find(ot => ot.id === t.id); return old && JSON.stringify(t) !== JSON.stringify(old); }); if (updated) send('task-updated', { taskId: updated.id, updatedTask: updated }); }
+        const oldDecs = oldProj.decisions || []; const newDecs = newProj.decisions || [];
+        if (newDecs.length > oldDecs.length) { const added = newDecs.find(d => !oldDecs.some(od => od.id === d.id)); if (added) send('decision-added', { newDecision: added }); }
+        else if (newDecs.length < oldDecs.length) { const deleted = oldDecs.find(d => !newDecs.some(nd => nd.id === d.id)); if (deleted) send('decision-deleted', { decisionId: deleted.id }); }
+        else { const updated = newDecs.find(d => { const old = oldDecs.find(od => od.id === d.id); return old && JSON.stringify(d) !== JSON.stringify(old); }); if (updated) send('decision-updated', { decisionId: updated.id, updatedDecision: updated }); }
+        const oldMins = oldProj.minutes || []; const newMins = newProj.minutes || [];
+        if (newMins.length > oldMins.length) { const added = newMins.find(m => !oldMins.some(om => om.id === m.id)); if (added) send('minutes-added', { newMinutes: added }); }
+        else if (newMins.length < oldMins.length) { const deleted = oldMins.find(m => !newMins.some(nm => nm.id === m.id)); if (deleted) send('minutes-deleted', { minutesId: deleted.id }); }
+        else { const updated = newMins.find(m => { const old = oldMins.find(om => om.id === m.id); return old && JSON.stringify(m) !== JSON.stringify(old); }); if (updated) send('minutes-updated', { minutesId: updated.id, updatedMinutes: updated }); }
+      }
+      return ps.map(x => x.id === newProj.id ? newProj : x);
+    });
+  };
   const deleteProject = id => { setProjects(ps => ps.filter(p => p.id!==id)); setTab("projects"); };
   const addProject = () => {
     if (!newName.trim()) return;
@@ -3024,42 +3080,13 @@ export default function App() {
         <MinutesDetailPage project={projects.find(p=>p.id===minutesProjectId)} onBack={()=>setMinutesProjectId(null)} onUpdate={updateProject} />
       ) : (
         <>
-          <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={projects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} onViewDecisions={id=>setDecisionsProjectId(id)} onEditingChange={v=>{isEditingGlobal.current=v;}} /></div>
+          <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={projects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} onViewDecisions={id=>setDecisionsProjectId(id)} /></div>
           <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} onUpdate={updateProject} /></div>
           <div style={{ display:tab==="minutes"?"block":"none" }}><MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} /></div>
           <div style={{ display:tab==="members"?"block":"none" }}><MemberTasksPage projects={projects} /></div>
           <div style={{ display:tab==="slack-settings"?"block":"none" }}><SlackSettingsPage slackSettings={slackSettings} onChange={updateSlackSettings} /></div>
-          {active&&tab===active.id&&<KanbanPage key={active.id} project={active} onUpdate={updateProject} onEditingChange={v=>{isEditingGlobal.current=v;}} />}
+          {active&&tab===active.id&&<KanbanPage key={active.id} project={active} onUpdate={updateProject} />}
         </>
-      )}
-
-      {showConflictDialog && conflictData && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-          <div style={{ background:"#fff", borderRadius:16, padding:"32px 28px", maxWidth:420, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.22)" }}>
-            <div style={{ fontSize:17, fontWeight:900, color:C.text, marginBottom:10 }}>⚠️ 他のメンバーがデータを更新しました</div>
-            <div style={{ fontSize:13, color:C.muted, lineHeight:1.9, marginBottom:24 }}>
-              現在編集中の内容と競合しています。<br />どちらのデータを使用しますか？
-            </div>
-            <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
-              <button onClick={() => {
-                isRemoteUpdate.current = true;
-                setProjects(conflictData);
-                setConflictData(null); setShowConflictDialog(false);
-                isEditingGlobal.current = false;
-              }} style={btn({ padding:"10px 18px", borderRadius:10, background:C.sage, color:"#fff", fontSize:13, fontWeight:700 })}>
-                🔄 最新データに更新
-              </button>
-              <button onClick={() => {
-                const now = new Date().toISOString();
-                lastUpdatedAt.current = now;
-                saveProjects(projects, now);
-                setConflictData(null); setShowConflictDialog(false);
-              }} style={btn({ padding:"10px 18px", borderRadius:10, border:`1.5px solid ${C.border}`, background:"transparent", color:C.text, fontSize:13, fontWeight:700 })}>
-                ✏️ 自分の編集を優先
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
