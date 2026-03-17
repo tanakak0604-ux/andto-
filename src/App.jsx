@@ -1901,6 +1901,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [agendaLoading, setAgendaLoading] = useState(false);
   const [agendaError, setAgendaError] = useState("");
+  const [subtaskLoading, setSubtaskLoading] = useState(false);
 
   const extractGaiyou = (content) => {
     const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
@@ -1945,18 +1946,49 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const extractBothFromSaved = async () => {
     if (!selectedMinute) return;
     setExtracting(true); setApproveMsg("");
+    const existingFolders = project.decisionFolders || [];
+    const folderList = existingFolders.map(f => f.name).join('、') || 'なし';
     try {
       const [rawTasks, rawDecs] = await Promise.all([
         callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録からアクションアイテムをJSON配列で抽出してください。\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたは空文字","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${selectedMinute.content}` }] }),
-        callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n形式: [{"text":"決定事項の内容"}]\nJSONのみ出力。\n\n${selectedMinute.content}` }] })
+        callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n既存フォルダ一覧: ${folderList}\n各決定事項について上記フォルダから最も適切なものを選んでください。該当しない場合はsuggestedFolderをnullにしてください。\n形式: [{"text":"決定事項の内容","suggestedFolder":"フォルダ名またはnull"}]\nJSONのみ出力。\n\n${selectedMinute.content}` }] })
       ]);
-      try { const t = JSON.parse(rawTasks.replace(/```json|```/g,"").trim()); setDetailExtracted(t.map(x=>({...x,id:uid(),status:"todo",desc:"",selected:true}))); }
-      catch { setDetailExtracted([{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false}]); }
-      try { const d = JSON.parse(rawDecs.replace(/```json|```/g,"").trim()); setDetailExtractedDecisions(d.map(x=>({...x,id:uid(),selected:true}))); }
-      catch { setDetailExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false}]); }
+      let parsedTasks = [];
+      try {
+        const t = JSON.parse(rawTasks.replace(/```json|```/g,"").trim());
+        parsedTasks = t.map(x=>({...x,id:uid(),status:"todo",desc:"",selected:true,subtasks:[]}));
+        setDetailExtracted(parsedTasks);
+      } catch {
+        parsedTasks = [{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false,subtasks:[]}];
+        setDetailExtracted(parsedTasks);
+      }
+      try {
+        const d = JSON.parse(rawDecs.replace(/```json|```/g,"").trim());
+        setDetailExtractedDecisions(d.map(x=>{
+          const matchedFolder = existingFolders.find(f => f.name === x.suggestedFolder);
+          const folderId = matchedFolder?.id || null;
+          return { ...x, id:uid(), selected:true, folderId, newFolderName:"", _folderSel: folderId || "__none__" };
+        }));
+      } catch {
+        setDetailExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false,folderId:null,newFolderName:"",_folderSel:"__none__"}]);
+      }
+      // サブタスク自動生成
+      setSubtaskLoading(true);
+      try {
+        const subtaskResults = await Promise.all(
+          parsedTasks.map(t => callClaude({ max_tokens: 500, messages: [{ role: "user", content: `あなたは建築・ホテル開発プロジェクトの意匠設計者です。以下のタスクを完了するために必要なサブタスクを意匠設計者の観点から3〜5個考えてください。各サブタスクは具体的なアクションとして記述してください。\n\nタスク：${t.title}\nプロジェクト：${project.name}\n\n出力形式（JSONのみ）：\n["サブタスク1", "サブタスク2", "サブタスク3"]` }] }))
+        );
+        setDetailExtracted(prev => prev.map((t, i) => {
+          try {
+            const subs = JSON.parse(subtaskResults[i].replace(/```json|```/g,"").trim());
+            return { ...t, subtasks: subs.map(s => ({ id: uid(), title: `（AI自動生成）${s}`, done: false })) };
+          } catch { return t; }
+        }));
+      } catch {}
+      setSubtaskLoading(false);
     } catch {
-      setDetailExtracted([{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false}]);
-      setDetailExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false}]);
+      setDetailExtracted([{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false,subtasks:[]}]);
+      setDetailExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false,folderId:null,newFolderName:"",_folderSel:"__none__"}]);
     }
     setExtracting(false); setExtractMode(true);
   };
@@ -1971,13 +2003,31 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
       return {...t, assigneeIds};
     });
     const source = extractGaiyou(selectedMinute.content) || selectedMinute.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"");
-    const newDecisions = detailExtractedDecisions.filter(d=>d.selected).map(d=>({
-      id: d.id, text: d.text, source, createdAt: new Date().toISOString()
-    }));
+    // 新規フォルダの作成
+    const newFolders = [];
+    const folderNameToId = {};
+    detailExtractedDecisions.filter(d=>d.selected && d._folderSel==="__new__" && d.newFolderName?.trim()).forEach(d => {
+      const name = d.newFolderName.trim();
+      if (!folderNameToId[name]) {
+        const fid = uid();
+        newFolders.push({ id: fid, name, parentId: null });
+        folderNameToId[name] = fid;
+      }
+    });
+    const newDecisions = detailExtractedDecisions.filter(d=>d.selected).map(d=>{
+      let folderId = null;
+      if (d._folderSel === "__new__") {
+        folderId = folderNameToId[d.newFolderName?.trim()] || null;
+      } else if (d._folderSel && d._folderSel !== "__none__") {
+        folderId = d._folderSel;
+      }
+      return { id: d.id, text: d.text, source, createdAt: new Date().toISOString(), folderId };
+    });
     onUpdate({
       ...project,
       tasks: [...project.tasks, ...tasksToAdd],
       decisions: [...(project.decisions||[]), ...newDecisions],
+      decisionFolders: [...(project.decisionFolders||[]), ...newFolders],
     });
     setApproveMsg(`決定事項 ${newDecisions.length}件・タスク ${tasksToAdd.length}件を保存しました`);
     setExtractMode(false);
@@ -2219,6 +2269,19 @@ ${selectedMinute.content}`;
                             )}
                           </div>
                         </div>
+                        <div onClick={e=>e.stopPropagation()} style={{ padding:"0 14px 10px 42px", display:"flex", flexDirection:"column", gap:4 }}>
+                          <select value={d._folderSel||"__none__"} onChange={e=>setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,_folderSel:e.target.value,newFolderName:""}:x))}
+                            style={{ border:`1px solid ${C.border}`, borderRadius:6, padding:"3px 8px", fontSize:11, background:C.surface, color:C.text, outline:"none" }}>
+                            <option value="__none__">📁 フォルダなし</option>
+                            {(project.decisionFolders||[]).map(f=><option key={f.id} value={f.id}>📁 {f.name}</option>)}
+                            <option value="__new__">＋ 新規フォルダ作成</option>
+                          </select>
+                          {d._folderSel==="__new__" && (
+                            <input value={d.newFolderName||""} onChange={e=>setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,newFolderName:e.target.value}:x))}
+                              placeholder="新規フォルダ名を入力..."
+                              style={{ border:`1px solid #5B7EC9`, borderRadius:6, padding:"3px 8px", fontSize:11, background:"#fff", color:C.text, outline:"none" }} />
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2254,6 +2317,29 @@ ${selectedMinute.content}`;
                             style={{ flex:"1 1 60px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }}>
                             <option value="high">高</option><option value="medium">中</option><option value="low">低</option>
                           </select>
+                        </div>
+                        <div onClick={e=>e.stopPropagation()} style={{ padding:"0 12px 10px 40px" }}>
+                          {subtaskLoading ? (
+                            <div style={{ fontSize:11, color:C.muted, padding:"4px 0" }}>⏳ サブタスク生成中...</div>
+                          ) : (
+                            <>
+                              {(t.subtasks||[]).length > 0 && (
+                                <div style={{ display:"flex", flexDirection:"column", gap:3, marginBottom:5 }}>
+                                  {(t.subtasks||[]).map(s=>(
+                                    <div key={s.id} style={{ display:"flex", alignItems:"center", gap:6, background:C.bg, borderRadius:6, padding:"3px 8px" }}>
+                                      <span style={{ flex:1, fontSize:11, color:C.text }}>{s.title}</span>
+                                      <button onClick={()=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,subtasks:(x.subtasks||[]).filter(ss=>ss.id!==s.id)}:x))}
+                                        style={btn({padding:"1px 6px",borderRadius:4,fontSize:10,color:C.muted,background:"transparent"})}>×</button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <button onClick={()=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,subtasks:[...(x.subtasks||[]),{id:uid(),title:"",done:false}]}:x))}
+                                style={btn({padding:"2px 8px",borderRadius:6,fontSize:11,color:C.sage,background:"transparent",border:`1px dashed ${C.sage}`})}>
+                                ＋ サブタスクを追加
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}
