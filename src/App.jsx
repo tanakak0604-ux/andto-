@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import logo from "./logo.png";
+import { createClient } from "@supabase/supabase-js";
 
 async function callClaude({ system, messages, max_tokens = 8000 }) {
   const response = await fetch("/api/chat", {
@@ -13,6 +14,7 @@ async function callClaude({ system, messages, max_tokens = 8000 }) {
 }
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
 const SUPABASE_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function loadProjects() {
   try {
@@ -29,6 +31,7 @@ async function loadProjects() {
 }
 
 async function saveProjects(projects) {
+  const now = new Date().toISOString();
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared`, {
       method: "PATCH",
@@ -38,9 +41,10 @@ async function saveProjects(projects) {
         "Content-Type": "application/json",
         "Prefer": "return=minimal"
       },
-      body: JSON.stringify({ projects, updated_at: new Date().toISOString() })
+      body: JSON.stringify({ projects, updated_at: now })
     });
   } catch (_) {}
+  return now;
 }
 
 async function loadSlackSettings() {
@@ -2869,6 +2873,16 @@ function SlackSettingsPage({ slackSettings, onChange }) {
   );
 }
 
+function Toast({ message, onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
+  return (
+    <div style={{ position:"fixed", bottom:24, right:24, background:"#333", color:"#fff", padding:"12px 20px", borderRadius:8, zIndex:9999, fontSize:13, boxShadow:"0 4px 12px rgba(0,0,0,0.2)", display:"flex", alignItems:"center", gap:10 }}>
+      <span>🔄 {message}</span>
+      <button onClick={onClose} style={{ background:"transparent", border:"none", color:"#aaa", cursor:"pointer", fontSize:14, padding:0 }}>✕</button>
+    </div>
+  );
+}
+
 export default function App() {
   const [projects, setProjects] = useState(INIT_PROJECTS);
   const [tab, setTab] = useState("projects");
@@ -2879,6 +2893,9 @@ export default function App() {
   const [storageReady, setStorageReady] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [slackSettings, setSlackSettings] = useState({ summaryChannel: "", notifyChannel: "", sourceChannels: [] });
+  const [toast, setToast] = useState(null);
+  const lastUpdatedAt = useRef(null);
+  const showToast = (msg) => setToast(msg);
 
   useEffect(() => {
     loadProjects().then(saved => {
@@ -2890,9 +2907,25 @@ export default function App() {
       setStorageReady(true);
     });
     loadSlackSettings().then(s => { if (s) setSlackSettings(s); });
-  }, []);
 
-  useEffect(() => { if (!storageReady) return; saveProjects(projects); }, [projects, storageReady]);
+    const channel = supabase
+      .channel("taskflow-realtime")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "taskflow_data", filter: "id=eq.shared" }, (payload) => {
+        if (payload.new.updated_at === lastUpdatedAt.current) return;
+        if (payload.new.projects && Array.isArray(payload.new.projects)) {
+          setProjects(payload.new.projects);
+          showToast("他のユーザーがデータを更新しました");
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []); // eslint-disable-line
+
+  useEffect(() => {
+    if (!storageReady) return;
+    saveProjects(projects).then(now => { lastUpdatedAt.current = now; });
+  }, [projects, storageReady]);
 
   const updateSlackSettings = s => { setSlackSettings(s); saveSlackSettings(s); };
 
@@ -2975,6 +3008,8 @@ export default function App() {
           {active&&tab===active.id&&<KanbanPage key={active.id} project={active} onUpdate={updateProject} />}
         </>
       )}
+
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
 
       {showWelcome&&(
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
