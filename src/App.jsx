@@ -590,19 +590,20 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
   );
 }
 
-function KanbanPage({ project, onUpdate }) {
+function KanbanPage({ project, onUpdate, onEditingChange }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [assigneeFilter, setAssigneeFilter] = useState("all"); // all | andto | other
 
-  const openNew = (status) => { setForm({ id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }); setModal({ isNew: true }); };
-  const openEdit = (t) => { setForm({ ...t }); setModal({ isNew: false }); };
+  const openNew = (status) => { setForm({ id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }); setModal({ isNew: true }); onEditingChange?.(true); };
+  const openEdit = (t) => { setForm({ ...t }); setModal({ isNew: false }); onEditingChange?.(true); };
+  const closeModal = () => { setModal(null); onEditingChange?.(false); };
   const save = () => {
     if (!form.title.trim()) return;
     const tasks = modal.isNew ? [...project.tasks, form] : project.tasks.map(t => t.id === form.id ? form : t);
-    onUpdate({ ...project, tasks }); setModal(null);
+    onUpdate({ ...project, tasks }); closeModal();
   };
-  const del = () => { onUpdate({ ...project, tasks: project.tasks.filter(t => t.id !== form.id) }); setModal(null); };
+  const del = () => { onUpdate({ ...project, tasks: project.tasks.filter(t => t.id !== form.id) }); closeModal(); };
   const drop = (taskId, status) => onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, status } : t) });
 
   const memberAndtoIds = new Set((project.members || []).filter(m => m.isAndto).map(m => m.id));
@@ -678,7 +679,7 @@ function KanbanPage({ project, onUpdate }) {
         <DoneColumn project={project} viewTasks={viewTasks} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />
       </div>
       {modal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={() => setModal(null)}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={closeModal}>
           <div style={{ background: C.surface, borderRadius: 20, padding: 28, width: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.18)", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 18px", fontSize: 16, fontWeight: 800, color: C.text }}>{modal.isNew ? "タスク追加" : "タスク編集"}</h3>
             {[["タイトル", "title", "text"], ["期日", "dueDate", "date"]].map(([lbl, key, type]) => (
@@ -768,7 +769,7 @@ function KanbanPage({ project, onUpdate }) {
             )}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               {!modal.isNew && <button onClick={del} style={btn({ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${C.accent}`, background: "transparent", color: C.accent, fontSize: 13, fontWeight: 700 })}>削除</button>}
-              <button onClick={() => setModal(null)} style={btn({ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700 })}>キャンセル</button>
+              <button onClick={closeModal} style={btn({ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700 })}>キャンセル</button>
               <button onClick={save} style={btn({ padding: "9px 20px", borderRadius: 10, background: C.accent, color: "#fff", fontSize: 13, fontWeight: 800 })}>保存</button>
             </div>
           </div>
@@ -781,7 +782,7 @@ function KanbanPage({ project, onUpdate }) {
 const COLOR_PALETTE = ["#6B8F71","#C8A84B","#7B9EC0","#C8694A","#9B8EC0","#4A9B8E","#C8697A","#8E9B4A"];
 const PHASE_LABELS = ["調査企画", "基本計画", "基本設計", "実施設計", "現場"];
 
-function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes, onViewDecisions }) {
+function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes, onViewDecisions, onEditingChange }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({});
@@ -796,11 +797,12 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
     return (a.org || "ん").localeCompare(b.org || "ん", "ja");
   });
 
-  const openEdit = (p) => { setForm({ name: p.name, desc: p.desc||"", color: p.color, members: p.members||[], phase: p.phase||"", slackChannelId: p.slackChannelId||"" }); setModalTab("info"); setEditingId(p.id); };
+  const openEdit = (p) => { setForm({ name: p.name, desc: p.desc||"", color: p.color, members: p.members||[], phase: p.phase||"", slackChannelId: p.slackChannelId||"" }); setModalTab("info"); setEditingId(p.id); onEditingChange?.(true); };
+  const closeEdit = () => { setEditingId(null); onEditingChange?.(false); };
   const saveEdit = () => {
     if (!form.name.trim()) return;
     onUpdate({ ...projects.find(p => p.id === editingId), name: form.name, desc: form.desc, color: form.color, members: form.members, phase: form.phase, slackChannelId: form.slackChannelId });
-    setEditingId(null);
+    closeEdit();
   };
   const addMember = () => {
     if (!newMember.name.trim()) return;
@@ -895,7 +897,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
       {editingId && (() => {
         const target = projects.find(p => p.id === editingId);
         return (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }} onClick={() => setEditingId(null)}>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }} onClick={closeEdit}>
             <div style={{ background: C.surface, borderRadius: 20, padding: 28, width: 440, boxShadow: "0 24px 70px rgba(0,0,0,0.2)", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
               <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `1.5px solid ${C.border}` }}>
                 {[["info","⚙️ 基本情報"],["members","👥 メンバー"]].map(([id,lbl]) => (
@@ -1034,7 +1036,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
               <div style={{ display: "flex", gap: 8, justifyContent: "space-between", marginTop: 20, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
                 <button onClick={() => setConfirmDeleteId(editingId)} style={btn({ padding: "9px 14px", borderRadius: 10, border: `1.5px solid ${C.accent}`, background: "transparent", color: C.accent, fontSize: 12, fontWeight: 700 })}>削除</button>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => setEditingId(null)} style={btn({ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700 })}>キャンセル</button>
+                  <button onClick={closeEdit} style={btn({ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700 })}>キャンセル</button>
                   <button onClick={saveEdit} style={btn({ padding: "9px 22px", borderRadius: 10, background: form.color, color: "#fff", fontSize: 13, fontWeight: 800 })}>保存</button>
                 </div>
               </div>
@@ -1053,7 +1055,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
               <div style={{ fontSize: 13, color: C.muted, marginBottom: 24, lineHeight: 1.7 }}>「{proj?.name}」を削除しますか？<br />この操作は取り消せません。</div>
               <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
                 <button onClick={() => setConfirmDeleteId(null)} style={btn({ padding: "9px 20px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700 })}>キャンセル</button>
-                <button onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); setEditingId(null); }} style={btn({ padding: "9px 20px", borderRadius: 10, background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700 })}>削除する</button>
+                <button onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); closeEdit(); }} style={btn({ padding: "9px 20px", borderRadius: 10, background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700 })}>削除する</button>
               </div>
             </div>
           </div>
@@ -2894,8 +2896,11 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [slackSettings, setSlackSettings] = useState({ summaryChannel: "", notifyChannel: "", sourceChannels: [] });
   const [toast, setToast] = useState(null);
+  const [conflictData, setConflictData] = useState(null);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
   const lastUpdatedAt = useRef(null);
   const isRemoteUpdate = useRef(false);
+  const isEditingGlobal = useRef(false);
   const saveTimer = useRef(null);
   const showToast = (msg) => setToast(msg);
 
@@ -2915,10 +2920,17 @@ export default function App() {
       .channel("taskflow-realtime")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "taskflow_data", filter: "id=eq.shared" }, (payload) => {
         if (payload.new.updated_at && payload.new.updated_at === lastUpdatedAt.current) return;
-        if (payload.new.projects && Array.isArray(payload.new.projects)) {
-          isRemoteUpdate.current = true; // Realtime更新は再保存しない
-          setProjects(payload.new.projects);
-          showToast("他のユーザーがデータを更新しました");
+        const newProjects = payload.new.projects;
+        if (!newProjects || !Array.isArray(newProjects)) return;
+        if (isEditingGlobal.current) {
+          // 編集中は競合ダイアログを表示
+          setConflictData(newProjects);
+          setShowConflictDialog(true);
+        } else {
+          // 編集中でなければ自動反映
+          isRemoteUpdate.current = true;
+          setProjects(newProjects);
+          showToast("データを同期しました");
         }
       })
       .subscribe();
@@ -3012,13 +3024,42 @@ export default function App() {
         <MinutesDetailPage project={projects.find(p=>p.id===minutesProjectId)} onBack={()=>setMinutesProjectId(null)} onUpdate={updateProject} />
       ) : (
         <>
-          <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={projects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} onViewDecisions={id=>setDecisionsProjectId(id)} /></div>
+          <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={projects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} onViewDecisions={id=>setDecisionsProjectId(id)} onEditingChange={v=>{isEditingGlobal.current=v;}} /></div>
           <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} onUpdate={updateProject} /></div>
           <div style={{ display:tab==="minutes"?"block":"none" }}><MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} /></div>
           <div style={{ display:tab==="members"?"block":"none" }}><MemberTasksPage projects={projects} /></div>
           <div style={{ display:tab==="slack-settings"?"block":"none" }}><SlackSettingsPage slackSettings={slackSettings} onChange={updateSlackSettings} /></div>
-          {active&&tab===active.id&&<KanbanPage key={active.id} project={active} onUpdate={updateProject} />}
+          {active&&tab===active.id&&<KanbanPage key={active.id} project={active} onUpdate={updateProject} onEditingChange={v=>{isEditingGlobal.current=v;}} />}
         </>
+      )}
+
+      {showConflictDialog && conflictData && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:"#fff", borderRadius:16, padding:"32px 28px", maxWidth:420, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.22)" }}>
+            <div style={{ fontSize:17, fontWeight:900, color:C.text, marginBottom:10 }}>⚠️ 他のメンバーがデータを更新しました</div>
+            <div style={{ fontSize:13, color:C.muted, lineHeight:1.9, marginBottom:24 }}>
+              現在編集中の内容と競合しています。<br />どちらのデータを使用しますか？
+            </div>
+            <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+              <button onClick={() => {
+                isRemoteUpdate.current = true;
+                setProjects(conflictData);
+                setConflictData(null); setShowConflictDialog(false);
+                isEditingGlobal.current = false;
+              }} style={btn({ padding:"10px 18px", borderRadius:10, background:C.sage, color:"#fff", fontSize:13, fontWeight:700 })}>
+                🔄 最新データに更新
+              </button>
+              <button onClick={() => {
+                const now = new Date().toISOString();
+                lastUpdatedAt.current = now;
+                saveProjects(projects, now);
+                setConflictData(null); setShowConflictDialog(false);
+              }} style={btn({ padding:"10px 18px", borderRadius:10, border:`1.5px solid ${C.border}`, background:"transparent", color:C.text, fontSize:13, fontWeight:700 })}>
+                ✏️ 自分の編集を優先
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
