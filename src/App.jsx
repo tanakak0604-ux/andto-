@@ -2142,23 +2142,23 @@ ${selectedMinute.content}`;
                       <button onClick={()=>setExtractMode(false)} style={btn({padding:"8px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12})}>← プレビューに戻る</button>
                     ) : (
                       <>
-                        <button onClick={extractBothFromSaved} disabled={extracting}
-                          style={btn({padding:"8px 18px",borderRadius:8,background:extracting?"#B8CAED":"#5B7EC9",color:"#fff",fontSize:12,fontWeight:700})}>
-                          {extracting?"⏳ 抽出中...":"📋 決定事項・タスク抽出"}
-                        </button>
                         <button onClick={()=>{ setIsEditing(true); setEditContent(selectedMinute.content); setAiEditOpen(false); }}
                           style={btn({padding:"8px 18px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.text,fontSize:12,fontWeight:700})}>✏️ 編集</button>
                         <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
                           style={btn({padding:"8px 18px",borderRadius:8,background:aiEditOpen?C.accent:C.accentLight,color:aiEditOpen?"#fff":C.accent,fontSize:12,fontWeight:700,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
+                        <button onClick={extractBothFromSaved} disabled={extracting}
+                          style={btn({padding:"8px 18px",borderRadius:8,background:extracting?"#B8CAED":"#5B7EC9",color:"#fff",fontSize:12,fontWeight:700})}>
+                          {extracting?"⏳ 抽出中...":"📋 決定事項・タスク抽出"}
+                        </button>
                         <button onClick={generateAgenda} disabled={agendaLoading}
                           style={btn({padding:"8px 18px",borderRadius:8,background:agendaLoading?"#B8CAED":"#6B8F71",color:"#fff",fontSize:12,fontWeight:700})}>
                           {agendaLoading?"⏳ 生成中...":"📋 アジェンダ作成"}
                         </button>
                         <button onClick={()=>downloadPdf(selectedMinute)}
                           style={btn({padding:"8px 18px",borderRadius:8,background:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
-                        <button onClick={()=>deleteMinute(selectedMinute.id)}
-                          style={btn({padding:"8px 14px",borderRadius:8,fontSize:12,color:deletingId===selectedMinute.id?"#fff":C.muted,background:deletingId===selectedMinute.id?C.accent:"transparent",border:`1.5px solid ${C.border}`})}>
-                          {deletingId===selectedMinute.id?"削除確認":"✕"}
+                        <button onClick={()=>{ if(window.confirm("この議事録を削除しますか？この操作は取り消せません。")) { onUpdate({...project, minutes:project.minutes.filter(m=>m.id!==selectedMinute.id)}); setSelectedId(null); } }}
+                          style={btn({padding:"8px 14px",borderRadius:8,fontSize:12,color:"#DC2626",background:"transparent",border:`1.5px solid #FCA5A5`})}>
+                          🗑 削除
                         </button>
                       </>
                     )}
