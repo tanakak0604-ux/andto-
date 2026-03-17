@@ -1267,6 +1267,7 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [aiEditLoading, setAiEditLoading] = useState(false);
   const [aiEditError, setAiEditError] = useState("");
   const [genError, setGenError] = useState("");
+  const [hoveredGenBtn, setHoveredGenBtn] = useState(false);
   const [showPdfConfirm, setShowPdfConfirm] = useState(false);
   const [showAiCompDialog, setShowAiCompDialog] = useState(false);
   const [pendingMinutes, setPendingMinutes] = useState("");
@@ -1702,7 +1703,8 @@ function MinutesPage({ projects, onUpdateProject }) {
                     style={{ ...inputStyle, resize:"vertical", lineHeight:1.7, fontFamily:"inherit" }} />
                 </div>
                 <button onClick={()=>generateMinutes(false)} disabled={(!text.trim()&&attachedFiles.length===0)||!selProj||loading}
-                  style={btn({padding:"12px 28px",borderRadius:12,fontSize:13,fontWeight:800,color:"#fff",background:text.trim()&&selProj&&!loading?C.accent:C.border})}>
+                  onMouseEnter={()=>setHoveredGenBtn(true)} onMouseLeave={()=>setHoveredGenBtn(false)}
+                  style={{ background: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "#B0B0B0" : hoveredGenBtn ? "#3D8579" : "#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"10px 24px", fontSize:14, fontWeight:600, cursor: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}>
                   {loading?"⏳ 生成中...":"✨ 議事録を生成する"}
                 </button>
                 {genError&&<div style={{ marginTop:14, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#DC2626", fontWeight:600 }}>⚠️ {genError}</div>}
