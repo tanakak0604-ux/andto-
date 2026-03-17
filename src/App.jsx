@@ -30,8 +30,8 @@ async function loadProjects() {
   return null;
 }
 
-async function saveProjects(projects) {
-  const now = new Date().toISOString();
+async function saveProjects(projects, updatedAt) {
+  const now = updatedAt || new Date().toISOString();
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared`, {
       method: "PATCH",
@@ -2895,11 +2895,14 @@ export default function App() {
   const [slackSettings, setSlackSettings] = useState({ summaryChannel: "", notifyChannel: "", sourceChannels: [] });
   const [toast, setToast] = useState(null);
   const lastUpdatedAt = useRef(null);
+  const isRemoteUpdate = useRef(false);
+  const saveTimer = useRef(null);
   const showToast = (msg) => setToast(msg);
 
   useEffect(() => {
     loadProjects().then(saved => {
       if (saved && Array.isArray(saved) && saved.length > 0) {
+        isRemoteUpdate.current = true; // 初回ロードも保存をスキップ
         setProjects(saved);
       } else {
         setShowWelcome(true);
@@ -2911,8 +2914,9 @@ export default function App() {
     const channel = supabase
       .channel("taskflow-realtime")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "taskflow_data", filter: "id=eq.shared" }, (payload) => {
-        if (payload.new.updated_at === lastUpdatedAt.current) return;
+        if (payload.new.updated_at && payload.new.updated_at === lastUpdatedAt.current) return;
         if (payload.new.projects && Array.isArray(payload.new.projects)) {
+          isRemoteUpdate.current = true; // Realtime更新は再保存しない
           setProjects(payload.new.projects);
           showToast("他のユーザーがデータを更新しました");
         }
@@ -2924,7 +2928,15 @@ export default function App() {
 
   useEffect(() => {
     if (!storageReady) return;
-    saveProjects(projects).then(now => { lastUpdatedAt.current = now; });
+    // Realtime/ロード由来の更新はSupabaseへの再保存をスキップ
+    if (isRemoteUpdate.current) { isRemoteUpdate.current = false; return; }
+    // 連続更新をデバウンス（500ms）
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      const now = new Date().toISOString();
+      lastUpdatedAt.current = now; // fetchより前にセットして競合を防ぐ
+      saveProjects(projects, now);
+    }, 500);
   }, [projects, storageReady]);
 
   const updateSlackSettings = s => { setSlackSettings(s); saveSlackSettings(s); };
