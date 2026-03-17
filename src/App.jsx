@@ -14,7 +14,9 @@ async function callClaude({ system, messages, max_tokens = 8000 }) {
 }
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
 const SUPABASE_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  realtime: { params: { eventsPerSecond: 10 } }
+});
 
 async function loadProjects() {
   try {
@@ -2973,7 +2975,9 @@ export default function App() {
         setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, minutes: (p.minutes || []).filter(m => m.id !== payload.minutesId) } : p));
         showToast('議事録が削除されました');
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log('[Realtime] status:', status, err || '');
+      });
 
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); };
