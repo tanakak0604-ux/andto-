@@ -83,6 +83,14 @@ async function saveSlackSettings(slackSettings) {
   }
 }
 
+const BTN = {
+  ghost:     { background:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" },
+  primary:   { background:"#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" },
+  pdf:       { background:"#E8412A", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" },
+  danger:    { background:"transparent", border:"1.5px solid #E53935", color:"#E53935", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" },
+  primaryLg: { background:"#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"10px 24px", fontSize:14, fontWeight:600, cursor:"pointer" },
+};
+
 const C = {
   bg: "#F5F2EC", surface: "#FDFAF5", border: "#E2DDD4",
   text: "#2D2A24", muted: "#8C8880", accent: "#C8694A",
@@ -770,9 +778,9 @@ function KanbanPage({ project, onUpdate }) {
               </div>
             )}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              {!modal.isNew && <button onClick={del} style={btn({ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${C.accent}`, background: "transparent", color: C.accent, fontSize: 13, fontWeight: 700 })}>削除</button>}
-              <button onClick={closeModal} style={btn({ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700 })}>キャンセル</button>
-              <button onClick={save} style={btn({ padding: "9px 20px", borderRadius: 10, background: C.accent, color: "#fff", fontSize: 13, fontWeight: 800 })}>保存</button>
+              {!modal.isNew && <button onClick={del} style={BTN.danger}>削除</button>}
+              <button onClick={closeModal} style={BTN.ghost}>キャンセル</button>
+              <button onClick={save} style={BTN.primary}>保存</button>
             </div>
           </div>
         </div>
@@ -1038,8 +1046,8 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
               <div style={{ display: "flex", gap: 8, justifyContent: "space-between", marginTop: 20, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
                 <button onClick={() => setConfirmDeleteId(editingId)} style={btn({ padding: "9px 14px", borderRadius: 10, border: `1.5px solid ${C.accent}`, background: "transparent", color: C.accent, fontSize: 12, fontWeight: 700 })}>削除</button>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={closeEdit} style={btn({ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700 })}>キャンセル</button>
-                  <button onClick={saveEdit} style={btn({ padding: "9px 22px", borderRadius: 10, background: form.color, color: "#fff", fontSize: 13, fontWeight: 800 })}>保存</button>
+                  <button onClick={closeEdit} style={BTN.ghost}>キャンセル</button>
+                  <button onClick={saveEdit} style={BTN.primary}>保存</button>
                 </div>
               </div>
             </div>
@@ -1057,7 +1065,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
               <div style={{ fontSize: 13, color: C.muted, marginBottom: 24, lineHeight: 1.7 }}>「{proj?.name}」を削除しますか？<br />この操作は取り消せません。</div>
               <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
                 <button onClick={() => setConfirmDeleteId(null)} style={btn({ padding: "9px 20px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, fontWeight: 700 })}>キャンセル</button>
-                <button onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); closeEdit(); }} style={btn({ padding: "9px 20px", borderRadius: 10, background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700 })}>削除する</button>
+                <button onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); closeEdit(); }} style={BTN.danger}>削除する</button>
               </div>
             </div>
           </div>
@@ -1734,8 +1742,8 @@ function MinutesPage({ projects, onUpdateProject }) {
                       style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit" }} />
                     {aiEditError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>⚠️ {aiEditError}</div>}
                     <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
-                      <button onClick={()=>{setShowAiEdit(false);setAiInstruction("");setAiEditError("");}} style={btn({padding:"6px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12,fontWeight:700})}>キャンセル</button>
-                      <button onClick={runAiEdit} disabled={aiEditLoading||!aiInstruction.trim()} style={btn({padding:"6px 18px",borderRadius:8,background:aiEditLoading||!aiInstruction.trim()?C.border:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>{aiEditLoading?"修正中...":"修正する"}</button>
+                      <button onClick={()=>{setShowAiEdit(false);setAiInstruction("");setAiEditError("");}} style={BTN.ghost}>キャンセル</button>
+                      <button onClick={runAiEdit} disabled={aiEditLoading||!aiInstruction.trim()} style={{...BTN.primary, opacity:aiEditLoading||!aiInstruction.trim()?0.5:1, cursor:aiEditLoading||!aiInstruction.trim()?"default":"pointer"}}>{aiEditLoading?"修正中...":"修正する"}</button>
                     </div>
                   </div>
                 )}
@@ -1845,8 +1853,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                     決定事項 {extractedDecisions.filter(d=>d.selected).length}/{extractedDecisions.length}件　タスク {extracted.filter(t=>t.selected).length}/{extracted.length}件
                   </span>
                   <div style={{ display:"flex", gap:8 }}>
-                    <button onClick={()=>{approveBoth();}}
-                      style={btn({padding:"12px 28px",borderRadius:12,fontSize:13,fontWeight:800,color:"#fff",background:C.accent})}>
+                    <button onClick={()=>{approveBoth();}} style={{...BTN.primaryLg}}>
                       ✅ 承認して保存
                     </button>
                   </div>
@@ -2121,7 +2128,7 @@ ${selectedMinute.content}`;
       <div style={{ width:280, borderRight:`1.5px solid ${C.border}`, display:"flex", flexDirection:"column", background:C.surface, flexShrink:0 }}>
         <div style={{ padding:"14px 16px 12px", borderBottom:`1px solid ${C.border}` }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-            <button onClick={onBack} style={btn({background:"transparent",color:C.muted,fontSize:12,fontWeight:700,padding:"4px 10px",borderRadius:8,border:`1.5px solid ${C.border}`})}>← 戻る</button>
+            <button onClick={onBack} style={{...BTN.ghost, fontSize:12, padding:"4px 10px"}}>← 戻る</button>
             <div style={{ display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
               <div style={{ width:8, height:8, borderRadius:"50%", background:project.color, flexShrink:0 }} />
               <span style={{ fontSize:13, fontWeight:800, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{project.name}</span>
@@ -2191,13 +2198,13 @@ ${selectedMinute.content}`;
               <div style={{ display:"flex", gap:8, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
                 {isEditing ? (
                   <>
-                    <button onClick={saveEdit} style={btn({padding:"8px 18px",borderRadius:8,background:C.sage,color:"#fff",fontSize:12,fontWeight:700})}>💾 保存</button>
-                    <button onClick={()=>setIsEditing(false)} style={btn({padding:"8px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12})}>キャンセル</button>
+                    <button onClick={saveEdit} style={BTN.primary}>💾 保存</button>
+                    <button onClick={()=>setIsEditing(false)} style={BTN.ghost}>キャンセル</button>
                   </>
                 ) : (
                   <>
                     {extractMode ? (
-                      <button onClick={()=>setExtractMode(false)} style={btn({padding:"8px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12})}>← プレビューに戻る</button>
+                      <button onClick={()=>setExtractMode(false)} style={BTN.ghost}>← プレビューに戻る</button>
                     ) : (
                       <>
                         <button onClick={()=>{ setIsEditing(true); setEditContent(selectedMinute.content); setAiEditOpen(false); }}
@@ -2238,8 +2245,8 @@ ${selectedMinute.content}`;
                   style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
                 {aiError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>{aiError}</div>}
                 <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
-                  <button onClick={()=>{setAiEditOpen(false);setAiInstruction("");setAiError("");}} style={btn({padding:"6px 14px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12,fontWeight:700})}>キャンセル</button>
-                  <button onClick={runAiEdit} disabled={aiLoading||!aiInstruction.trim()} style={btn({padding:"6px 18px",borderRadius:8,background:aiLoading||!aiInstruction.trim()?C.border:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>{aiLoading?"修正中...":"修正する"}</button>
+                  <button onClick={()=>{setAiEditOpen(false);setAiInstruction("");setAiError("");}} style={BTN.ghost}>キャンセル</button>
+                  <button onClick={runAiEdit} disabled={aiLoading||!aiInstruction.trim()} style={{...BTN.primary, opacity:aiLoading||!aiInstruction.trim()?0.5:1, cursor:aiLoading||!aiInstruction.trim()?"default":"pointer"}}>{aiLoading?"修正中...":"修正する"}</button>
                 </div>
               </div>
             )}
@@ -2363,8 +2370,7 @@ ${selectedMinute.content}`;
                   <span style={{ fontSize:12, color:C.muted }}>
                     決定事項 {detailExtractedDecisions.filter(d=>d.selected).length}/{detailExtractedDecisions.length}件　タスク {detailExtracted.filter(t=>t.selected).length}/{detailExtracted.length}件
                   </span>
-                  <button onClick={approveBothFromSaved}
-                    style={btn({padding:"12px 28px",borderRadius:12,fontSize:13,fontWeight:800,color:"#fff",background:C.accent})}>
+                  <button onClick={approveBothFromSaved} style={{...BTN.primaryLg}}>
                     ✅ 承認して保存
                   </button>
                 </div>
