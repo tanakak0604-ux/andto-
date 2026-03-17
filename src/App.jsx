@@ -1063,8 +1063,8 @@ function CalendarPage({ projects, onUpdate }) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
-  const [filterProj, setFilterProj] = useState("all");
-  const [filterMember, setFilterMember] = useState("all");
+  const [selectedProjects, setSelectedProjects] = useState([]);
+  const [selectedMembers, setSelectedMembers] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
   const [dragTask, setDragTask] = useState(null);
   const [hoverDate, setHoverDate] = useState(null);
@@ -1079,13 +1079,11 @@ function CalendarPage({ projects, onUpdate }) {
 
   const allTasks = projects.flatMap(p => p.tasks.map(t => ({ ...t, pColor: p.color, pName: p.name, pId: p.id })));
 
-  const projFiltered = filterProj === "all" ? allTasks : allTasks.filter(t => t.pId === filterProj);
+  const projFiltered = selectedProjects.length === 0 ? allTasks : allTasks.filter(t => selectedProjects.includes(t.pId));
 
-  const filteredTasks = (() => {
-    if (filterMember === "all") return projFiltered;
-    if (filterMember === "others") return projFiltered.filter(t => !(t.assigneeIds || []).some(id => andtoIdSet.has(id)));
-    return projFiltered.filter(t => (t.assigneeIds || []).includes(filterMember));
-  })();
+  const filteredTasks = selectedMembers.length === 0
+    ? projFiltered
+    : projFiltered.filter(t => (t.assigneeIds || []).some(id => selectedMembers.includes(id)));
 
   const firstDayRaw = new Date(year, month, 1).getDay();
   const firstDay = firstDayRaw === 0 ? 6 : firstDayRaw - 1;
@@ -1135,15 +1133,14 @@ function CalendarPage({ projects, onUpdate }) {
       <div style={{ display: "flex", gap: 16, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>担当者:</span>
-          {filterBtn(filterMember === "all", C.text, "全員", () => setFilterMember("all"))}
-          {andtoMembers.map(m => filterBtn(filterMember === m.id, C.sage, m.name, () => setFilterMember(m.id)))}
-          {filterBtn(filterMember === "others", C.muted, "その他", () => setFilterMember("others"))}
+          {filterBtn(selectedMembers.length === 0, C.text, "全員", () => setSelectedMembers([]))}
+          {andtoMembers.map(m => filterBtn(selectedMembers.includes(m.id), C.sage, m.name, () => setSelectedMembers(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id])))}
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>プロジェクト:</span>
-          {filterBtn(filterProj === "all", C.text, "全プロジェクト", () => setFilterProj("all"))}
+          {filterBtn(selectedProjects.length === 0, C.text, "全プロジェクト", () => setSelectedProjects([]))}
           {projects.map(p => (
-            <button key={p.id} onClick={() => setFilterProj(p.id)} style={btn({ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: filterProj === p.id ? p.color : "transparent", color: filterProj === p.id ? "#fff" : C.muted, border: `1.5px solid ${filterProj === p.id ? p.color : C.border}`, display: "flex", alignItems: "center", gap: 5 })}>
+            <button key={p.id} onClick={() => setSelectedProjects(prev => prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id])} style={btn({ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: selectedProjects.includes(p.id) ? p.color : "transparent", color: selectedProjects.includes(p.id) ? "#fff" : C.muted, border: `1.5px solid ${selectedProjects.includes(p.id) ? p.color : C.border}`, display: "flex", alignItems: "center", gap: 5 })}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: p.color }} />{p.name}
             </button>
           ))}
