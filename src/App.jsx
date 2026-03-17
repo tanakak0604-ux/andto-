@@ -1905,6 +1905,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [approveMsg, setApproveMsg] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [agendaLoading, setAgendaLoading] = useState(false);
+  const [hoveredBtn, setHoveredBtn] = useState(null);
   const [agendaError, setAgendaError] = useState("");
   const [subtaskLoading, setSubtaskLoading] = useState(false);
 
@@ -2198,21 +2199,27 @@ ${selectedMinute.content}`;
                     ) : (
                       <>
                         <button onClick={()=>{ setIsEditing(true); setEditContent(selectedMinute.content); setAiEditOpen(false); }}
-                          style={btn({padding:"8px 18px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.text,fontSize:12,fontWeight:700})}>✏️ 編集</button>
+                          onMouseEnter={()=>setHoveredBtn('edit')} onMouseLeave={()=>setHoveredBtn(null)}
+                          style={{ background:hoveredBtn==='edit'?"#F5F5F5":"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✏️ 編集</button>
                         <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
-                          style={btn({padding:"8px 18px",borderRadius:8,background:aiEditOpen?C.accent:C.accentLight,color:aiEditOpen?"#fff":C.accent,fontSize:12,fontWeight:700,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
+                          onMouseEnter={()=>setHoveredBtn('ai')} onMouseLeave={()=>setHoveredBtn(null)}
+                          style={{ background:hoveredBtn==='ai'?"#F5F5F5":"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✨ AI修正</button>
                         <button onClick={extractBothFromSaved} disabled={extracting}
-                          style={btn({padding:"8px 18px",borderRadius:8,background:extracting?"#B8CAED":"#5B7EC9",color:"#fff",fontSize:12,fontWeight:700})}>
+                          onMouseEnter={()=>setHoveredBtn('extract')} onMouseLeave={()=>setHoveredBtn(null)}
+                          style={{ background:extracting?"#3D8579":hoveredBtn==='extract'?"#3D8579":"#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:extracting?"default":"pointer", opacity:extracting?0.7:1 }}>
                           {extracting?"⏳ 抽出中...":"📋 決定事項・タスク抽出"}
                         </button>
                         <button onClick={generateAgenda} disabled={agendaLoading}
-                          style={btn({padding:"8px 18px",borderRadius:8,background:agendaLoading?"#B8CAED":"#6B8F71",color:"#fff",fontSize:12,fontWeight:700})}>
+                          onMouseEnter={()=>setHoveredBtn('agenda')} onMouseLeave={()=>setHoveredBtn(null)}
+                          style={{ background:agendaLoading?"#3D8579":hoveredBtn==='agenda'?"#3D8579":"#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:agendaLoading?"default":"pointer", opacity:agendaLoading?0.7:1 }}>
                           {agendaLoading?"⏳ 生成中...":"📋 アジェンダ作成"}
                         </button>
                         <button onClick={()=>downloadPdf(selectedMinute)}
-                          style={btn({padding:"8px 18px",borderRadius:8,background:C.accent,color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
+                          onMouseEnter={()=>setHoveredBtn('pdf')} onMouseLeave={()=>setHoveredBtn(null)}
+                          style={{ background:hoveredBtn==='pdf'?"#C62828":"#E8412A", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>PDF</button>
                         <button onClick={()=>{ if(window.confirm("この議事録を削除しますか？この操作は取り消せません。")) { onUpdate({...project, minutes:project.minutes.filter(m=>m.id!==selectedMinute.id)}); setSelectedId(null); } }}
-                          style={btn({padding:"8px 14px",borderRadius:8,fontSize:12,color:"#DC2626",background:"transparent",border:`1.5px solid #FCA5A5`})}>
+                          onMouseEnter={()=>setHoveredBtn('delete')} onMouseLeave={()=>setHoveredBtn(null)}
+                          style={{ background:hoveredBtn==='delete'?"#FFEBEE":"transparent", border:"1.5px solid #E53935", color:"#E53935", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>
                           🗑 削除
                         </button>
                       </>
