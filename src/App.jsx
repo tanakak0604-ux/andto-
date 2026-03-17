@@ -792,8 +792,9 @@ function KanbanPage({ project, onUpdate }) {
 const COLOR_PALETTE = ["#6B8F71","#C8A84B","#7B9EC0","#C8694A","#9B8EC0","#4A9B8E","#C8697A","#8E9B4A"];
 const PHASE_LABELS = ["調査企画", "基本計画", "基本設計", "実施設計", "現場"];
 
-function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes, onViewDecisions }) {
+function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes, onViewDecisions, onReorder }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [dragId, setDragId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({});
   const [modalTab, setModalTab] = useState("info");
@@ -830,7 +831,12 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
           const todo = p.tasks.filter(t => t.status==="todo").length;
           const pct = p.tasks.length ? Math.round(done/p.tasks.length*100) : 0;
           return (
-            <div key={p.id} style={{ background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display:"flex", flexDirection:"column" }}>
+            <div key={p.id} draggable
+              onDragStart={()=>setDragId(p.id)}
+              onDragOver={e=>e.preventDefault()}
+              onDrop={()=>{ if(!dragId||dragId===p.id)return; const ids=projects.map(x=>x.id); const from=ids.indexOf(dragId); const to=ids.indexOf(p.id); const next=[...ids]; next.splice(from,1); next.splice(to,0,dragId); onReorder(next); setDragId(null); }}
+              onDragEnd={()=>setDragId(null)}
+              style={{ background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display:"flex", flexDirection:"column", opacity:dragId===p.id?0.5:1, cursor:"grab" }}>
               <div style={{ height: 6, background: p.color }} />
               <div style={{ padding: 20, display:"flex", flexDirection:"column", flex:1 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
@@ -1079,12 +1085,15 @@ function CalendarPage({ projects, onUpdate }) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
-  const [selectedProjects, setSelectedProjects] = useState([]);
-  const [selectedMembers, setSelectedMembers] = useState([]);
+  const [selectedProjects, setSelectedProjects] = useState(() => { try { return JSON.parse(localStorage.getItem('taskflow-calendar-projects') || '[]'); } catch { return []; } });
+  const [selectedMembers, setSelectedMembers] = useState(() => { try { return JSON.parse(localStorage.getItem('taskflow-calendar-members') || '[]'); } catch { return []; } });
   const [selectedTask, setSelectedTask] = useState(null);
   const [dragTask, setDragTask] = useState(null);
   const [hoverDate, setHoverDate] = useState(null);
   const [expandedDates, setExpandedDates] = useState({});
+
+  useEffect(() => { localStorage.setItem('taskflow-calendar-members', JSON.stringify(selectedMembers)); }, [selectedMembers]);
+  useEffect(() => { localStorage.setItem('taskflow-calendar-projects', JSON.stringify(selectedProjects)); }, [selectedProjects]);
 
   // andtoメンバーを全プロジェクトから収集（id・name両方で重複排除）
   const allAndtoMembers = projects.flatMap(p => (p.members || []).filter(m => m.isAndto));
@@ -2904,8 +2913,10 @@ function Toast({ message, onClose }) {
 
 export default function App() {
   const [projects, setProjects] = useState(INIT_PROJECTS);
+  const [projectOrder, setProjectOrder] = useState(() => { try { return JSON.parse(localStorage.getItem('taskflow-project-order') || '[]'); } catch { return []; } });
   const [tab, setTab] = useState("projects");
   const [showAdd, setShowAdd] = useState(false);
+  const [dragTabId, setDragTabId] = useState(null);
   const [newName, setNewName] = useState("");
   const [minutesProjectId, setMinutesProjectId] = useState(null);
   const [decisionsProjectId, setDecisionsProjectId] = useState(null);
@@ -3039,6 +3050,14 @@ export default function App() {
   const addTasks = (pid, tasks) => { setProjects(ps=>ps.map(p=>p.id===pid?{...p,tasks:[...p.tasks,...tasks]}:p)); };
   const active = projects.find(p => p.id===tab);
 
+  const reorderProjects = (newOrder) => {
+    setProjectOrder(newOrder);
+    localStorage.setItem('taskflow-project-order', JSON.stringify(newOrder));
+  };
+  const sortedProjects = projectOrder.length > 0
+    ? [...projects].sort((a, b) => { const ai = projectOrder.indexOf(a.id); const bi = projectOrder.indexOf(b.id); if (ai === -1 && bi === -1) return 0; if (ai === -1) return 1; if (bi === -1) return -1; return ai - bi; })
+    : projects;
+
   const exportData = () => {
     const blob = new Blob([JSON.stringify({projects,exportedAt:new Date().toISOString()},null,2)],{type:"application/json"});
     const url = URL.createObjectURL(blob);
@@ -3070,8 +3089,13 @@ export default function App() {
           <button key={id} onClick={()=>setTab(id)} style={btn({padding:"0 16px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===id?C.accent:C.muted,borderBottom:tab===id?`2.5px solid ${C.accent}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap"})}>{lbl}</button>
         ))}
         <div style={{ width:1, background:C.border, margin:"10px 8px", flexShrink:0 }} />
-        {projects.map(p=>(
-          <button key={p.id} onClick={()=>setTab(p.id)} style={btn({padding:"0 14px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===p.id?p.color:C.muted,borderBottom:tab===p.id?`2.5px solid ${p.color}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6})}>
+        {sortedProjects.map(p=>(
+          <button key={p.id} draggable onClick={()=>setTab(p.id)}
+            onDragStart={()=>setDragTabId(p.id)}
+            onDragOver={e=>e.preventDefault()}
+            onDrop={()=>{ if(!dragTabId||dragTabId===p.id)return; const ids=sortedProjects.map(x=>x.id); const from=ids.indexOf(dragTabId); const to=ids.indexOf(p.id); const next=[...ids]; next.splice(from,1); next.splice(to,0,dragTabId); reorderProjects(next); setDragTabId(null); }}
+            onDragEnd={()=>setDragTabId(null)}
+            style={btn({padding:"0 14px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===p.id?p.color:C.muted,borderBottom:tab===p.id?`2.5px solid ${p.color}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,opacity:dragTabId===p.id?0.5:1,cursor:"grab"})}>
             <span style={{ width:7, height:7, borderRadius:"50%", background:p.color }} />{p.name}
           </button>
         ))}
@@ -3099,7 +3123,7 @@ export default function App() {
         <MinutesDetailPage project={projects.find(p=>p.id===minutesProjectId)} onBack={()=>setMinutesProjectId(null)} onUpdate={updateProject} />
       ) : (
         <>
-          <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={projects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} onViewDecisions={id=>setDecisionsProjectId(id)} /></div>
+          <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={sortedProjects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} onViewDecisions={id=>setDecisionsProjectId(id)} onReorder={reorderProjects} /></div>
           <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} onUpdate={updateProject} /></div>
           <div style={{ display:tab==="minutes"?"block":"none" }}><MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} /></div>
           <div style={{ display:tab==="members"?"block":"none" }}><MemberTasksPage projects={projects} /></div>
