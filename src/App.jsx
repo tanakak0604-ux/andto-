@@ -744,9 +744,23 @@ function KanbanPage({ project, onUpdate }) {
                     {/* テキスト入力（ドラッグ不可・選択可） */}
                     <div draggable={false} style={{ flex: 1, minWidth: 0 }} onMouseDown={e => e.stopPropagation()}>
                       <input value={s.title} onChange={e => setForm(f => ({ ...f, subtasks: f.subtasks.map((x,j) => j===i ? {...x,title:e.target.value} : x) }))}
+                        data-subtask-id={s.id}
                         draggable={false}
                         onDragStart={e => e.preventDefault()}
                         onMouseDown={e => e.stopPropagation()}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const next = (form.subtasks||[])[i+1];
+                            if (next) {
+                              setTimeout(() => { document.querySelector(`[data-subtask-id="${next.id}"]`)?.focus(); }, 0);
+                            } else {
+                              const nid = uid();
+                              setForm(f => ({ ...f, subtasks: [...(f.subtasks||[]), { id: nid, title: '', done: false }] }));
+                              setTimeout(() => { document.querySelector(`[data-subtask-id="${nid}"]`)?.focus(); }, 50);
+                            }
+                          }
+                        }}
                         style={{ width: "100%", border: "none", background: "transparent", fontSize: 12, color: s.done ? C.muted : C.text, outline: "none", textDecoration: s.done ? "line-through" : "none", userSelect: "text", WebkitUserSelect: "text", cursor: "text", boxSizing: "border-box" }} />
                     </div>
                     <button onClick={() => setForm(f => ({ ...f, subtasks: f.subtasks.filter((_,j) => j!==i) }))} style={btn({ color: C.muted, fontSize: 14, background: "transparent" })}>✕</button>
@@ -1934,6 +1948,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [localFolders, setLocalFolders] = useState(project.decisionFolders || []);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
+  const subtaskMoveRef = React.useRef(false);
 
   // ※ selectedMinute は下で宣言のため、依存配列は selectedId を使用
 
@@ -2461,9 +2476,33 @@ ${pastMinutesTitles}
                                     <div key={s.id} style={{ display:"flex", alignItems:"center", gap:6, background:C.bg, borderRadius:6, padding:"3px 8px" }}>
                                       {editingSubtaskId===s.id ? (
                                         <input autoFocus value={s.title}
+                                          data-subtask-id={s.id}
                                           onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,subtasks:(x.subtasks||[]).map(ss=>ss.id===s.id?{...ss,title:e.target.value}:ss)}:x))}
-                                          onKeyDown={e=>{if(e.key==="Enter")setEditingSubtaskId(null);if(e.key==="Escape")setEditingSubtaskId(null);}}
-                                          onBlur={()=>setEditingSubtaskId(null)}
+                                          onKeyDown={e=>{
+                                            if(e.key==="Escape"){setEditingSubtaskId(null);return;}
+                                            if(e.key==="Enter"){
+                                              e.preventDefault();
+                                              const subs=t.subtasks||[];
+                                              const idx=subs.findIndex(st=>st.id===s.id);
+                                              const next=subs[idx+1];
+                                              subtaskMoveRef.current=true;
+                                              if(next){
+                                                setEditingSubtaskId(next.id);
+                                                setTimeout(()=>{
+                                                  document.querySelector(`[data-subtask-id="${next.id}"]`)?.focus();
+                                                  subtaskMoveRef.current=false;
+                                                },0);
+                                              } else {
+                                                const nid=uid();
+                                                setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,subtasks:[...(x.subtasks||[]),{id:nid,title:"",done:false}]}:x));
+                                                setTimeout(()=>{
+                                                  setEditingSubtaskId(nid);
+                                                  subtaskMoveRef.current=false;
+                                                },50);
+                                              }
+                                            }
+                                          }}
+                                          onBlur={()=>{if(!subtaskMoveRef.current)setEditingSubtaskId(null);}}
                                           style={{ flex:1, fontSize:11, border:`1px solid ${C.border}`, borderRadius:4, padding:"2px 6px", background:"#fff", color:C.text, outline:"none" }} />
                                       ) : (
                                         <span onClick={()=>setEditingSubtaskId(s.id)} style={{ flex:1, fontSize:11, color:C.text, cursor:"text" }}>{s.title||"（未入力）"}</span>
