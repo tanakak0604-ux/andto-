@@ -1928,19 +1928,16 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
 
   // アジェンダ自動ロード：議事録選択時にその議事録のアジェンダを表示
   useEffect(() => {
-    const agendas = selectedMinute?.agendas || [];
-    if (agendas.length > 0) {
-      const latest = [...agendas].sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
+    if (selectedMinute?.agendas && selectedMinute.agendas.length > 0) {
+      const latest = selectedMinute.agendas[selectedMinute.agendas.length - 1];
       setCurrentAgenda(latest);
-      setAgendaContent(latest.content);
-      setIsEditingAgenda(false);
-      setShowAgendaPreview(true);
+      setAgendaContent(latest.content || '');
     } else {
       setCurrentAgenda(null);
       setAgendaContent('');
-      setShowAgendaPreview(false);
     }
-  }, [selectedId]); // eslint-disable-line
+    setIsEditingAgenda(false);
+  }, [selectedMinute?.id]); // eslint-disable-line
 
   const extractGaiyou = (content) => {
     const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
@@ -1960,6 +1957,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   });
 
   const selectedMinute = minutes.find(m => m.id === selectedId);
+  const showAgenda = currentAgenda !== null && (selectedMinute?.agendas?.length ?? 0) > 0;
 
   const runAiEdit = async () => {
     if (!aiInstruction.trim() || !selectedMinute) return;
@@ -2262,9 +2260,9 @@ ${pastMinutesTitles}
         {selectedMinute ? (
           <div style={{ padding:"28px 16px", maxWidth:"100%", boxSizing:"border-box" }}>
             <style dangerouslySetInnerHTML={{ __html: PREVIEW_CSS }} />
-            <div style={{ display:"flex", gap:16, width:"100%", maxWidth:"100%", boxSizing:"border-box", overflow:"hidden", alignItems:"flex-start" }}>
+            <div style={{ display:"flex", gap:16, width:"100%", maxWidth:"100%", boxSizing:"border-box", overflow:"hidden", alignItems:"flex-start", justifyContent:showAgenda?"flex-start":"center" }}>
               {/* 左：議事録エリア */}
-              <div style={{ width:showAgendaPreview?"calc(50% - 8px)":"700px", maxWidth:showAgendaPreview?"calc(50% - 8px)":"100%", minWidth:0, overflow:"hidden" }}>
+              <div style={{ width:"calc(50% - 8px)", maxWidth:"calc(50% - 8px)", minWidth:0, flexShrink:0, overflow:"hidden" }}>
                 {/* ボタン行 */}
                 <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:8 }}>
                   {isEditing ? (
@@ -2483,7 +2481,7 @@ ${pastMinutesTitles}
             )}
               </div>
               {/* 右：アジェンダプレビュー */}
-              {showAgendaPreview && currentAgenda && (
+              {showAgenda && (
                 <div style={{ width:"calc(50% - 8px)", maxWidth:"calc(50% - 8px)", minWidth:0, overflow:"hidden", borderLeft:`1.5px solid ${C.border}`, paddingLeft:16 }}>
                   <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, gap:8 }}>
                     {isEditingAgenda ? (
@@ -2499,7 +2497,7 @@ ${pastMinutesTitles}
                     )}
                     <button onClick={()=>downloadAgendaPdf(currentAgenda)}
                       style={btn({padding:"6px 12px",borderRadius:6,background:"#E8412A",color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
-                    <button onClick={()=>setShowAgendaPreview(false)}
+                    <button onClick={()=>setCurrentAgenda(null)}
                       style={btn({padding:"6px 10px",borderRadius:6,fontSize:12,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>✕</button>
                   </div>
                   {isEditingAgenda ? (
