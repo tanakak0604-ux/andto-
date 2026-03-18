@@ -1974,9 +1974,9 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
 
-  // アジェンダ自動ロード：議事録選択時に最新アジェンダを表示
+  // アジェンダ自動ロード：議事録選択時にその議事録のアジェンダを表示
   useEffect(() => {
-    const agendas = project.agendas || [];
+    const agendas = selectedMinute?.agendas || [];
     if (agendas.length > 0) {
       const latest = [...agendas].sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
       setCurrentAgenda(latest);
@@ -2214,7 +2214,8 @@ ${pastMinutesTitles}
           createdAt: dateStr,
           fileName: `アジェンダ_${project.name}_${dateStr}.pdf`,
         };
-        onUpdate({ ...project, agendas: [...(project.agendas || []), agendaEntry] });
+        const updatedMinutes = project.minutes.map(m => m.id === selectedMinute.id ? {...m, agendas: [...(m.agendas||[]), agendaEntry]} : m);
+        onUpdate({ ...project, minutes: updatedMinutes });
         setAgendaContent(result);
         setCurrentAgenda(agendaEntry);
         setIsEditingAgenda(false);
@@ -2291,21 +2292,21 @@ ${pastMinutesTitles}
         {selectedMinute ? (
           <div style={{ padding:"28px 24px", maxWidth:"100%" }}>
             <style dangerouslySetInnerHTML={{ __html: PREVIEW_CSS }} />
-            <div style={{ width:showAgendaPreview?"100%":"700px", maxWidth:showAgendaPreview?"100%":"700px", margin:"0 auto 18px", display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontSize:15, fontWeight:900, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                  {extractGaiyou(selectedMinute.content) || selectedMinute.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"")}
-                </div>
-              </div>
-              <div style={{ display:"flex", gap:8, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
-                {isEditing ? (
-                  <>
-                    <button onClick={saveEdit} style={BTN.primary}>💾 保存</button>
-                    <button onClick={()=>setIsEditing(false)} style={BTN.ghost}>キャンセル</button>
-                  </>
-                ) : (
-                  <>
-                    {extractMode ? (
+            <div style={{ display:"flex", gap:24, width:"100%", justifyContent:showAgendaPreview?"flex-start":"center", alignItems:"flex-start" }}>
+              {/* 左：議事録エリア */}
+              <div style={{ width:showAgendaPreview?"50%":"700px", maxWidth:showAgendaPreview?"50%":"700px", minWidth:0, flexShrink:0 }}>
+                {/* ボタン行 */}
+                <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
+                  <div style={{ fontSize:15, fontWeight:900, color:C.text, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {extractGaiyou(selectedMinute.content) || selectedMinute.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"")}
+                  </div>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"flex-end" }}>
+                    {isEditing ? (
+                      <>
+                        <button onClick={saveEdit} style={BTN.primary}>💾 保存</button>
+                        <button onClick={()=>setIsEditing(false)} style={BTN.ghost}>キャンセル</button>
+                      </>
+                    ) : extractMode ? (
                       <button onClick={()=>setExtractMode(false)} style={BTN.ghost}>← プレビューに戻る</button>
                     ) : (
                       <>
@@ -2335,23 +2336,21 @@ ${pastMinutesTitles}
                         </button>
                       </>
                     )}
-                  </>
-                )}
-              </div>
-            </div>
-            {aiEditOpen && !isEditing && (
-              <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
-                <div style={{ fontSize:12, fontWeight:700, color:C.accent, marginBottom:8 }}>✨ AI修正指示</div>
-                <textarea value={aiInstruction} onChange={e=>setAiInstruction(e.target.value)} rows={3}
-                  placeholder="例：決定事項をより明確に書き直してください"
-                  style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
-                {aiError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>{aiError}</div>}
-                <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
-                  <button onClick={()=>{setAiEditOpen(false);setAiInstruction("");setAiError("");}} style={BTN.ghost}>キャンセル</button>
-                  <button onClick={runAiEdit} disabled={aiLoading||!aiInstruction.trim()} style={{...BTN.primary, opacity:aiLoading||!aiInstruction.trim()?0.5:1, cursor:aiLoading||!aiInstruction.trim()?"default":"pointer"}}>{aiLoading?"修正中...":"修正する"}</button>
+                  </div>
                 </div>
-              </div>
-            )}
+                {aiEditOpen && !isEditing && (
+                  <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:C.accent, marginBottom:8 }}>✨ AI修正指示</div>
+                    <textarea value={aiInstruction} onChange={e=>setAiInstruction(e.target.value)} rows={3}
+                      placeholder="例：決定事項をより明確に書き直してください"
+                      style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
+                    {aiError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>{aiError}</div>}
+                    <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
+                      <button onClick={()=>{setAiEditOpen(false);setAiInstruction("");setAiError("");}} style={BTN.ghost}>キャンセル</button>
+                      <button onClick={runAiEdit} disabled={aiLoading||!aiInstruction.trim()} style={{...BTN.primary, opacity:aiLoading||!aiInstruction.trim()?0.5:1, cursor:aiLoading||!aiInstruction.trim()?"default":"pointer"}}>{aiLoading?"修正中...":"修正する"}</button>
+                    </div>
+                  </div>
+                )}
             {extractMode ? (
               <div style={{ background:C.surface, borderRadius:16, padding:24, border:`1.5px solid ${C.border}` }}>
                 {approveMsg && <div style={{ background:C.sageLight, border:`1.5px solid ${C.sage}`, borderRadius:10, padding:"10px 14px", fontSize:12, color:C.sage, fontWeight:700, marginBottom:16 }}>✓ {approveMsg}</div>}
@@ -2514,45 +2513,43 @@ ${pastMinutesTitles}
               <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
                 style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
             ) : (
-              <div style={{ display:"flex", gap:24, width:"100%", justifyContent:showAgendaPreview?"flex-start":"center", alignItems:"flex-start" }}>
-                {/* 左：議事録プレビュー */}
-                <div style={{ width:showAgendaPreview?"50%":"700px", maxWidth:showAgendaPreview?"50%":"700px", minWidth:0, flexShrink:0 }}>
-                  <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}` }}
-                    dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
-                </div>
-                {/* 右：アジェンダプレビュー */}
-                {showAgendaPreview && currentAgenda && (
-                  <div style={{ width:"50%", maxWidth:"50%", minWidth:0, borderLeft:`1.5px solid ${C.border}`, paddingLeft:24, flexShrink:0 }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-                      <div style={{ fontSize:13, fontWeight:800, color:C.text }}>📋 次回アジェンダ</div>
-                      <div style={{ display:"flex", gap:6 }}>
-                        {isEditingAgenda ? (
-                          <button onClick={()=>{
-                            const updated = { ...currentAgenda, content: agendaContent };
-                            setCurrentAgenda(updated);
-                            onUpdate({ ...project, agendas: (project.agendas||[]).map(a => a.id === updated.id ? updated : a) });
-                            setIsEditingAgenda(false);
-                          }} style={BTN.primary}>💾 保存</button>
-                        ) : (
-                          <button onClick={()=>setIsEditingAgenda(true)} style={BTN.ghost}>✏️ 編集</button>
-                        )}
-                        <button onClick={()=>downloadAgendaPdf(currentAgenda)}
-                          style={btn({padding:"6px 12px",borderRadius:6,background:"#E8412A",color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
-                        <button onClick={()=>setShowAgendaPreview(false)}
-                          style={btn({padding:"6px 10px",borderRadius:6,fontSize:12,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>✕</button>
-                      </div>
-                    </div>
-                    {isEditingAgenda ? (
-                      <textarea value={agendaContent} onChange={e=>setAgendaContent(e.target.value)} rows={30}
-                        style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
-                    ) : (
-                      <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"24px 28px", border:`1px solid ${C.border}` }}
-                        dangerouslySetInnerHTML={{ __html: highlightInHtml(buildAgendaBody(agendaContent), '') }} />
-                    )}
-                  </div>
-                )}
-              </div>
+              <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}` }}
+                dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
             )}
+              </div>
+              {/* 右：アジェンダプレビュー */}
+              {showAgendaPreview && currentAgenda && (
+                <div style={{ width:"50%", maxWidth:"50%", minWidth:0, borderLeft:`1.5px solid ${C.border}`, paddingLeft:24, flexShrink:0 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                    <div style={{ fontSize:13, fontWeight:800, color:C.text }}>📋 次回アジェンダ</div>
+                    <div style={{ display:"flex", gap:6 }}>
+                      {isEditingAgenda ? (
+                        <button onClick={()=>{
+                          const updated = { ...currentAgenda, content: agendaContent };
+                          setCurrentAgenda(updated);
+                          const updatedMinutes = project.minutes.map(m => m.id === selectedMinute.id ? {...m, agendas: (m.agendas||[]).map(a => a.id === updated.id ? updated : a)} : m);
+                          onUpdate({ ...project, minutes: updatedMinutes });
+                          setIsEditingAgenda(false);
+                        }} style={BTN.primary}>💾 保存</button>
+                      ) : (
+                        <button onClick={()=>setIsEditingAgenda(true)} style={BTN.ghost}>✏️ 編集</button>
+                      )}
+                      <button onClick={()=>downloadAgendaPdf(currentAgenda)}
+                        style={btn({padding:"6px 12px",borderRadius:6,background:"#E8412A",color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
+                      <button onClick={()=>setShowAgendaPreview(false)}
+                        style={btn({padding:"6px 10px",borderRadius:6,fontSize:12,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>✕</button>
+                    </div>
+                  </div>
+                  {isEditingAgenda ? (
+                    <textarea value={agendaContent} onChange={e=>setAgendaContent(e.target.value)} rows={30}
+                      style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
+                  ) : (
+                    <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"24px 28px", border:`1px solid ${C.border}` }}
+                      dangerouslySetInnerHTML={{ __html: highlightInHtml(buildAgendaBody(agendaContent), '') }} />
+                  )}
+                </div>
+              )}
+            </div>
             {agendaError && (
               <div style={{ marginTop:12, background:"#FFF0F0", border:"1.5px solid #E07070", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#C0392B" }}>
                 {agendaError}
