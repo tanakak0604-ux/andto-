@@ -2525,15 +2525,15 @@ ${pastMinutesTitles}
               <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
                 style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
             ) : (
-              <div style={{ display:"flex", gap:24 }}>
+              <div style={{ display:"flex", gap:24, width:"100%", justifyContent:showAgendaPreview?"flex-start":"center", alignItems:"flex-start" }}>
                 {/* 左：議事録プレビュー */}
-                <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ width:showAgendaPreview?"50%":"700px", maxWidth:showAgendaPreview?"50%":"700px", minWidth:0, flexShrink:0 }}>
                   <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}` }}
                     dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
                 </div>
                 {/* 右：アジェンダプレビュー */}
                 {showAgendaPreview && currentAgenda && (
-                  <div style={{ flex:1, minWidth:0, borderLeft:`1.5px solid ${C.border}`, paddingLeft:24 }}>
+                  <div style={{ width:"50%", maxWidth:"50%", minWidth:0, borderLeft:`1.5px solid ${C.border}`, paddingLeft:24, flexShrink:0 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
                       <div style={{ fontSize:13, fontWeight:800, color:C.text }}>📋 次回アジェンダ</div>
                       <div style={{ display:"flex", gap:6 }}>
