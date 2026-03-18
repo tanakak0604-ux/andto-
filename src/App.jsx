@@ -1928,6 +1928,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [hoveredBtn, setHoveredBtn] = useState(null);
   const [agendaError, setAgendaError] = useState("");
   const [subtaskLoading, setSubtaskLoading] = useState(false);
+  const [localFolders, setLocalFolders] = useState(project.decisionFolders || []);
 
   const extractGaiyou = (content) => {
     const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
@@ -2018,6 +2019,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
       setDetailExtracted([{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false,subtasks:[]}]);
       setDetailExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false,folderId:null,newFolderName:"",_folderSel:"__none__"}]);
     }
+    setLocalFolders(project.decisionFolders || []);
     setExtracting(false); setExtractMode(true);
   };
 
@@ -2031,24 +2033,11 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
       return {...t, assigneeIds};
     });
     const source = extractGaiyou(selectedMinute.content) || selectedMinute.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"");
-    // 新規フォルダの作成
-    const newFolders = [];
-    const folderNameToId = {};
-    detailExtractedDecisions.filter(d=>d.selected && d._folderSel==="__new__" && d.newFolderName?.trim()).forEach(d => {
-      const name = d.newFolderName.trim();
-      if (!folderNameToId[name]) {
-        const fid = uid();
-        newFolders.push({ id: fid, name, parentId: null });
-        folderNameToId[name] = fid;
-      }
-    });
+    // localFoldersのうち既存に存在しないものを新規フォルダとして追加
+    const existingFolderIds = new Set((project.decisionFolders||[]).map(f => f.id));
+    const newFolders = localFolders.filter(f => !existingFolderIds.has(f.id));
     const newDecisions = detailExtractedDecisions.filter(d=>d.selected).map(d=>{
-      let folderId = null;
-      if (d._folderSel === "__new__") {
-        folderId = folderNameToId[d.newFolderName?.trim()] || null;
-      } else if (d._folderSel && d._folderSel !== "__none__") {
-        folderId = d._folderSel;
-      }
+      const folderId = (d._folderSel && d._folderSel !== "__none__" && d._folderSel !== "__new__") ? d._folderSel : null;
       return { id: d.id, text: d.text, source, createdAt: new Date().toISOString(), folderId };
     });
     onUpdate({
@@ -2307,13 +2296,18 @@ ${selectedMinute.content}`;
                           <select value={d._folderSel||"__none__"} onChange={e=>setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,_folderSel:e.target.value,newFolderName:""}:x))}
                             style={{ border:`1px solid ${C.border}`, borderRadius:6, padding:"3px 8px", fontSize:11, background:C.surface, color:C.text, outline:"none" }}>
                             <option value="__none__">📁 フォルダなし</option>
-                            {(project.decisionFolders||[]).map(f=><option key={f.id} value={f.id}>📁 {f.name}</option>)}
+                            {localFolders.map(f=><option key={f.id} value={f.id}>📁 {f.name}</option>)}
                             <option value="__new__">＋ 新規フォルダ作成</option>
                           </select>
                           {d._folderSel==="__new__" && (
-                            <input value={d.newFolderName||""} onChange={e=>setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,newFolderName:e.target.value}:x))}
-                              placeholder="新規フォルダ名を入力..."
-                              style={{ border:`1px solid #5B7EC9`, borderRadius:6, padding:"3px 8px", fontSize:11, background:"#fff", color:C.text, outline:"none" }} />
+                            <div style={{ display:"flex", gap:4 }}>
+                              <input value={d.newFolderName||""} onChange={e=>setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,newFolderName:e.target.value}:x))}
+                                placeholder="新規フォルダ名を入力..."
+                                onKeyDown={e=>{ if(e.key==="Enter"){ const name=(d.newFolderName||"").trim(); if(!name)return; const ex=localFolders.find(f=>f.name===name); const fid=ex?ex.id:uid(); if(!ex)setLocalFolders(prev=>[...prev,{id:fid,name,parentId:null}]); setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,_folderSel:fid,newFolderName:""}:x)); }}}
+                                style={{ flex:1, border:`1px solid #5B7EC9`, borderRadius:6, padding:"3px 8px", fontSize:11, background:"#fff", color:C.text, outline:"none" }} />
+                              <button onClick={()=>{ const name=(d.newFolderName||"").trim(); if(!name)return; const ex=localFolders.find(f=>f.name===name); const fid=ex?ex.id:uid(); if(!ex)setLocalFolders(prev=>[...prev,{id:fid,name,parentId:null}]); setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,_folderSel:fid,newFolderName:""}:x)); }}
+                                style={btn({padding:"3px 10px",borderRadius:6,background:"#5B7EC9",color:"#fff",fontSize:11,fontWeight:700})}>作成</button>
+                            </div>
                           )}
                         </div>
                       </div>
