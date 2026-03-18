@@ -2211,7 +2211,7 @@ ${pastMinutesTitles}
   return (
     <div style={{ display:"flex", height:"calc(100vh - 52px)", overflow:"hidden" }}>
       {/* 左カラム：議事録一覧 */}
-      <div style={{ width:280, borderRight:`1.5px solid ${C.border}`, display:"flex", flexDirection:"column", background:C.surface, flexShrink:0 }}>
+      <div style={{ width:160, borderRight:`1.5px solid ${C.border}`, display:"flex", flexDirection:"column", background:C.surface, flexShrink:0 }}>
         <div style={{ padding:"14px 16px 12px", borderBottom:`1px solid ${C.border}` }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
             <button onClick={onBack} style={{...BTN.ghost, fontSize:12, padding:"4px 10px"}}>← 戻る</button>
@@ -2273,7 +2273,7 @@ ${pastMinutesTitles}
       {/* 右カラム：プレビュー／編集 */}
       <div style={{ flex:1, overflowY:"auto", background:C.bg }}>
         {selectedMinute ? (
-          <div style={{ padding:28, maxWidth:820, margin:"0 auto" }}>
+          <div style={{ padding:"28px 24px", maxWidth:"100%" }}>
             <style dangerouslySetInnerHTML={{ __html: PREVIEW_CSS }} />
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18, gap:12 }}>
               <div style={{ minWidth:0 }}>
@@ -2323,6 +2323,33 @@ ${pastMinutesTitles}
                 )}
               </div>
             </div>
+            {(project.agendas||[]).length > 0 && !extractMode && !isEditing && (
+              <div style={{ marginBottom:16, borderBottom:`1.5px solid ${C.border}`, paddingBottom:16 }}>
+                <div style={{ fontSize:12, fontWeight:800, color:C.text, marginBottom:8 }}>📋 作成済みアジェンダ</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {[...(project.agendas||[])].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(ag=>(
+                    <div key={ag.id} style={{ display:"flex", alignItems:"center", gap:8, background:C.surface, borderRadius:8, padding:"8px 12px", border:`1.5px solid ${C.border}` }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ag.title}</div>
+                        <div style={{ fontSize:10, color:C.muted, marginTop:1 }}>{ag.createdAt}</div>
+                      </div>
+                      <button onClick={()=>{ setAgendaContent(ag.content); setCurrentAgenda(ag); setIsEditingAgenda(false); setShowAgendaPreview(true); }}
+                        style={btn({padding:"4px 10px",borderRadius:6,background:"#4A9B8E",color:"#fff",fontSize:11,fontWeight:700})}>
+                        📋 表示
+                      </button>
+                      <button onClick={()=>downloadAgendaPdf(ag)}
+                        style={btn({padding:"4px 10px",borderRadius:6,background:"#6B8F71",color:"#fff",fontSize:11,fontWeight:700})}>
+                        ⬇️ PDF
+                      </button>
+                      <button onClick={()=>{ onUpdate({...project,agendas:(project.agendas||[]).filter(x=>x.id!==ag.id)}); if(currentAgenda?.id===ag.id) setShowAgendaPreview(false); }}
+                        style={btn({padding:"4px 8px",borderRadius:6,fontSize:11,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {aiEditOpen && !isEditing && (
               <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
                 <div style={{ fontSize:12, fontWeight:700, color:C.accent, marginBottom:8 }}>✨ AI修正指示</div>
@@ -2521,7 +2548,7 @@ ${pastMinutesTitles}
                           <button onClick={()=>setIsEditingAgenda(true)} style={BTN.ghost}>✏️ 編集</button>
                         )}
                         <button onClick={()=>downloadAgendaPdf(currentAgenda)}
-                          style={btn({padding:"6px 12px",borderRadius:6,background:"#E8412A",color:"#fff",fontSize:12,fontWeight:700})}>📄 PDF</button>
+                          style={btn({padding:"6px 12px",borderRadius:6,background:"#E8412A",color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
                         <button onClick={()=>setShowAgendaPreview(false)}
                           style={btn({padding:"6px 10px",borderRadius:6,fontSize:12,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>✕</button>
                       </div>
@@ -2540,33 +2567,6 @@ ${pastMinutesTitles}
             {agendaError && (
               <div style={{ marginTop:12, background:"#FFF0F0", border:"1.5px solid #E07070", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#C0392B" }}>
                 {agendaError}
-              </div>
-            )}
-            {(project.agendas||[]).length > 0 && (
-              <div style={{ marginTop:28, borderTop:`1.5px solid ${C.border}`, paddingTop:20 }}>
-                <div style={{ fontSize:13, fontWeight:800, color:C.text, marginBottom:12 }}>📋 作成済みアジェンダ</div>
-                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                  {[...(project.agendas||[])].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(ag=>(
-                    <div key={ag.id} style={{ display:"flex", alignItems:"center", gap:10, background:C.surface, borderRadius:10, padding:"10px 14px", border:`1.5px solid ${C.border}` }}>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:12, fontWeight:700, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ag.title}</div>
-                        <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{ag.createdAt}</div>
-                      </div>
-                      <button onClick={()=>{ setAgendaContent(ag.content); setCurrentAgenda(ag); setIsEditingAgenda(false); setShowAgendaPreview(true); }}
-                        style={btn({padding:"6px 12px",borderRadius:8,background:"#4A9B8E",color:"#fff",fontSize:11,fontWeight:700})}>
-                        📋 表示
-                      </button>
-                      <button onClick={()=>downloadAgendaPdf(ag)}
-                        style={btn({padding:"6px 14px",borderRadius:8,background:"#6B8F71",color:"#fff",fontSize:11,fontWeight:700})}>
-                        ⬇️ PDF
-                      </button>
-                      <button onClick={()=>{ onUpdate({...project,agendas:(project.agendas||[]).filter(x=>x.id!==ag.id)}); if(currentAgenda?.id===ag.id) setShowAgendaPreview(false); }}
-                        style={btn({padding:"6px 10px",borderRadius:8,fontSize:11,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
           </div>
