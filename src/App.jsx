@@ -1965,6 +1965,10 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [agendaLoading, setAgendaLoading] = useState(false);
   const [hoveredBtn, setHoveredBtn] = useState(null);
   const [agendaError, setAgendaError] = useState("");
+  const [showAgendaPreview, setShowAgendaPreview] = useState(false);
+  const [isEditingAgenda, setIsEditingAgenda] = useState(false);
+  const [agendaContent, setAgendaContent] = useState('');
+  const [currentAgenda, setCurrentAgenda] = useState(null);
   const [subtaskLoading, setSubtaskLoading] = useState(false);
   const [localFolders, setLocalFolders] = useState(project.decisionFolders || []);
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -2117,39 +2121,76 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
     win.document.close(); win.focus(); win.print();
   };
 
+  const extractTopics = (content) => {
+    if (!content) return '';
+    return content.split('\n').filter(l => l.includes('議題') || l.includes('■')).slice(0, 10).join('\n');
+  };
+
   const generateAgenda = async () => {
     if (!selectedMinute) return;
     setAgendaLoading(true); setAgendaError("");
     try {
-      const today = new Date().toLocaleDateString("ja-JP", { year:"numeric", month:"2-digit", day:"2-digit" });
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日（${'日月火水木金土'[today.getDay()]}）`;
+      const dateStr = today.toISOString().slice(0, 10);
       const minuteTitle = extractGaiyou(selectedMinute.content) || selectedMinute.title;
-      const prompt = `以下の議事録から次回打合せ用のアジェンダを作成してください。前回の未完了タスク・懸念事項・未確定事項を優先的に議題として抽出し、以下のフォーマットで出力してください。
+      const projectTasks = project.tasks || [];
+      const incompleteTasks = projectTasks
+        .filter(t => t.status !== 'done')
+        .map(t => {
+          const assigneeNames = (t.assigneeIds || []).map(id => (project.members || []).find(m => m.id === id)?.name).filter(Boolean).join('、') || t.assignee || '';
+          return `・${t.title}（担当：${assigneeNames || '未定'}、期日：${t.dueDate || '未定'}）`;
+        }).join('\n') || '（なし）';
+      const pastMinutesTitles = (project.minutes || [])
+        .filter(m => m.id !== selectedMinute.id)
+        .slice(-3)
+        .map(m => `【${m.title}】\n${extractTopics(m.content)}`)
+        .join('\n\n') || '（なし）';
+      const prompt = `あなたは建築・ホテル開発プロジェクトの意匠設計者です。
+以下の情報から次回打合せのアジェンダを作成してください。
+
+【プロジェクト名】
+${project.name}
+
+【今回の議事録】
+${selectedMinute.content}
+
+【プロジェクトの未完了タスク一覧】
+${incompleteTasks}
+
+【過去の議事録の議題構成（参考）】
+${pastMinutesTitles}
+
+【アジェンダ作成ルール】
+1. 今回の議事録の「決定事項」「今後のタスク」「懸念事項」を優先的に議題化
+2. プロジェクトの未完了タスクのうち期日が近いものも議題に含める
+3. 過去の議事録の議題構成・階層を参考に、同じプロジェクトらしい構成にする
+4. 議題は具体的なアクションベースで記述する
+5. 各議題に「確認事項」「担当」「期日」を含める
 
 【出力フォーマット】
 次回打合せアジェンダ
 
 プロジェクト：${project.name}
 前回議事録：${minuteTitle}
-作成日：${today}
+作成日：${todayStr}
 次回日時：（未定）
 
 ■ 議題 1：{議題名}
-　確認事項：{前回からの継続事項・タスク}
+　確認事項：{前回からの継続事項・決定事項}
 　担当：{担当者名}
+　期日：{期日}
 
 ■ 議題 2：{議題名}
-　確認事項：{前回からの継続事項・タスク}
+　確認事項：{内容}
 　担当：{担当者名}
+　期日：{期日}
 
-（以下、必要な議題数分繰り返す）
+（必要な議題数分繰り返す）
 
-備考：{その他引き継ぎ事項}
-
-【議事録】
-${selectedMinute.content}`;
+備考：{引き継ぎ事項・懸念事項}`;
       const result = await callClaude({ max_tokens: 3000, messages: [{ role: "user", content: prompt }] });
       if (result) {
-        const dateStr = new Date().toISOString().slice(0, 10);
         const agendaEntry = {
           id: "a" + Date.now(),
           title: `アジェンダ_${project.name}_${dateStr}`,
@@ -2158,7 +2199,10 @@ ${selectedMinute.content}`;
           fileName: `アジェンダ_${project.name}_${dateStr}.pdf`,
         };
         onUpdate({ ...project, agendas: [...(project.agendas || []), agendaEntry] });
-        downloadAgendaPdf(agendaEntry);
+        setAgendaContent(result);
+        setCurrentAgenda(agendaEntry);
+        setIsEditingAgenda(false);
+        setShowAgendaPreview(true);
       }
     } catch(e) { setAgendaError("エラー：" + e.message); }
     setAgendaLoading(false);
@@ -2263,7 +2307,7 @@ ${selectedMinute.content}`;
                         <button onClick={generateAgenda} disabled={agendaLoading}
                           onMouseEnter={()=>setHoveredBtn('agenda')} onMouseLeave={()=>setHoveredBtn(null)}
                           style={{ background:agendaLoading?"#3D8579":hoveredBtn==='agenda'?"#3D8579":"#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:agendaLoading?"default":"pointer", opacity:agendaLoading?0.7:1 }}>
-                          {agendaLoading?"⏳ 生成中...":"📋 アジェンダ作成"}
+                          {agendaLoading?"⏳ 生成中...":"📋 次回アジェンダ作成"}
                         </button>
                         <button onClick={()=>downloadPdf(selectedMinute)}
                           onMouseEnter={()=>setHoveredBtn('pdf')} onMouseLeave={()=>setHoveredBtn(null)}
@@ -2454,8 +2498,44 @@ ${selectedMinute.content}`;
               <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
                 style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
             ) : (
-              <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}` }}
-                dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
+              <div style={{ display:"flex", gap:24 }}>
+                {/* 左：議事録プレビュー */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}` }}
+                    dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
+                </div>
+                {/* 右：アジェンダプレビュー */}
+                {showAgendaPreview && currentAgenda && (
+                  <div style={{ flex:1, minWidth:0, borderLeft:`1.5px solid ${C.border}`, paddingLeft:24 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                      <div style={{ fontSize:13, fontWeight:800, color:C.text }}>📋 次回アジェンダ</div>
+                      <div style={{ display:"flex", gap:6 }}>
+                        {isEditingAgenda ? (
+                          <button onClick={()=>{
+                            const updated = { ...currentAgenda, content: agendaContent };
+                            setCurrentAgenda(updated);
+                            onUpdate({ ...project, agendas: (project.agendas||[]).map(a => a.id === updated.id ? updated : a) });
+                            setIsEditingAgenda(false);
+                          }} style={BTN.primary}>💾 保存</button>
+                        ) : (
+                          <button onClick={()=>setIsEditingAgenda(true)} style={BTN.ghost}>✏️ 編集</button>
+                        )}
+                        <button onClick={()=>downloadAgendaPdf(currentAgenda)}
+                          style={btn({padding:"6px 12px",borderRadius:6,background:"#E8412A",color:"#fff",fontSize:12,fontWeight:700})}>📄 PDF</button>
+                        <button onClick={()=>setShowAgendaPreview(false)}
+                          style={btn({padding:"6px 10px",borderRadius:6,fontSize:12,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>✕</button>
+                      </div>
+                    </div>
+                    {isEditingAgenda ? (
+                      <textarea value={agendaContent} onChange={e=>setAgendaContent(e.target.value)} rows={30}
+                        style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
+                    ) : (
+                      <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"24px 28px", border:`1px solid ${C.border}` }}
+                        dangerouslySetInnerHTML={{ __html: highlightInHtml(buildAgendaBody(agendaContent), '') }} />
+                    )}
+                  </div>
+                )}
+              </div>
             )}
             {agendaError && (
               <div style={{ marginTop:12, background:"#FFF0F0", border:"1.5px solid #E07070", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#C0392B" }}>
@@ -2472,11 +2552,15 @@ ${selectedMinute.content}`;
                         <div style={{ fontSize:12, fontWeight:700, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ag.title}</div>
                         <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{ag.createdAt}</div>
                       </div>
+                      <button onClick={()=>{ setAgendaContent(ag.content); setCurrentAgenda(ag); setIsEditingAgenda(false); setShowAgendaPreview(true); }}
+                        style={btn({padding:"6px 12px",borderRadius:8,background:"#4A9B8E",color:"#fff",fontSize:11,fontWeight:700})}>
+                        📋 表示
+                      </button>
                       <button onClick={()=>downloadAgendaPdf(ag)}
                         style={btn({padding:"6px 14px",borderRadius:8,background:"#6B8F71",color:"#fff",fontSize:11,fontWeight:700})}>
                         ⬇️ PDF
                       </button>
-                      <button onClick={()=>onUpdate({...project,agendas:(project.agendas||[]).filter(x=>x.id!==ag.id)})}
+                      <button onClick={()=>{ onUpdate({...project,agendas:(project.agendas||[]).filter(x=>x.id!==ag.id)}); if(currentAgenda?.id===ag.id) setShowAgendaPreview(false); }}
                         style={btn({padding:"6px 10px",borderRadius:8,fontSize:11,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>
                         ✕
                       </button>
