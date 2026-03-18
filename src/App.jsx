@@ -344,55 +344,7 @@ function buildMinutesBody(content) {
 }
 
 function buildAgendaBody(content) {
-  const esc = escapeHtml;
-  let body = "";
-  let firstDone = false;
-  let metaBuffer = [];
-  let metaDone = false;
-  for (const line of content.split("\n")) {
-    const t = line.trim();
-    if (!firstDone && t) {
-      body += `<h1 class="title">${esc(t)}</h1>\n`;
-      firstDone = true;
-      continue;
-    }
-    if (/^■/.test(t)) {
-      if (metaBuffer.length) {
-        body += "<table class='meta'>" + metaBuffer.map(l => {
-          const ci = l.indexOf("：");
-          if (ci > 0) return `<tr><td class="mk">${esc(l.slice(0,ci+1).trim())}</td><td class="mv">${esc(l.slice(ci+1).trim())}</td></tr>`;
-          return `<tr><td class="mk"></td><td class="mv">${esc(l)}</td></tr>`;
-        }).join("") + "</table><hr class='div'>";
-        metaBuffer = [];
-        metaDone = true;
-      }
-      if (/^■\s*議題/.test(t)) {
-        body += `<h2 class="sh" style="background:#F0F0F0;padding:8px 12px;border-radius:0;box-shadow:none;font-weight:bold;margin-bottom:8px;">${esc(t)}</h2>\n`;
-      } else {
-        body += `<h2 class="sh">${esc(t)}</h2>\n`;
-      }
-      continue;
-    }
-    if (!t) continue;
-    if (!metaDone && t.includes("：")) {
-      metaBuffer.push(t);
-      continue;
-    }
-    if (!metaDone && metaBuffer.length === 0 && firstDone) {
-      metaBuffer.push(t);
-      continue;
-    }
-    metaDone = true;
-    body += `<p class="p">${esc(t)}</p>\n`;
-  }
-  if (metaBuffer.length) {
-    body += "<table class='meta'>" + metaBuffer.map(l => {
-      const ci = l.indexOf("：");
-      if (ci > 0) return `<tr><td class="mk">${esc(l.slice(0,ci+1).trim())}</td><td class="mv">${esc(l.slice(ci+1).trim())}</td></tr>`;
-      return `<tr><td class="mk"></td><td class="mv">${esc(l)}</td></tr>`;
-    }).join("") + "</table>";
-  }
-  return body;
+  return buildMinutesBody(content);
 }
 
 function highlightInHtml(html, keyword) {
@@ -2182,29 +2134,47 @@ ${pastMinutesTitles}
 2. プロジェクトの未完了タスクのうち期日が近いものも議題に含める
 3. 過去の議事録の議題構成・階層を参考に、同じプロジェクトらしい構成にする
 4. 議題は具体的なアクションベースで記述する
-5. 各議題に「確認事項」「担当」「期日」を含める
 
 【出力フォーマット】
 次回打合せアジェンダ
 
-プロジェクト：${project.name}
-前回議事録：${minuteTitle}
-作成日：${todayStr}
-次回日時：（未定）
+名称　：{次回打合せ名}
+日時　：（未定）
+場所　：（未定）
+出席者：{今回の出席者をそのまま引き継ぎ}
+文責　：{今回の文責}　作成日：${todayStr}
+フェーズ　：{現在のフェーズ}
+
+---
+
+■ 本日の会議目的・ゴール
+・{前回からの継続課題・今回確認すべきことを記載}
+
+---
 
 ■ 議題 1：{議題名}
-　確認事項：{前回からの継続事項・決定事項}
-　担当：{担当者名}
-　期日：{期日}
+確認事項：
+・{確認事項1}
+・{確認事項2}
 
 ■ 議題 2：{議題名}
-　確認事項：{内容}
-　担当：{担当者名}
-　期日：{期日}
+確認事項：
+・{確認事項1}
+・{確認事項2}
 
 （必要な議題数分繰り返す）
 
-備考：{引き継ぎ事項・懸念事項}`;
+---
+
+■ その他/備考
+・{引き継ぎ事項・懸念事項}
+
+【出力ルール】
+1. 議題ヘッダーは必ず「■ 議題 N：〇〇」の形式
+2. 箇条書きは「・」を使用（*や-は使用しない）
+3. 担当・期日は記載しない
+4. タイトル下の項目（名称・日時・場所・出席者・文責・フェーズ）は議事録の該当情報から自動引き継ぎ
+5. 議事録のヘッダースタイル（■ 議題）と完全に統一する`;
       const result = await callClaude({ max_tokens: 3000, messages: [{ role: "user", content: prompt }] });
       if (result) {
         const agendaEntry = {
@@ -2296,44 +2266,42 @@ ${pastMinutesTitles}
               {/* 左：議事録エリア */}
               <div style={{ width:showAgendaPreview?"calc(50% - 8px)":"700px", maxWidth:showAgendaPreview?"calc(50% - 8px)":"100%", minWidth:0, overflow:"hidden" }}>
                 {/* ボタン行 */}
-                <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
-                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"flex-end" }}>
-                    {isEditing ? (
-                      <>
-                        <button onClick={saveEdit} style={BTN.primary}>💾 保存</button>
-                        <button onClick={()=>setIsEditing(false)} style={BTN.ghost}>キャンセル</button>
-                      </>
-                    ) : extractMode ? (
-                      <button onClick={()=>setExtractMode(false)} style={BTN.ghost}>← プレビューに戻る</button>
-                    ) : (
-                      <>
-                        <button onClick={()=>{ setIsEditing(true); setEditContent(selectedMinute.content); setAiEditOpen(false); }}
-                          onMouseEnter={()=>setHoveredBtn('edit')} onMouseLeave={()=>setHoveredBtn(null)}
-                          style={{ background:hoveredBtn==='edit'?"#F5F5F5":"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✏️ 編集</button>
-                        <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
-                          onMouseEnter={()=>setHoveredBtn('ai')} onMouseLeave={()=>setHoveredBtn(null)}
-                          style={{ background:hoveredBtn==='ai'?"#F5F5F5":"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✨ AI修正</button>
-                        <button onClick={extractBothFromSaved} disabled={extracting}
-                          onMouseEnter={()=>setHoveredBtn('extract')} onMouseLeave={()=>setHoveredBtn(null)}
-                          style={{ background:extracting?"#3D8579":hoveredBtn==='extract'?"#3D8579":"#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:extracting?"default":"pointer", opacity:extracting?0.7:1 }}>
-                          {extracting?"⏳ 抽出中...":"📋 決定事項・タスク抽出"}
-                        </button>
-                        <button onClick={generateAgenda} disabled={agendaLoading}
-                          onMouseEnter={()=>setHoveredBtn('agenda')} onMouseLeave={()=>setHoveredBtn(null)}
-                          style={{ background:agendaLoading?"#3D8579":hoveredBtn==='agenda'?"#3D8579":"#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:agendaLoading?"default":"pointer", opacity:agendaLoading?0.7:1 }}>
-                          {agendaLoading?"⏳ 生成中...":"📋 次回アジェンダ作成"}
-                        </button>
-                        <button onClick={()=>downloadPdf(selectedMinute)}
-                          onMouseEnter={()=>setHoveredBtn('pdf')} onMouseLeave={()=>setHoveredBtn(null)}
-                          style={{ background:hoveredBtn==='pdf'?"#C62828":"#E8412A", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>PDF</button>
-                        <button onClick={()=>{ if(window.confirm("この議事録を削除しますか？この操作は取り消せません。")) { onUpdate({...project, minutes:project.minutes.filter(m=>m.id!==selectedMinute.id)}); setSelectedId(null); } }}
-                          onMouseEnter={()=>setHoveredBtn('delete')} onMouseLeave={()=>setHoveredBtn(null)}
-                          style={{ background:hoveredBtn==='delete'?"#FFEBEE":"transparent", border:"1.5px solid #E53935", color:"#E53935", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>
-                          🗑 削除
-                        </button>
-                      </>
-                    )}
-                  </div>
+                <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:8 }}>
+                  {isEditing ? (
+                    <>
+                      <button onClick={saveEdit} style={BTN.primary}>💾 保存</button>
+                      <button onClick={()=>setIsEditing(false)} style={BTN.ghost}>キャンセル</button>
+                    </>
+                  ) : extractMode ? (
+                    <button onClick={()=>setExtractMode(false)} style={BTN.ghost}>← プレビューに戻る</button>
+                  ) : (
+                    <>
+                      <button onClick={()=>{ setIsEditing(true); setEditContent(selectedMinute.content); setAiEditOpen(false); }}
+                        onMouseEnter={()=>setHoveredBtn('edit')} onMouseLeave={()=>setHoveredBtn(null)}
+                        style={{ background:hoveredBtn==='edit'?"#F5F5F5":"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✏️ 編集</button>
+                      <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
+                        onMouseEnter={()=>setHoveredBtn('ai')} onMouseLeave={()=>setHoveredBtn(null)}
+                        style={{ background:hoveredBtn==='ai'?"#F5F5F5":"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✨ AI修正</button>
+                      <button onClick={extractBothFromSaved} disabled={extracting}
+                        onMouseEnter={()=>setHoveredBtn('extract')} onMouseLeave={()=>setHoveredBtn(null)}
+                        style={{ background:extracting?"#3D8579":hoveredBtn==='extract'?"#3D8579":"#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:extracting?"default":"pointer", opacity:extracting?0.7:1 }}>
+                        {extracting?"⏳ 抽出中...":"📋 決定事項・タスク抽出"}
+                      </button>
+                      <button onClick={generateAgenda} disabled={agendaLoading}
+                        onMouseEnter={()=>setHoveredBtn('agenda')} onMouseLeave={()=>setHoveredBtn(null)}
+                        style={{ background:agendaLoading?"#3D8579":hoveredBtn==='agenda'?"#3D8579":"#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:agendaLoading?"default":"pointer", opacity:agendaLoading?0.7:1 }}>
+                        {agendaLoading?"⏳ 生成中...":"📋 次回アジェンダ作成"}
+                      </button>
+                      <button onClick={()=>downloadPdf(selectedMinute)}
+                        onMouseEnter={()=>setHoveredBtn('pdf')} onMouseLeave={()=>setHoveredBtn(null)}
+                        style={{ background:hoveredBtn==='pdf'?"#C62828":"#E8412A", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>PDF</button>
+                      <button onClick={()=>{ if(window.confirm("この議事録を削除しますか？この操作は取り消せません。")) { onUpdate({...project, minutes:project.minutes.filter(m=>m.id!==selectedMinute.id)}); setSelectedId(null); } }}
+                        onMouseEnter={()=>setHoveredBtn('delete')} onMouseLeave={()=>setHoveredBtn(null)}
+                        style={{ background:hoveredBtn==='delete'?"#FFEBEE":"transparent", border:"1.5px solid #E53935", color:"#E53935", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                        🗑 削除
+                      </button>
+                    </>
+                  )}
                 </div>
                 {aiEditOpen && !isEditing && (
                   <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
@@ -2517,24 +2485,22 @@ ${pastMinutesTitles}
               {/* 右：アジェンダプレビュー */}
               {showAgendaPreview && currentAgenda && (
                 <div style={{ width:"calc(50% - 8px)", maxWidth:"calc(50% - 8px)", minWidth:0, overflow:"hidden", borderLeft:`1.5px solid ${C.border}`, paddingLeft:16 }}>
-                  <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:14 }}>
-                    <div style={{ display:"flex", gap:6 }}>
-                      {isEditingAgenda ? (
-                        <button onClick={()=>{
-                          const updated = { ...currentAgenda, content: agendaContent };
-                          setCurrentAgenda(updated);
-                          const updatedMinutes = project.minutes.map(m => m.id === selectedMinute.id ? {...m, agendas: (m.agendas||[]).map(a => a.id === updated.id ? updated : a)} : m);
-                          onUpdate({ ...project, minutes: updatedMinutes });
-                          setIsEditingAgenda(false);
-                        }} style={BTN.primary}>💾 保存</button>
-                      ) : (
-                        <button onClick={()=>setIsEditingAgenda(true)} style={BTN.ghost}>✏️ 編集</button>
-                      )}
-                      <button onClick={()=>downloadAgendaPdf(currentAgenda)}
-                        style={btn({padding:"6px 12px",borderRadius:6,background:"#E8412A",color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
-                      <button onClick={()=>setShowAgendaPreview(false)}
-                        style={btn({padding:"6px 10px",borderRadius:6,fontSize:12,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>✕</button>
-                    </div>
+                  <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, gap:8 }}>
+                    {isEditingAgenda ? (
+                      <button onClick={()=>{
+                        const updated = { ...currentAgenda, content: agendaContent };
+                        setCurrentAgenda(updated);
+                        const updatedMinutes = project.minutes.map(m => m.id === selectedMinute.id ? {...m, agendas: (m.agendas||[]).map(a => a.id === updated.id ? updated : a)} : m);
+                        onUpdate({ ...project, minutes: updatedMinutes });
+                        setIsEditingAgenda(false);
+                      }} style={BTN.primary}>💾 保存</button>
+                    ) : (
+                      <button onClick={()=>setIsEditingAgenda(true)} style={BTN.ghost}>✏️ 編集</button>
+                    )}
+                    <button onClick={()=>downloadAgendaPdf(currentAgenda)}
+                      style={btn({padding:"6px 12px",borderRadius:6,background:"#E8412A",color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
+                    <button onClick={()=>setShowAgendaPreview(false)}
+                      style={btn({padding:"6px 10px",borderRadius:6,fontSize:12,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>✕</button>
                   </div>
                   {isEditingAgenda ? (
                     <textarea value={agendaContent} onChange={e=>setAgendaContent(e.target.value)} rows={30}
