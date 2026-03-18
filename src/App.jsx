@@ -607,11 +607,15 @@ function KanbanPage({ project, onUpdate }) {
 
   const openNew = (status) => { setForm({ id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }); setModal({ isNew: true }); };
   const openEdit = (t) => { setForm({ ...t }); setModal({ isNew: false }); };
+  const openReviewEdit = (t) => { setForm({ ...t, needsReview: false }); setModal({ isNew: false }); };
   const closeModal = () => { setModal(null); };
   const save = () => {
     if (!form.title.trim()) return;
     const tasks = modal.isNew ? [...project.tasks, form] : project.tasks.map(t => t.id === form.id ? form : t);
     onUpdate({ ...project, tasks }); closeModal();
+  };
+  const confirmTask = (taskId) => {
+    onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, needsReview: false } : t) });
   };
   const del = () => { onUpdate({ ...project, tasks: project.tasks.filter(t => t.id !== form.id) }); closeModal(); };
   const drop = (taskId, status) => onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, status } : t) });
@@ -626,8 +630,37 @@ function KanbanPage({ project, onUpdate }) {
     return true;
   });
 
+  const reviewTasks = (project.tasks || []).filter(t => t.needsReview);
+
   return (
     <div style={{ padding: 24 }}>
+      {reviewTasks.length > 0 && (
+        <div style={{ background:"#FFFDE7", border:"1.5px solid #FF9800", borderLeft:"5px solid #FF9800", borderRadius:10, padding:"14px 18px", marginBottom:20 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:"#E65100", marginBottom:10 }}>⚠️ Slackから自動登録されたタスク（確認してください）</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {reviewTasks.map(t => {
+              const assigneeNames = (t.assigneeIds||[]).map(id => (project.members||[]).find(m=>m.id===id)?.name).filter(Boolean).join("、");
+              return (
+                <div key={t.id} style={{ background:"#fff", borderRadius:8, border:"1px solid #FFE082", padding:"10px 14px", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:16 }}>🔔</span>
+                  <div style={{ flex:1, minWidth:120 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#333" }}>{t.title}</div>
+                    <div style={{ fontSize:11, color:"#888", marginTop:2, display:"flex", gap:10, flexWrap:"wrap" }}>
+                      {assigneeNames && <span>👤 {assigneeNames}</span>}
+                      {t.dueDate && <span>📅 {t.dueDate}</span>}
+                      {t.priority && <span style={{ color:t.priority==="high"?"#E53935":t.priority==="low"?"#78909C":"#FB8C00" }}>{t.priority==="high"?"🔴 高":t.priority==="low"?"🟢 低":"🟡 中"}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                    <button onClick={()=>openReviewEdit(t)} style={btn({padding:"5px 12px",borderRadius:6,background:"#FB8C00",color:"#fff",fontSize:12,fontWeight:700})}>✏️ 編集して確認</button>
+                    <button onClick={()=>confirmTask(t.id)} style={btn({padding:"5px 12px",borderRadius:6,background:"#4A9B8E",color:"#fff",fontSize:12,fontWeight:700})}>✅ このまま確認済みに</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         {[
           { key: "all", label: "全て" },

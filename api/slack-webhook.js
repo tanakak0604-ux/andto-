@@ -121,6 +121,7 @@ async function handler(req, res) {
       subtasks: [],
       relatedDecisionIds: [],
       source: "slack",
+      needsReview: true,
       slackChannel: channelId,
       slackTs: messageTs,
     };
