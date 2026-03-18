@@ -1926,18 +1926,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
 
-  // アジェンダ自動ロード：議事録選択時にその議事録のアジェンダを表示
-  useEffect(() => {
-    if (selectedMinute?.agendas && selectedMinute.agendas.length > 0) {
-      const latest = selectedMinute.agendas[selectedMinute.agendas.length - 1];
-      setCurrentAgenda(latest);
-      setAgendaContent(latest.content || '');
-    } else {
-      setCurrentAgenda(null);
-      setAgendaContent('');
-    }
-    setIsEditingAgenda(false);
-  }, [selectedMinute?.id]); // eslint-disable-line
+  // ※ selectedMinute は下で宣言のため、依存配列は selectedId を使用
 
   const extractGaiyou = (content) => {
     const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
@@ -1957,7 +1946,35 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   });
 
   const selectedMinute = minutes.find(m => m.id === selectedId);
-  const showAgenda = currentAgenda !== null && (selectedMinute?.agendas?.length ?? 0) > 0;
+
+  // アジェンダ自動ロード：selectedId 変化時（selectedMinute より後に定義のため依存は selectedId）
+  useEffect(() => {
+    try {
+      const agendas = selectedMinute?.agendas;
+      if (agendas && Array.isArray(agendas) && agendas.length > 0) {
+        const latest = agendas[agendas.length - 1];
+        if (latest) {
+          setCurrentAgenda(latest);
+          setAgendaContent(latest.content || '');
+        }
+      } else {
+        setCurrentAgenda(null);
+        setAgendaContent('');
+      }
+    } catch (e) {
+      console.error('agenda init error:', e);
+      setCurrentAgenda(null);
+      setAgendaContent('');
+    }
+    setIsEditingAgenda(false);
+  }, [selectedId]); // eslint-disable-line
+
+  const hasAgenda = Boolean(
+    currentAgenda &&
+    selectedMinute?.agendas &&
+    Array.isArray(selectedMinute.agendas) &&
+    selectedMinute.agendas.length > 0
+  );
 
   const runAiEdit = async () => {
     if (!aiInstruction.trim() || !selectedMinute) return;
@@ -2260,7 +2277,7 @@ ${pastMinutesTitles}
         {selectedMinute ? (
           <div style={{ padding:"28px 16px", maxWidth:"100%", boxSizing:"border-box" }}>
             <style dangerouslySetInnerHTML={{ __html: PREVIEW_CSS }} />
-            <div style={{ display:"flex", gap:16, width:"100%", maxWidth:"100%", boxSizing:"border-box", overflow:"hidden", alignItems:"flex-start", justifyContent:showAgenda?"flex-start":"center" }}>
+            <div style={{ display:"flex", gap:16, width:"100%", maxWidth:"100%", boxSizing:"border-box", overflow:"hidden", alignItems:"flex-start", justifyContent:hasAgenda?"flex-start":"center" }}>
               {/* 左：議事録エリア */}
               <div style={{ width:"calc(50% - 8px)", maxWidth:"calc(50% - 8px)", minWidth:0, flexShrink:0, overflow:"hidden" }}>
                 {/* ボタン行 */}
@@ -2481,7 +2498,7 @@ ${pastMinutesTitles}
             )}
               </div>
               {/* 右：アジェンダプレビュー */}
-              {showAgenda && (
+              {hasAgenda && (
                 <div style={{ width:"calc(50% - 8px)", maxWidth:"calc(50% - 8px)", minWidth:0, overflow:"hidden", borderLeft:`1.5px solid ${C.border}`, paddingLeft:16 }}>
                   <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, gap:8 }}>
                     {isEditingAgenda ? (
