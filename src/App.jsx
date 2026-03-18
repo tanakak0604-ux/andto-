@@ -1974,6 +1974,22 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
 
+  // アジェンダ自動ロード：議事録選択時に最新アジェンダを表示
+  useEffect(() => {
+    const agendas = project.agendas || [];
+    if (agendas.length > 0) {
+      const latest = [...agendas].sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];
+      setCurrentAgenda(latest);
+      setAgendaContent(latest.content);
+      setIsEditingAgenda(false);
+      setShowAgendaPreview(true);
+    } else {
+      setCurrentAgenda(null);
+      setAgendaContent('');
+      setShowAgendaPreview(false);
+    }
+  }, [selectedId]); // eslint-disable-line
+
   const extractGaiyou = (content) => {
     const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
     return match ? match[1].trim() : "";
@@ -2275,7 +2291,7 @@ ${pastMinutesTitles}
         {selectedMinute ? (
           <div style={{ padding:"28px 24px", maxWidth:"100%" }}>
             <style dangerouslySetInnerHTML={{ __html: PREVIEW_CSS }} />
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18, gap:12 }}>
+            <div style={{ width:showAgendaPreview?"100%":"700px", maxWidth:showAgendaPreview?"100%":"700px", margin:"0 auto 18px", display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
               <div style={{ minWidth:0 }}>
                 <div style={{ fontSize:15, fontWeight:900, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                   {extractGaiyou(selectedMinute.content) || selectedMinute.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"")}
@@ -2323,33 +2339,6 @@ ${pastMinutesTitles}
                 )}
               </div>
             </div>
-            {(project.agendas||[]).length > 0 && !extractMode && !isEditing && (
-              <div style={{ marginBottom:16, borderBottom:`1.5px solid ${C.border}`, paddingBottom:16 }}>
-                <div style={{ fontSize:12, fontWeight:800, color:C.text, marginBottom:8 }}>📋 作成済みアジェンダ</div>
-                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                  {[...(project.agendas||[])].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(ag=>(
-                    <div key={ag.id} style={{ display:"flex", alignItems:"center", gap:8, background:C.surface, borderRadius:8, padding:"8px 12px", border:`1.5px solid ${C.border}` }}>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:11, fontWeight:700, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ag.title}</div>
-                        <div style={{ fontSize:10, color:C.muted, marginTop:1 }}>{ag.createdAt}</div>
-                      </div>
-                      <button onClick={()=>{ setAgendaContent(ag.content); setCurrentAgenda(ag); setIsEditingAgenda(false); setShowAgendaPreview(true); }}
-                        style={btn({padding:"4px 10px",borderRadius:6,background:"#4A9B8E",color:"#fff",fontSize:11,fontWeight:700})}>
-                        📋 表示
-                      </button>
-                      <button onClick={()=>downloadAgendaPdf(ag)}
-                        style={btn({padding:"4px 10px",borderRadius:6,background:"#6B8F71",color:"#fff",fontSize:11,fontWeight:700})}>
-                        ⬇️ PDF
-                      </button>
-                      <button onClick={()=>{ onUpdate({...project,agendas:(project.agendas||[]).filter(x=>x.id!==ag.id)}); if(currentAgenda?.id===ag.id) setShowAgendaPreview(false); }}
-                        style={btn({padding:"4px 8px",borderRadius:6,fontSize:11,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
             {aiEditOpen && !isEditing && (
               <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
                 <div style={{ fontSize:12, fontWeight:700, color:C.accent, marginBottom:8 }}>✨ AI修正指示</div>
