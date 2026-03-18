@@ -725,9 +725,7 @@ function KanbanPage({ project, onUpdate }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
                 {(form.subtasks||[]).map((s,i) => (
                   <div key={s.id}
-                    draggable
-                    onDragStart={e => { e.dataTransfer.setData("subtaskIdx", String(i)); e.dataTransfer.effectAllowed = "move"; e.currentTarget.style.opacity = "0.4"; }}
-                    onDragEnd={e => { e.currentTarget.style.opacity = "1"; }}
+                    draggable={false}
                     onDragOver={e => e.preventDefault()}
                     onDrop={e => {
                       e.preventDefault();
@@ -735,11 +733,22 @@ function KanbanPage({ project, onUpdate }) {
                       if (from === i || isNaN(from)) return;
                       setForm(f => { const subs = [...f.subtasks]; const [moved] = subs.splice(from, 1); subs.splice(i, 0, moved); return { ...f, subtasks: subs }; });
                     }}
-                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: C.bg, borderRadius: 8, border: `1px solid ${C.border}`, cursor: "grab" }}>
-                    <span style={{ color: C.border, fontSize: 15, userSelect: "none", cursor: "grab" }}>⠿</span>
-                    <input type="checkbox" checked={s.done} onChange={() => setForm(f => ({ ...f, subtasks: f.subtasks.map((x,j) => j===i ? {...x,done:!x.done} : x) }))} style={{ width: 14, height: 14, cursor: "pointer", accentColor: C.sage }} />
-                    <input value={s.title} onChange={e => setForm(f => ({ ...f, subtasks: f.subtasks.map((x,j) => j===i ? {...x,title:e.target.value} : x) }))}
-                      style={{ flex: 1, border: "none", background: "transparent", fontSize: 12, color: s.done ? C.muted : C.text, outline: "none", textDecoration: s.done ? "line-through" : "none" }} />
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: C.bg, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                    {/* ドラッグハンドルのみドラッグ可能 */}
+                    <span
+                      draggable
+                      onDragStart={e => { e.dataTransfer.setData("subtaskIdx", String(i)); e.dataTransfer.effectAllowed = "move"; e.currentTarget.closest('[data-subtask-row]') && (e.currentTarget.closest('[data-subtask-row]').style.opacity = "0.4"); e.currentTarget.parentElement.style.opacity = "0.4"; }}
+                      onDragEnd={e => { e.currentTarget.parentElement.style.opacity = "1"; }}
+                      style={{ color: C.border, fontSize: 15, userSelect: "none", cursor: "grab", flexShrink: 0, padding: "0 2px" }}>⠿</span>
+                    <input type="checkbox" checked={s.done} onChange={() => setForm(f => ({ ...f, subtasks: f.subtasks.map((x,j) => j===i ? {...x,done:!x.done} : x) }))} style={{ width: 14, height: 14, cursor: "pointer", accentColor: C.sage, flexShrink: 0 }} />
+                    {/* テキスト入力（ドラッグ不可・選択可） */}
+                    <div draggable={false} style={{ flex: 1, minWidth: 0 }} onMouseDown={e => e.stopPropagation()}>
+                      <input value={s.title} onChange={e => setForm(f => ({ ...f, subtasks: f.subtasks.map((x,j) => j===i ? {...x,title:e.target.value} : x) }))}
+                        draggable={false}
+                        onDragStart={e => e.preventDefault()}
+                        onMouseDown={e => e.stopPropagation()}
+                        style={{ width: "100%", border: "none", background: "transparent", fontSize: 12, color: s.done ? C.muted : C.text, outline: "none", textDecoration: s.done ? "line-through" : "none", userSelect: "text", WebkitUserSelect: "text", cursor: "text", boxSizing: "border-box" }} />
+                    </div>
                     <button onClick={() => setForm(f => ({ ...f, subtasks: f.subtasks.filter((_,j) => j!==i) }))} style={btn({ color: C.muted, fontSize: 14, background: "transparent" })}>✕</button>
                   </div>
                 ))}
