@@ -1930,6 +1930,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [subtaskLoading, setSubtaskLoading] = useState(false);
   const [localFolders, setLocalFolders] = useState(project.decisionFolders || []);
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingSubtaskId, setEditingSubtaskId] = useState(null);
 
   const extractGaiyou = (content) => {
     const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
@@ -2372,14 +2373,26 @@ ${selectedMinute.content}`;
                                 <div style={{ display:"flex", flexDirection:"column", gap:3, marginBottom:5 }}>
                                   {(t.subtasks||[]).map(s=>(
                                     <div key={s.id} style={{ display:"flex", alignItems:"center", gap:6, background:C.bg, borderRadius:6, padding:"3px 8px" }}>
-                                      <span style={{ flex:1, fontSize:11, color:C.text }}>{s.title}</span>
+                                      {editingSubtaskId===s.id ? (
+                                        <input autoFocus value={s.title}
+                                          onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,subtasks:(x.subtasks||[]).map(ss=>ss.id===s.id?{...ss,title:e.target.value}:ss)}:x))}
+                                          onKeyDown={e=>{if(e.key==="Enter")setEditingSubtaskId(null);if(e.key==="Escape")setEditingSubtaskId(null);}}
+                                          onBlur={()=>setEditingSubtaskId(null)}
+                                          style={{ flex:1, fontSize:11, border:`1px solid ${C.border}`, borderRadius:4, padding:"2px 6px", background:"#fff", color:C.text, outline:"none" }} />
+                                      ) : (
+                                        <span onClick={()=>setEditingSubtaskId(s.id)} style={{ flex:1, fontSize:11, color:C.text, cursor:"text" }}>{s.title||"（未入力）"}</span>
+                                      )}
+                                      {editingSubtaskId!==s.id && (
+                                        <button onClick={()=>setEditingSubtaskId(s.id)}
+                                          style={btn({padding:"1px 4px",borderRadius:4,fontSize:10,color:C.muted,background:"transparent"})}>✏️</button>
+                                      )}
                                       <button onClick={()=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,subtasks:(x.subtasks||[]).filter(ss=>ss.id!==s.id)}:x))}
                                         style={btn({padding:"1px 6px",borderRadius:4,fontSize:10,color:C.muted,background:"transparent"})}>×</button>
                                     </div>
                                   ))}
                                 </div>
                               )}
-                              <button onClick={()=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,subtasks:[...(x.subtasks||[]),{id:uid(),title:"",done:false}]}:x))}
+                              <button onClick={()=>{const nid=uid();setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,subtasks:[...(x.subtasks||[]),{id:nid,title:"",done:false}]}:x));setEditingSubtaskId(nid);}}
                                 style={btn({padding:"2px 8px",borderRadius:6,fontSize:11,color:C.sage,background:"transparent",border:`1px dashed ${C.sage}`})}>
                                 ＋ サブタスクを追加
                               </button>
