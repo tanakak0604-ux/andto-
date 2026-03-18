@@ -589,12 +589,17 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
             </div>
           );
         })}
-        {unfoldered.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "4px 0" }}>
-            <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, padding: "0 4px" }}>未分類</div>
-            {unfoldered.map(t => <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={onEdit} />)}
-          </div>
-        )}
+        <div
+          onDragOver={e => { e.preventDefault(); setOver("__unfoldered__"); }}
+          onDragLeave={() => setOver(null)}
+          onDrop={e => { e.preventDefault(); const taskId = e.dataTransfer.getData("id"); setOver(null); if (!project.tasks.find(t => t.id === taskId)) return; onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, status: "done", folderId: null } : t) }); }}
+          style={{ display:"flex", flexDirection:"column", gap:6, padding:"6px 8px", borderRadius:10, border:`1.5px dashed ${over==="__unfoldered__" ? C.done : C.border}`, background: over==="__unfoldered__" ? "#E8F5E9" : "transparent", minHeight:36, transition:"background 0.15s" }}>
+          <div style={{ fontSize:11, color:C.muted, fontWeight:600 }}>📂 未分類</div>
+          {unfoldered.length === 0 && over !== "__unfoldered__" && (
+            <div style={{ fontSize:11, color:C.muted, textAlign:"center", padding:"4px 0" }}>タスクをここにドロップ</div>
+          )}
+          {unfoldered.map(t => <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={onEdit} />)}
+        </div>
       </div>
     </div>
   );
