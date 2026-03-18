@@ -2288,18 +2288,15 @@ ${pastMinutesTitles}
       </div>
 
       {/* 右カラム：プレビュー／編集 */}
-      <div style={{ flex:1, overflowY:"auto", background:C.bg }}>
+      <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", boxSizing:"border-box", background:C.bg }}>
         {selectedMinute ? (
-          <div style={{ padding:"28px 24px", maxWidth:"100%" }}>
+          <div style={{ padding:"28px 16px", maxWidth:"100%", boxSizing:"border-box" }}>
             <style dangerouslySetInnerHTML={{ __html: PREVIEW_CSS }} />
-            <div style={{ display:"flex", gap:24, width:"100%", justifyContent:showAgendaPreview?"flex-start":"center", alignItems:"flex-start" }}>
+            <div style={{ display:"flex", gap:16, width:"100%", maxWidth:"100%", boxSizing:"border-box", overflow:"hidden", alignItems:"flex-start" }}>
               {/* 左：議事録エリア */}
-              <div style={{ width:showAgendaPreview?"50%":"700px", maxWidth:showAgendaPreview?"50%":"700px", minWidth:0, flexShrink:0 }}>
+              <div style={{ width:showAgendaPreview?"calc(50% - 8px)":"700px", maxWidth:showAgendaPreview?"calc(50% - 8px)":"100%", minWidth:0, overflow:"hidden" }}>
                 {/* ボタン行 */}
                 <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
-                  <div style={{ fontSize:15, fontWeight:900, color:C.text, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                    {extractGaiyou(selectedMinute.content) || selectedMinute.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"")}
-                  </div>
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"flex-end" }}>
                     {isEditing ? (
                       <>
@@ -2513,15 +2510,14 @@ ${pastMinutesTitles}
               <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
                 style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
             ) : (
-              <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}` }}
+              <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}`, wordBreak:"break-word", overflowWrap:"break-word", overflow:"hidden" }}
                 dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
             )}
               </div>
               {/* 右：アジェンダプレビュー */}
               {showAgendaPreview && currentAgenda && (
-                <div style={{ width:"50%", maxWidth:"50%", minWidth:0, borderLeft:`1.5px solid ${C.border}`, paddingLeft:24, flexShrink:0 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-                    <div style={{ fontSize:13, fontWeight:800, color:C.text }}>📋 次回アジェンダ</div>
+                <div style={{ width:"calc(50% - 8px)", maxWidth:"calc(50% - 8px)", minWidth:0, overflow:"hidden", borderLeft:`1.5px solid ${C.border}`, paddingLeft:16 }}>
+                  <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:14 }}>
                     <div style={{ display:"flex", gap:6 }}>
                       {isEditingAgenda ? (
                         <button onClick={()=>{
@@ -2544,7 +2540,7 @@ ${pastMinutesTitles}
                     <textarea value={agendaContent} onChange={e=>setAgendaContent(e.target.value)} rows={30}
                       style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
                   ) : (
-                    <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"24px 28px", border:`1px solid ${C.border}` }}
+                    <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"24px 28px", border:`1px solid ${C.border}`, wordBreak:"break-word", overflowWrap:"break-word", overflow:"hidden" }}
                       dangerouslySetInnerHTML={{ __html: highlightInHtml(buildAgendaBody(agendaContent), '') }} />
                   )}
                 </div>
