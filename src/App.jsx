@@ -1929,6 +1929,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [agendaError, setAgendaError] = useState("");
   const [subtaskLoading, setSubtaskLoading] = useState(false);
   const [localFolders, setLocalFolders] = useState(project.decisionFolders || []);
+  const [editingTaskId, setEditingTaskId] = useState(null);
 
   const extractGaiyou = (content) => {
     const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
@@ -2333,19 +2334,35 @@ ${selectedMinute.content}`;
                           </div>
                           <span style={{ flex:1, fontSize:12, fontWeight:700, color:C.text }}>{t.title||"（タイトル未入力）"}</span>
                           <PriorityDot p={t.priority} />
+                          <button onClick={e=>{e.stopPropagation();setEditingTaskId(t.id);}}
+                            style={btn({padding:"2px 6px",borderRadius:5,background:"transparent",color:C.muted,fontSize:12})}>✏️</button>
                         </div>
-                        <div onClick={e=>e.stopPropagation()} style={{ padding:"0 12px 10px 40px", display:"flex", gap:6, flexWrap:"wrap" }}>
-                          <input value={t.title} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,title:e.target.value}:x))} placeholder="タスク名"
-                            style={{ flex:"2 1 140px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
-                          <input value={t.assignee||""} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,assignee:e.target.value}:x))} placeholder="👤 担当者"
-                            style={{ flex:"1 1 80px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
-                          <input type="date" value={t.dueDate||""} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,dueDate:e.target.value}:x))}
-                            style={{ flex:"1 1 110px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
-                          <select value={t.priority} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,priority:e.target.value}:x))}
-                            style={{ flex:"1 1 60px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }}>
-                            <option value="high">高</option><option value="medium">中</option><option value="low">低</option>
-                          </select>
-                        </div>
+                        {editingTaskId===t.id ? (
+                          <div onClick={e=>e.stopPropagation()} style={{ padding:"0 12px 10px 40px", display:"flex", gap:6, flexWrap:"wrap" }}>
+                            <input autoFocus value={t.title} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,title:e.target.value}:x))} placeholder="タスク名"
+                              onKeyDown={e=>{if(e.key==="Enter")setEditingTaskId(null);}}
+                              style={{ flex:"2 1 140px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                            <input value={t.assignee||""} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,assignee:e.target.value}:x))} placeholder="👤 担当者"
+                              onKeyDown={e=>{if(e.key==="Enter")setEditingTaskId(null);}}
+                              style={{ flex:"1 1 80px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                            <input type="date" value={t.dueDate||""} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,dueDate:e.target.value}:x))}
+                              style={{ flex:"1 1 110px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                            <select value={t.priority} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,priority:e.target.value}:x))}
+                              style={{ flex:"1 1 60px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }}>
+                              <option value="high">高</option><option value="medium">中</option><option value="low">低</option>
+                            </select>
+                            <button onClick={()=>setEditingTaskId(null)}
+                              style={btn({padding:"4px 10px",borderRadius:6,background:C.sage,color:"#fff",fontSize:11,fontWeight:700})}>完了</button>
+                          </div>
+                        ) : (
+                          <div style={{ padding:"0 12px 8px 40px", display:"flex", gap:8, flexWrap:"wrap" }}>
+                            {t.assignee && <span style={{ fontSize:11, color:C.muted }}>👤 {t.assignee}</span>}
+                            {t.dueDate && <span style={{ fontSize:11, color:C.muted }}>📅 {t.dueDate}</span>}
+                            <span style={{ fontSize:11, color:t.priority==="high"?"#E53935":t.priority==="low"?"#78909C":C.muted }}>
+                              {t.priority==="high"?"🔴 高":t.priority==="low"?"🟢 低":"🟡 中"}
+                            </span>
+                          </div>
+                        )}
                         <div onClick={e=>e.stopPropagation()} style={{ padding:"0 12px 10px 40px" }}>
                           {subtaskLoading ? (
                             <div style={{ fontSize:11, color:C.muted, padding:"4px 0" }}>⏳ サブタスク生成中...</div>
