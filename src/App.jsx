@@ -105,7 +105,7 @@ const C = {
   todo: "#C8694A", doing: "#C8A84B", done: "#6B8F71",
   todoLight: "#F5E6E0", doingLight: "#FBF5E0", doneLight: "#E8F0E9",
   hover: "#EDEBE4",
-  decision: C.decision, decisionLight: C.decisionLight,
+  decision: "#5B7EC9", decisionLight: "#EEF3FF",
 };
 
 const INIT_PROJECTS = [
