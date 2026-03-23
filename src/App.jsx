@@ -770,7 +770,7 @@ function KanbanPage({ project, onUpdate }) {
                             }
                           }
                         }}
-                        style={{ width: "100%", border: "none", background: "transparent", fontSize: 12, color: s.done ? C.muted : C.text, outline: "none", textDecoration: s.done ? "line-through" : "none", userSelect: "text", WebkitUserSelect: "text", cursor: "text", boxSizing: "border-box" }} />
+                        style={{ width: "100%", border: "none", background: "transparent", fontSize: 12, color: s.done ? C.muted : C.text, outline: "none", textDecoration: s.done ? "line-through" : "none", userSelect: "text", WebkitUserSelect: "text", cursor: "text", boxSizing: "border-box", padding: 0, lineHeight: "normal" }} />
                     </div>
                     <button onClick={() => setForm(f => ({ ...f, subtasks: f.subtasks.filter((_,j) => j!==i) }))} style={btn({ color: C.muted, fontSize: 14, background: "transparent" })}>✕</button>
                   </div>
