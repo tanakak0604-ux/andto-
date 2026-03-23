@@ -1,6 +1,6 @@
 /**
  * 週次 Slack サマリー投稿 - Vercel Cron Job
- * 毎週月曜 09:00 JST (0 0 * * 1) に実行
+ * 毎週月曜 08:30 JST (30 23 * * 0) に実行
  *
  * 使用環境変数:
  *   SLACK_BOT_TOKEN  - Slack Bot Token (xoxb-)
@@ -66,7 +66,7 @@ module.exports = async function handler(req, res) {
   }
 
   // ── 2. サマリーを Slack に投稿 ───────────────────────────
-  const text = `<@${NOTIFY_USER}> 今週の進捗サマリーです。\n\n${sections.join("\n\n")}`;
+  const text = `今週の進捗サマリーです。\n\n${sections.join("\n\n")}`;
   await postToSlack(SUMMARY_CHANNEL, text);
 
   return res.status(200).json({ ok: true, channelsFetched: sections.length });
@@ -98,7 +98,7 @@ async function generateSummary(messagesText) {
 ・〇〇
 
 ---
-${messagesText.slice(0, 12000)}`;
+${messagesText.slice(0, 50000)}`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
   const res = await fetch(url, {
@@ -106,7 +106,7 @@ ${messagesText.slice(0, 12000)}`;
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 1024 },
+      generationConfig: { maxOutputTokens: 16384 },
     }),
   });
   const data = await res.json();
