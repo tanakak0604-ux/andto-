@@ -105,6 +105,7 @@ const C = {
   todo: "#C8694A", doing: "#C8A84B", done: "#6B8F71",
   todoLight: "#F5E6E0", doingLight: "#FBF5E0", doneLight: "#E8F0E9",
   hover: "#EDEBE4",
+  decision: C.decision, decisionLight: C.decisionLight,
 };
 
 const INIT_PROJECTS = [
@@ -412,7 +413,7 @@ function TaskCard({ t, project, onUpdate, onEdit }) {
         </div>
       )}
       {(t.relatedDecisionIds || []).length > 0 && (
-        <div style={{ fontSize: 10, color: "#5B7EC9", marginLeft: 15, marginTop: 2, fontWeight: 600 }}>📋 決定事項 {t.relatedDecisionIds.length}件紐付き</div>
+        <div style={{ fontSize: 10, color: C.decision, marginLeft: 15, marginTop: 2, fontWeight: 600 }}>📋 決定事項 {t.relatedDecisionIds.length}件紐付き</div>
       )}
       {(t.subtasks || []).length > 0 && (() => {
         const done = (t.subtasks || []).filter(s => s.done).length;
@@ -789,9 +790,9 @@ function KanbanPage({ project, onUpdate }) {
                     return (
                       <button key={d.id} type="button"
                         onClick={() => setForm(f => ({ ...f, relatedDecisionIds: sel ? (f.relatedDecisionIds||[]).filter(id=>id!==d.id) : [...(f.relatedDecisionIds||[]), d.id] }))}
-                        style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", borderRadius:8, border:`1.5px solid ${sel?"#5B7EC9":C.border}`, background:sel?"#EEF3FF":C.bg, cursor:"pointer", textAlign:"left" }}>
-                        <span style={{ width:6, height:6, borderRadius:"50%", background:sel?"#5B7EC9":C.muted, flexShrink:0 }} />
-                        <span style={{ fontSize:12, color:sel?"#5B7EC9":C.text, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.text}</span>
+                        style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", borderRadius:8, border:`1.5px solid ${sel?C.decision:C.border}`, background:sel?C.decisionLight:C.bg, cursor:"pointer", textAlign:"left" }}>
+                        <span style={{ width:6, height:6, borderRadius:"50%", background:sel?C.decision:C.muted, flexShrink:0 }} />
+                        <span style={{ fontSize:12, color:sel?C.decision:C.text, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.text}</span>
                       </button>
                     );
                   })}
@@ -918,7 +919,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                 </div>
                 <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
                   {(p.minutes||[]).length > 0 && <span style={{ fontSize: 11, color: C.muted, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: "3px 10px", fontWeight: 700 }}>📝 議事録 {p.minutes.length}件</span>}
-                  {(p.decisions||[]).length > 0 && <span style={{ fontSize: 11, color: "#5B7EC9", background: "#EEF3FF", border: `1px solid #B8CAED`, borderRadius: 20, padding: "3px 10px", fontWeight: 700 }}>📋 決定事項 {p.decisions.length}件</span>}
+                  {(p.decisions||[]).length > 0 && <span style={{ fontSize: 11, color: C.decision, background: C.decisionLight, border: `1px solid #B8CAED`, borderRadius: 20, padding: "3px 10px", fontWeight: 700 }}>📋 決定事項 {p.decisions.length}件</span>}
                 </div>
                 <div style={{ marginTop:"auto", display:"flex", flexDirection:"column", gap:6 }}>
                   <button onClick={() => onNavigate(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: p.color+"18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>タスクを開く →</button>
@@ -1800,7 +1801,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                     {minutesSaved?"✓ 保存済み":"💾 保存"}
                   </button>
                   <button onClick={extractBoth} disabled={loading||!minutes}
-                    style={btn({padding:"10px 18px",borderRadius:12,background:loading||!minutes?C.border:"#5B7EC9",color:"#fff",fontSize:13,fontWeight:800})}>{loading?"⏳ 抽出中...":"📋 決定事項・タスク抽出"}</button>
+                    style={btn({padding:"10px 18px",borderRadius:12,background:loading||!minutes?C.border:C.decision,color:"#fff",fontSize:13,fontWeight:800})}>{loading?"⏳ 抽出中...":"📋 決定事項・タスク抽出"}</button>
                   {loading && <button onClick={cancelGenerate} style={{ padding:"10px 18px", borderRadius:12, background:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", fontSize:13, fontWeight:600, cursor:"pointer" }}>キャンセル</button>}
                   {saveMsg&&<span style={{ fontSize:12, color:C.sage, fontWeight:700 }}>✓ {saveMsg}</span>}
                 </div>
@@ -1818,7 +1819,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                 {/* 決定事項セクション */}
                 <div style={{ marginBottom:20 }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                    <span style={{ fontSize:13, fontWeight:800, color:"#5B7EC9" }}>📋 決定事項</span>
+                    <span style={{ fontSize:13, fontWeight:800, color:C.decision }}>📋 決定事項</span>
                     <div style={{ display:"flex", gap:8 }}>
                       <button onClick={()=>setExtractedDecisions(ds=>ds.map(d=>({...d,selected:true})))} style={btn({fontSize:11,color:C.sage,background:"transparent"})}>全選択</button>
                       <button onClick={()=>setExtractedDecisions(ds=>ds.map(d=>({...d,selected:false})))} style={btn({fontSize:11,color:C.muted,background:"transparent"})}>全解除</button>
@@ -1826,10 +1827,10 @@ function MinutesPage({ projects, onUpdateProject }) {
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                     {extractedDecisions.map(d=>(
-                      <div key={d.id} style={{ background:d.selected?"#EEF3FF":C.bg, border:`1.5px solid ${d.selected?"#5B7EC9":C.border}`, borderRadius:10, overflow:"hidden" }}>
+                      <div key={d.id} style={{ background:d.selected?C.decisionLight:C.bg, border:`1.5px solid ${d.selected?C.decision:C.border}`, borderRadius:10, overflow:"hidden" }}>
                         <div onClick={()=>{ if(editingDecisionId!==d.id) setExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,selected:!x.selected}:x)); }}
                           style={{ padding:"10px 14px", cursor:"pointer", display:"flex", alignItems:"flex-start", gap:10 }}>
-                          <div style={{ width:18, height:18, borderRadius:5, border:`2px solid ${d.selected?"#5B7EC9":C.border}`, background:d.selected?"#5B7EC9":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>
+                          <div style={{ width:18, height:18, borderRadius:5, border:`2px solid ${d.selected?C.decision:C.border}`, background:d.selected?C.decision:"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>
                             {d.selected&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
                           </div>
                           {editingDecisionId===d.id ? (
@@ -1842,7 +1843,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                             {editingDecisionId===d.id ? (
                               <>
                                 <button onClick={()=>{ setExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,text:editingDecisionText}:x)); setEditingDecisionId(null); }}
-                                  style={btn({padding:"3px 8px",borderRadius:6,background:"#5B7EC9",color:"#fff",fontSize:11,fontWeight:700})}>保存</button>
+                                  style={btn({padding:"3px 8px",borderRadius:6,background:C.decision,color:"#fff",fontSize:11,fontWeight:700})}>保存</button>
                                 <button onClick={()=>setEditingDecisionId(null)}
                                   style={btn({padding:"3px 7px",borderRadius:6,background:"transparent",color:C.muted,fontSize:11,border:`1px solid ${C.border}`})}>取消</button>
                               </>
@@ -2323,9 +2324,9 @@ ${pastMinutesTitles}
         {selectedMinute ? (
           <div style={{ padding:"28px 16px", maxWidth:"100%", boxSizing:"border-box" }}>
             <style dangerouslySetInnerHTML={{ __html: PREVIEW_CSS }} />
-            <div style={{ display:"flex", gap:16, width:"100%", maxWidth:"100%", boxSizing:"border-box", overflow:"hidden", alignItems:"flex-start", justifyContent:hasAgenda?"flex-start":"center" }}>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:16, width:"100%", maxWidth:"100%", boxSizing:"border-box", overflow:"hidden", alignItems:"flex-start", justifyContent:hasAgenda?"flex-start":"center" }}>
               {/* 左：議事録エリア */}
-              <div style={{ width:"calc(50% - 8px)", maxWidth:"calc(50% - 8px)", minWidth:0, flexShrink:0, overflow:"hidden" }}>
+              <div style={{ flex:"1 1 320px", minWidth:0, overflow:"hidden" }}>
                 {/* ボタン行 */}
                 <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:8 }}>
                   {isEditing ? (
@@ -2383,7 +2384,7 @@ ${pastMinutesTitles}
                 {/* 決定事項 */}
                 <div style={{ marginBottom:20 }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                    <span style={{ fontSize:13, fontWeight:800, color:"#5B7EC9" }}>📋 決定事項</span>
+                    <span style={{ fontSize:13, fontWeight:800, color:C.decision }}>📋 決定事項</span>
                     <div style={{ display:"flex", gap:8 }}>
                       <button onClick={()=>setDetailExtractedDecisions(ds=>ds.map(d=>({...d,selected:true})))} style={btn({fontSize:11,color:C.sage,background:"transparent"})}>全選択</button>
                       <button onClick={()=>setDetailExtractedDecisions(ds=>ds.map(d=>({...d,selected:false})))} style={btn({fontSize:11,color:C.muted,background:"transparent"})}>全解除</button>
@@ -2391,10 +2392,10 @@ ${pastMinutesTitles}
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                     {detailExtractedDecisions.map(d=>(
-                      <div key={d.id} style={{ background:d.selected?"#EEF3FF":C.bg, border:`1.5px solid ${d.selected?"#5B7EC9":C.border}`, borderRadius:10, overflow:"hidden" }}>
+                      <div key={d.id} style={{ background:d.selected?C.decisionLight:C.bg, border:`1.5px solid ${d.selected?C.decision:C.border}`, borderRadius:10, overflow:"hidden" }}>
                         <div onClick={()=>{ if(detailEditingDecId!==d.id) setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,selected:!x.selected}:x)); }}
                           style={{ padding:"10px 14px", cursor:"pointer", display:"flex", alignItems:"flex-start", gap:10 }}>
-                          <div style={{ width:18, height:18, borderRadius:5, border:`2px solid ${d.selected?"#5B7EC9":C.border}`, background:d.selected?"#5B7EC9":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>
+                          <div style={{ width:18, height:18, borderRadius:5, border:`2px solid ${d.selected?C.decision:C.border}`, background:d.selected?C.decision:"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>
                             {d.selected&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
                           </div>
                           {detailEditingDecId===d.id ? (
@@ -2407,7 +2408,7 @@ ${pastMinutesTitles}
                             {detailEditingDecId===d.id ? (
                               <>
                                 <button onClick={()=>{ setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,text:detailEditingDecText}:x)); setDetailEditingDecId(null); }}
-                                  style={btn({padding:"3px 8px",borderRadius:6,background:"#5B7EC9",color:"#fff",fontSize:11,fontWeight:700})}>保存</button>
+                                  style={btn({padding:"3px 8px",borderRadius:6,background:C.decision,color:"#fff",fontSize:11,fontWeight:700})}>保存</button>
                                 <button onClick={()=>setDetailEditingDecId(null)}
                                   style={btn({padding:"3px 7px",borderRadius:6,background:"transparent",color:C.muted,fontSize:11,border:`1px solid ${C.border}`})}>取消</button>
                               </>
@@ -2431,7 +2432,7 @@ ${pastMinutesTitles}
                                 onKeyDown={e=>{ if(e.key==="Enter"){ const name=(d.newFolderName||"").trim(); if(!name)return; const ex=localFolders.find(f=>f.name===name); const fid=ex?ex.id:uid(); if(!ex)setLocalFolders(prev=>[...prev,{id:fid,name,parentId:null}]); setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,_folderSel:fid,newFolderName:""}:x)); }}}
                                 style={{ flex:1, border:`1px solid #5B7EC9`, borderRadius:6, padding:"3px 8px", fontSize:11, background:"#fff", color:C.text, outline:"none" }} />
                               <button onClick={()=>{ const name=(d.newFolderName||"").trim(); if(!name)return; const ex=localFolders.find(f=>f.name===name); const fid=ex?ex.id:uid(); if(!ex)setLocalFolders(prev=>[...prev,{id:fid,name,parentId:null}]); setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,_folderSel:fid,newFolderName:""}:x)); }}
-                                style={btn({padding:"3px 10px",borderRadius:6,background:"#5B7EC9",color:"#fff",fontSize:11,fontWeight:700})}>作成</button>
+                                style={btn({padding:"3px 10px",borderRadius:6,background:C.decision,color:"#fff",fontSize:11,fontWeight:700})}>作成</button>
                             </div>
                           )}
                         </div>
@@ -2569,7 +2570,7 @@ ${pastMinutesTitles}
               </div>
               {/* 右：アジェンダプレビュー */}
               {hasAgenda && (
-                <div style={{ width:"calc(50% - 8px)", maxWidth:"calc(50% - 8px)", minWidth:0, overflow:"hidden", borderLeft:`1.5px solid ${C.border}`, paddingLeft:16 }}>
+                <div style={{ flex:"1 1 320px", minWidth:0, overflow:"hidden", borderLeft:`1.5px solid ${C.border}`, paddingLeft:16 }}>
                   <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, gap:8 }}>
                     {isEditingAgenda ? (
                       <button onClick={()=>{
@@ -2897,7 +2898,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                     </div>
                   )}
                   <div style={{ marginTop:10, display:"flex", alignItems:"center", gap:8 }}>
-                    <span style={{ fontSize:11, color:"#5B7EC9", background:"#EEF3FF", borderRadius:20, padding:"2px 10px", fontWeight:700 }}>{count}件</span>
+                    <span style={{ fontSize:11, color:C.decision, background:C.decisionLight, borderRadius:20, padding:"2px 10px", fontWeight:700 }}>{count}件</span>
                     <span style={{ fontSize:11, color:C.muted }}>クリックして開く →</span>
                   </div>
                 </div>
@@ -2943,8 +2944,8 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                     {(() => {
                       const linked = (project.tasks || []).filter(t => (t.relatedDecisionIds || []).includes(d.id));
                       return linked.length > 0 && (
-                        <div style={{ background:"#EEF3FF", borderRadius:8, padding:"6px 10px", marginBottom:10 }}>
-                          <div style={{ fontSize:10, color:"#5B7EC9", fontWeight:700, marginBottom:4 }}>🔗 関連タスク {linked.length}件</div>
+                        <div style={{ background:C.decisionLight, borderRadius:8, padding:"6px 10px", marginBottom:10 }}>
+                          <div style={{ fontSize:10, color:C.decision, fontWeight:700, marginBottom:4 }}>🔗 関連タスク {linked.length}件</div>
                           {linked.map(t => (
                             <div key={t.id} style={{ display:"flex", alignItems:"center", gap:6, padding:"2px 0" }}>
                               <StatusBadge s={t.status} />
@@ -3402,7 +3403,7 @@ export default function App() {
               データは自動保存され、チーム全員とリアルタイムで共有されます。
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:28 }}>
-              {[["📁 Projects","プロジェクト・タスク管理",C.sageLight,C.sage],["✨ 議事録","AI議事録作成・タスク自動抽出",C.accentLight,C.accent],["📅 カレンダー","期日・スケジュール確認","#EEF3FF","#5B7EC9"]].map(([label,desc,bg,color])=>(
+              {[["📁 Projects","プロジェクト・タスク管理",C.sageLight,C.sage],["✨ 議事録","AI議事録作成・タスク自動抽出",C.accentLight,C.accent],["📅 カレンダー","期日・スケジュール確認",C.decisionLight,C.decision]].map(([label,desc,bg,color])=>(
                 <div key={label} style={{ display:"flex", alignItems:"center", gap:12, background:bg, borderRadius:8, padding:"8px 14px" }}>
                   <span style={{ color, fontWeight:700, fontSize:12, whiteSpace:"nowrap" }}>{label}</span>
                   <span style={{ color:C.muted, fontSize:12 }}>{desc}</span>
