@@ -748,10 +748,10 @@ function KanbanPage({ project, onUpdate }) {
                       draggable
                       onDragStart={e => { e.dataTransfer.setData("subtaskIdx", String(i)); e.dataTransfer.effectAllowed = "move"; e.currentTarget.closest('[data-subtask-row]') && (e.currentTarget.closest('[data-subtask-row]').style.opacity = "0.4"); e.currentTarget.parentElement.style.opacity = "0.4"; }}
                       onDragEnd={e => { e.currentTarget.parentElement.style.opacity = "1"; }}
-                      style={{ color: C.border, fontSize: 15, userSelect: "none", cursor: "grab", flexShrink: 0, padding: "0 2px" }}>⠿</span>
-                    <input type="checkbox" checked={s.done} onChange={() => setForm(f => ({ ...f, subtasks: f.subtasks.map((x,j) => j===i ? {...x,done:!x.done} : x) }))} style={{ width: 14, height: 14, cursor: "pointer", accentColor: C.sage, flexShrink: 0 }} />
+                      style={{ color: C.border, fontSize: 15, userSelect: "none", cursor: "grab", flexShrink: 0, padding: "0 2px", lineHeight: 1, display: "flex", alignItems: "center" }}>⠿</span>
+                    <input type="checkbox" checked={s.done} onChange={() => setForm(f => ({ ...f, subtasks: f.subtasks.map((x,j) => j===i ? {...x,done:!x.done} : x) }))} style={{ width: 14, height: 14, cursor: "pointer", accentColor: C.sage, flexShrink: 0, margin: 0, display: "block" }} />
                     {/* テキスト入力（ドラッグ不可・選択可） */}
-                    <div draggable={false} style={{ flex: 1, minWidth: 0 }} onMouseDown={e => e.stopPropagation()}>
+                    <div draggable={false} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }} onMouseDown={e => e.stopPropagation()}>
                       <input value={s.title} onChange={e => setForm(f => ({ ...f, subtasks: f.subtasks.map((x,j) => j===i ? {...x,title:e.target.value} : x) }))}
                         data-subtask-id={s.id}
                         draggable={false}
