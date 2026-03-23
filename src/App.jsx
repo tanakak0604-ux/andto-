@@ -2,11 +2,12 @@ import React, { useState, useRef, useEffect } from "react";
 import logo from "./logo.png";
 import { createClient } from "@supabase/supabase-js";
 
-async function callClaude({ system, messages, max_tokens = 8000 }) {
+async function callClaude({ system, messages, max_tokens = 8000, signal }) {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ system, messages, max_tokens }),
+    signal,
   });
   const data = await response.json();
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
@@ -28,7 +29,10 @@ async function loadProjects() {
     });
     const data = await res.json();
     if (data && data[0] && data[0].projects) return data[0].projects;
-  } catch (_) {}
+  } catch (e) {
+    console.error("loadProjects エラー:", e);
+    throw e;
+  }
   return null;
 }
 
@@ -45,7 +49,10 @@ async function saveProjects(projects) {
       },
       body: JSON.stringify({ projects, updated_at: now })
     });
-  } catch (_) {}
+  } catch (e) {
+    console.error("saveProjects エラー:", e);
+    throw e;
+  }
   return now;
 }
 
@@ -1306,6 +1313,7 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [prevStep, setPrevStep] = useState("tasks");
   const [minutesSaved, setMinutesSaved] = useState(false);
   const fileRef = useRef();
+  const abortControllerRef = useRef(null);
   const selProjObj = projects.find(p => p.id === selProj);
 
   const extractGaiyou = (content) => {
@@ -1358,7 +1366,13 @@ function MinutesPage({ projects, onUpdateProject }) {
     setAiEditLoading(false);
   };
   
+  const cancelGenerate = () => {
+    abortControllerRef.current?.abort();
+    setLoading(false);
+  };
+
   const generateMinutes = async (isRegen = false) => {
+    abortControllerRef.current = new AbortController();
     setLoading(true); setGenError("");
     const date = new Date().toLocaleDateString("ja-JP");
     const latestProj = projects.find(p => p.id === selProj);
@@ -1407,7 +1421,7 @@ function MinutesPage({ projects, onUpdateProject }) {
     ].filter(Boolean).join("\n\n");
     const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}${learningNote}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${combinedText}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
     try {
-      const result = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: userContent }] });
+      const result = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: userContent }], signal: abortControllerRef.current?.signal });
       let hasAiComp = false;
       if (result.includes("※AI補完") || result.includes("※AI要約")) {
         setPendingMinutes(result);
@@ -1453,21 +1467,24 @@ function MinutesPage({ projects, onUpdateProject }) {
   };
 
   const extractBoth = async () => {
+    abortControllerRef.current = new AbortController();
     setLoading(true);
     try {
       const _td = new Date();
       const todayStr = `${_td.getFullYear()}年${_td.getMonth()+1}月${_td.getDate()}日（${'日月火水木金土'[_td.getDay()]}）`;
+      const sig = abortControllerRef.current?.signal;
       const [rawTasks, rawDecs] = await Promise.all([
-        callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `今日の日付：${todayStr}\n\n以下の議事録からアクションアイテムをJSON配列で抽出してください。\n\n【期限抽出ルール】\n・「〇月〇日」「〇日まで」→ YYYY-MM-DD形式に変換\n・「来週」→ 今日から7〜13日後の該当曜日\n・「月末」→ 今月末日\n・「次回まで」「次回会議まで」→ null\n・「至急」「できるだけ早く」→ dueDate: null、priority: "high"\n・期限が明示されていない場合 → null\n\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたはnull","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${minutes}` }] }),
-        callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n形式: [{"text":"決定事項の内容"}]\nJSONのみ出力。\n\n${minutes}` }] })
+        callClaude({ max_tokens: 2000, signal: sig, messages: [{ role: "user", content: `今日の日付：${todayStr}\n\n以下の議事録からアクションアイテムをJSON配列で抽出してください。\n\n【期限抽出ルール】\n・「〇月〇日」「〇日まで」→ YYYY-MM-DD形式に変換\n・「来週」→ 今日から7〜13日後の該当曜日\n・「月末」→ 今月末日\n・「次回まで」「次回会議まで」→ null\n・「至急」「できるだけ早く」→ dueDate: null、priority: "high"\n・期限が明示されていない場合 → null\n\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたはnull","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${minutes}` }] }),
+        callClaude({ max_tokens: 2000, signal: sig, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n形式: [{"text":"決定事項の内容"}]\nJSONのみ出力。\n\n${minutes}` }] })
       ]);
       try { const tasks = JSON.parse(rawTasks.replace(/```json|```/g,"").trim()); setExtracted(tasks.map(t=>({...t,id:uid(),status:"todo",desc:"",selected:true}))); }
-      catch { setExtracted([{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false}]); }
+      catch { setGenError("タスクのJSON解析に失敗しました。再度お試しください。"); setExtracted([]); }
       try { const decs = JSON.parse(rawDecs.replace(/```json|```/g,"").trim()); setExtractedDecisions(decs.map(d=>({...d,id:uid(),selected:true}))); }
-      catch { setExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false}]); }
-    } catch {
-      setExtracted([{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false}]);
-      setExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false}]);
+      catch { setExtractedDecisions([]); }
+    } catch(e) {
+      setGenError("抽出に失敗しました：" + e.message);
+      setExtracted([]);
+      setExtractedDecisions([]);
     }
     setLoading(false); setStep("tasks");
   };
@@ -1475,7 +1492,7 @@ function MinutesPage({ projects, onUpdateProject }) {
   const approveBoth = () => {
     const latestProj = projects.find(p=>p.id===selProj);
     if (!latestProj) return;
-    const tasksToAdd = extracted.filter(t=>t.selected).map(({selected,assignee,...t}) => {
+    const tasksToAdd = extracted.filter(t=>t.selected).filter(t=>t.title !== "タスク抽出に失敗しました").map(({selected,assignee,...t}) => {
       let assigneeIds = [];
       if (assignee && latestProj.members) {
         const member = latestProj.members.find(m => m.name===assignee || assignee.includes(m.name) || m.name.includes(assignee));
@@ -1734,11 +1751,14 @@ function MinutesPage({ projects, onUpdateProject }) {
                   <textarea value={text} onChange={e=>setText(e.target.value)} rows={8} placeholder="または会議メモ・発言内容を直接ペースト..."
                     style={{ ...inputStyle, resize:"vertical", lineHeight:1.7, fontFamily:"inherit" }} />
                 </div>
-                <button onClick={()=>generateMinutes(false)} disabled={(!text.trim()&&attachedFiles.length===0)||!selProj||loading}
-                  onMouseEnter={()=>setHoveredGenBtn(true)} onMouseLeave={()=>setHoveredGenBtn(false)}
-                  style={{ background: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "#B0B0B0" : hoveredGenBtn ? "#3D8579" : "#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"10px 24px", fontSize:14, fontWeight:600, cursor: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}>
-                  {loading?"⏳ 生成中...":"✨ 議事録を生成する"}
-                </button>
+                <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                  <button onClick={()=>generateMinutes(false)} disabled={(!text.trim()&&attachedFiles.length===0)||!selProj||loading}
+                    onMouseEnter={()=>setHoveredGenBtn(true)} onMouseLeave={()=>setHoveredGenBtn(false)}
+                    style={{ background: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "#B0B0B0" : hoveredGenBtn ? "#3D8579" : "#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"10px 24px", fontSize:14, fontWeight:600, cursor: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}>
+                    {loading?"⏳ 生成中...":"✨ 議事録を生成する"}
+                  </button>
+                  {loading && <button onClick={cancelGenerate} style={{ background:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"10px 18px", fontSize:13, fontWeight:600, cursor:"pointer" }}>キャンセル</button>}
+                </div>
                 {genError&&<div style={{ marginTop:14, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#DC2626", fontWeight:600 }}>⚠️ {genError}</div>}
               </div>
             )}
@@ -1756,7 +1776,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                     style={{ flex:1, border:"none", outline:"none", fontSize:13, fontWeight:700, color:C.text, background:"transparent" }} />
                 </div>
                 {genError&&<div style={{ marginBottom:14, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#DC2626", fontWeight:600 }}>⚠️ {genError}</div>}
-                <textarea value={minutes} onChange={e=>setMinutes(e.target.value)} rows={16}
+                <textarea value={minutes} onChange={e=>{ setMinutes(e.target.value); setMinutesSaved(false); }} rows={16}
                   style={{ ...inputStyle, resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace", fontSize:12, marginBottom:16 }} />
                 {showAiEdit && (
                   <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
@@ -1780,6 +1800,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                   </button>
                   <button onClick={extractBoth} disabled={loading||!minutes}
                     style={btn({padding:"10px 18px",borderRadius:12,background:loading||!minutes?C.border:"#5B7EC9",color:"#fff",fontSize:13,fontWeight:800})}>{loading?"⏳ 抽出中...":"📋 決定事項・タスク抽出"}</button>
+                  {loading && <button onClick={cancelGenerate} style={{ padding:"10px 18px", borderRadius:12, background:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", fontSize:13, fontWeight:600, cursor:"pointer" }}>キャンセル</button>}
                   {saveMsg&&<span style={{ fontSize:12, color:C.sage, fontWeight:700 }}>✓ {saveMsg}</span>}
                 </div>
               </div>
@@ -2609,6 +2630,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
   const [dragItem, setDragItem] = useState(null); // { type:'decision'|'folder', id }
   const [dragOverId, setDragOverId] = useState(null);
   const [dropSide, setDropSide] = useState('after'); // 'before'|'after'|'into'
+  const [confirmDeleteDecisionId, setConfirmDeleteDecisionId] = useState(null);
 
   const folders = project.decisionFolders || [];
   const allDecisions = (project.decisions || []).map(d => ({ ...d, folderId: d.folderId ?? null }));
@@ -2666,7 +2688,11 @@ function DecisionsPage({ project, onBack, onUpdate }) {
   };
 
   const deleteDecision = (id) => {
-    onUpdate({ ...project, decisions: allDecisions.filter(d => d.id !== id) });
+    const updatedTasks = (project.tasks || []).map(t => ({
+      ...t,
+      relatedDecisionIds: (t.relatedDecisionIds || []).filter(rid => rid !== id)
+    }));
+    onUpdate({ ...project, decisions: allDecisions.filter(d => d.id !== id), tasks: updatedTasks });
   };
 
   // ── Drag & Drop ──────────────────────────────────────────────
@@ -2734,6 +2760,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
   };
 
   return (
+    <>
     <div style={{ overflowY:"auto", height:"calc(100vh - 52px)", background:C.bg }}>
       {/* 移動モーダル */}
       {movingDecisionId && (
@@ -2906,7 +2933,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                           style={btn({ color:C.muted, background:"transparent", fontSize:12, padding:"2px 5px" })}>📁</button>
                         <button onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); }}
                           style={btn({ color:C.muted, background:"transparent", fontSize:12, padding:"2px 5px" })}>✏️</button>
-                        <button onClick={()=>deleteDecision(d.id)}
+                        <button onClick={()=>setConfirmDeleteDecisionId(d.id)}
                           style={btn({ color:C.muted, background:"transparent", fontSize:14, padding:"2px 5px" })}>✕</button>
                       </div>
                     </div>
@@ -2938,6 +2965,29 @@ function DecisionsPage({ project, onBack, onUpdate }) {
         )}
       </div>
     </div>
+
+      {confirmDeleteDecisionId && (() => {
+        const target = allDecisions.find(d => d.id === confirmDeleteDecisionId);
+        const hasLinkedTasks = (project.tasks || []).some(t => (t.relatedDecisionIds || []).includes(confirmDeleteDecisionId));
+        return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <div style={{ background:"#fff", borderRadius:16, padding:24, maxWidth:420, width:"90%", boxShadow:"0 8px 32px rgba(0,0,0,0.18)" }}>
+              <div style={{ fontSize:15, fontWeight:800, color:C.text, marginBottom:12 }}>決定事項を削除しますか？</div>
+              {target && <div style={{ fontSize:13, color:C.muted, marginBottom:12, padding:"8px 12px", background:C.bg, borderRadius:8, lineHeight:1.6 }}>{target.text}</div>}
+              {hasLinkedTasks && (
+                <div style={{ fontSize:12, color:"#C0392B", background:"#FFF0F0", border:"1.5px solid #E07070", borderRadius:8, padding:"8px 12px", marginBottom:12, fontWeight:600 }}>
+                  ⚠️ この決定事項に関連するタスクとのリンクが外れます。
+                </div>
+              )}
+              <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+                <button onClick={()=>setConfirmDeleteDecisionId(null)} style={BTN.ghost}>キャンセル</button>
+                <button onClick={()=>{ deleteDecision(confirmDeleteDecisionId); setConfirmDeleteDecisionId(null); }} style={BTN.danger}>削除する</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </>
   );
 }
 
@@ -3115,6 +3165,7 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [slackSettings, setSlackSettings] = useState({ summaryChannel: "", notifyChannel: "", sourceChannels: [] });
   const [toast, setToast] = useState(null);
+  const [saveError, setSaveError] = useState(null);
   const isRemoteUpdate = useRef(false);
   const channelRef = useRef(null);
   const saveTimer = useRef(null);
@@ -3138,6 +3189,9 @@ export default function App() {
       } else {
         setShowWelcome(true);
       }
+      setStorageReady(true);
+    }).catch(e => {
+      setSaveError("データの読み込みに失敗しました：" + e.message);
       setStorageReady(true);
     });
     loadSlackSettings().then(s => { if (s) setSlackSettings(s); });
@@ -3210,7 +3264,7 @@ export default function App() {
     if (!storageReady) return;
     if (isRemoteUpdate.current) { isRemoteUpdate.current = false; return; }
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => { saveProjects(projects); }, 500);
+    saveTimer.current = setTimeout(() => { saveProjects(projects).catch(e => setSaveError("データの保存に失敗しました：" + e.message)); }, 500);
   }, [projects, storageReady]);
 
   const updateSlackSettings = s => { setSlackSettings(s); saveSlackSettings(s); };
@@ -3278,6 +3332,12 @@ export default function App() {
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif", color:C.text }}>
+      {saveError && (
+        <div style={{ background:"#DC2626", color:"#fff", padding:"10px 20px", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"space-between", zIndex:9999 }}>
+          <span>⚠️ {saveError}</span>
+          <button onClick={()=>setSaveError(null)} style={{ background:"transparent", border:"none", color:"#fff", cursor:"pointer", fontSize:16, fontWeight:700, padding:"0 4px" }}>✕</button>
+        </div>
+      )}
       <div style={{ background:C.surface, borderBottom:`1.5px solid ${C.border}`, display:"flex", alignItems:"stretch", overflowX:"auto", paddingLeft:20 }}>
         <div style={{ paddingRight:20, display:"flex", alignItems:"center", borderRight:`1px solid ${C.border}`, marginRight:4, flexShrink:0 }}>
   <img src={logo} alt="logo" style={{ height:32, objectFit:"contain" }} />
