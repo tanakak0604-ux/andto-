@@ -473,7 +473,7 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
           <span style={{ background: C.done, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>{doneTasks.length}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button onClick={() => onOpenNew("done")} style={btn({ width: 24, height: 24, borderRadius: "50%", background: C.done, color: "#fff", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, lineHeight: 1 })}>+</button>
+          <button onClick={() => onOpenNew("done")} style={btn({ color: C.done, fontSize: 18, fontWeight: 700, background: "transparent", padding: 0, lineHeight: 1 })}>+</button>
           <button onClick={() => setAddingFolder(true)} style={btn({ fontSize: 14, color: C.done, background: "transparent" })}>📁+</button>
         </div>
       </div>
