@@ -8,8 +8,21 @@
  *   CRON_SECRET      - Cron リクエスト認証用シークレット
  */
 
-const NOTIFY_USER = "U037A6QU4QY";
 const DIVIDER = "━━━━━━━━━━━━━━━";
+
+// 今週の月曜〜日曜（JST基準）の範囲を返す
+function getWeekRange(offsetWeeks = 0) {
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000); // JST
+  const day = now.getUTCDay(); // 0=Sun, 1=Mon ...
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() + diffToMonday + offsetWeeks * 7);
+  monday.setUTCHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  sunday.setUTCHours(23, 59, 59, 999);
+  return { start: monday, end: sunday };
+}
 
 async function loadSlackSettings() {
   const res = await fetch(
@@ -25,7 +38,7 @@ async function loadSlackSettings() {
   return data?.[0]?.slack_settings || null;
 }
 
-async function loadCompletedTasksThisWeek() {
+async function loadTaskSummary() {
   const res = await fetch(
     `${process.env.REACT_APP_SUPABASE_URL}/rest/v1/projects?id=eq.main&select=data`,
     {
@@ -37,17 +50,35 @@ async function loadCompletedTasksThisWeek() {
   );
   const rows = await res.json();
   const projects = rows?.[0]?.data || [];
-  const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const lines = [];
+
+  const thisWeek = getWeekRange(0);   // 今週
+  const lastWeek = getWeekRange(-1);  // 先週
+
+  const todo = [];
+  const doing = [];
+  const done = [];
+
   for (const p of projects) {
-    const tasks = (p.tasks || []).filter(
-      t => t.status === "done" && t.completedAt && new Date(t.completedAt).getTime() >= since
-    );
-    for (const t of tasks) {
-      lines.push(`・[${p.name}] ${t.title}`);
+    for (const t of (p.tasks || [])) {
+      const label = `・[${p.name}] ${t.title}`;
+
+      if (t.status === "todo" && t.dueDate) {
+        const due = new Date(t.dueDate + "T00:00:00+09:00");
+        if (due >= thisWeek.start && due <= thisWeek.end) {
+          todo.push(label);
+        }
+      } else if (t.status === "doing") {
+        doing.push(label);
+      } else if (t.status === "done" && t.completedAt) {
+        const completedAt = new Date(t.completedAt);
+        if (completedAt >= lastWeek.start && completedAt <= lastWeek.end) {
+          done.push(label);
+        }
+      }
     }
   }
-  return lines;
+
+  return { todo, doing, done };
 }
 
 module.exports = async function handler(req, res) {
@@ -71,36 +102,54 @@ module.exports = async function handler(req, res) {
 
   const oldest = String(Date.now() / 1000 - 7 * 24 * 60 * 60);
 
-  // ── 1. 完了タスク取得 ────────────────────────────────────
-  const completedTaskLines = await loadCompletedTasksThisWeek().catch(() => []);
+  // ── 1. TaskFlow タスク取得 ────────────────────────────────
+  const { todo, doing, done } = await loadTaskSummary().catch(() => ({ todo: [], doing: [], done: [] }));
 
-  // ── 2. チャンネルごとにメッセージ取得 → 個別要約 ───────
-  const sections = [];
+  // ── 2. チャンネルごとにメッセージ取得 → 箇条書き要約 ───
+  const slackSections = [];
   for (const { id, name } of SOURCE_CHANNELS) {
     try {
       const messages = await fetchChannelHistory(id, oldest);
       if (messages.length === 0) continue;
       const messagesText = messages.map(m => m.text || "").filter(Boolean).join("\n");
-      const summary = await generateSummary(messagesText);
-      sections.push(`${DIVIDER}\n📌 #${name}（${id}）\n${summary}`);
+      const summary = await generateBulletSummary(messagesText);
+      slackSections.push(`📌 #${name}\n${summary}`);
     } catch (e) {
       console.error(`Failed to process channel ${id}:`, e.message);
-      // エラーがあっても他チャンネルの処理を継続
     }
   }
 
-  if (sections.length === 0) {
-    return res.status(200).json({ ok: true, skipped: "no messages" });
+  // ── 3. 投稿テキスト組み立て ──────────────────────────────
+  const parts = [];
+
+  // タスクセクション
+  const taskLines = [];
+  if (todo.length > 0) {
+    taskLines.push(`*【未着手（今週期限）】*\n${todo.join("\n")}`);
+  }
+  if (doing.length > 0) {
+    taskLines.push(`*【進行中】*\n${doing.join("\n")}`);
+  }
+  if (done.length > 0) {
+    taskLines.push(`*【先週の完了】*\n${done.join("\n")}`);
+  }
+  if (taskLines.length > 0) {
+    parts.push(`${DIVIDER}\n📋 *TaskFlow タスク*\n\n${taskLines.join("\n\n")}`);
   }
 
-  // ── 3. サマリーを Slack に投稿 ───────────────────────────
-  const completedSection = completedTaskLines.length > 0
-    ? `${DIVIDER}\n✅ 今週の完了タスク\n${completedTaskLines.join("\n")}\n\n`
-    : "";
-  const text = `今週の進捗サマリーです。\n\n${completedSection}${sections.join("\n\n")}`;
+  // Slackまとめセクション
+  if (slackSections.length > 0) {
+    parts.push(`${DIVIDER}\n💬 *先週のSlackまとめ*\n\n${slackSections.join("\n\n")}`);
+  }
+
+  if (parts.length === 0) {
+    return res.status(200).json({ ok: true, skipped: "no content" });
+  }
+
+  const text = `今週の進捗サマリーです。\n\n${parts.join("\n\n")}`;
   await postToSlack(SUMMARY_CHANNEL, text);
 
-  return res.status(200).json({ ok: true, channelsFetched: sections.length });
+  return res.status(200).json({ ok: true, channelsFetched: slackSections.length });
 };
 
 // ── ユーティリティ ───────────────────────────────────────────
@@ -115,16 +164,11 @@ async function fetchChannelHistory(channelId, oldest) {
   return data.messages || [];
 }
 
-async function generateSummary(messagesText) {
-  const prompt = `以下のSlackメッセージから、今週の決定事項とタスクを抽出して日本語で簡潔にまとめてください。
-決定事項と未完了タスクを分けて箇条書きで出力してください。
+async function generateBulletSummary(messagesText) {
+  const prompt = `以下のSlackメッセージを読み、重要なトピック・出来事・連絡事項を日本語の箇条書きで簡潔にまとめてください。
+冗長な説明は不要です。事実ベースで簡潔に。
 
 出力形式:
-【決定事項】
-・〇〇
-・〇〇
-
-【タスク】
 ・〇〇
 ・〇〇
 
