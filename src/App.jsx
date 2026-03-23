@@ -3070,6 +3070,28 @@ function SlackSettingsPage({ slackSettings, onChange }) {
   };
   const [form, setForm] = useState({ ...def, ...slackSettings });
   const [saved, setSaved] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState(null); // "ok" | "error"
+
+  const sendSummaryNow = async () => {
+    setSending(true);
+    setSendResult(null);
+    try {
+      const res = await fetch("/api/manual-summary", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.REACT_APP_SUPABASE_ANON_KEY}`,
+        },
+      });
+      const data = await res.json();
+      setSendResult(data.ok ? "ok" : "error");
+    } catch {
+      setSendResult("error");
+    } finally {
+      setSending(false);
+      setTimeout(() => setSendResult(null), 4000);
+    }
+  };
 
   // Supabase からの非同期ロード完了後に props が更新されたら form に反映
   useEffect(() => {
@@ -3136,9 +3158,15 @@ function SlackSettingsPage({ slackSettings, onChange }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <button onClick={save} style={btn({ padding: "10px 28px", borderRadius: 10, background: C.sage, color: "#fff", fontSize: 13, fontWeight: 800 })}>💾 保存</button>
         {saved && <span style={{ fontSize: 12, color: C.sage, fontWeight: 700 }}>✓ 保存しました</span>}
+        <button onClick={sendSummaryNow} disabled={sending}
+          style={btn({ padding: "10px 20px", borderRadius: 10, background: sending ? C.border : C.decision, color: "#fff", fontSize: 13, fontWeight: 800, opacity: sending ? 0.7 : 1, cursor: sending ? "default" : "pointer" })}>
+          {sending ? "⏳ 送信中..." : "📊 今すぐサマリーを送信"}
+        </button>
+        {sendResult === "ok" && <span style={{ fontSize: 12, color: C.sage, fontWeight: 700 }}>✓ 送信しました</span>}
+        {sendResult === "error" && <span style={{ fontSize: 12, color: C.accent, fontWeight: 700 }}>⚠️ 送信に失敗しました</span>}
       </div>
     </div>
   );
