@@ -64,9 +64,13 @@ async function loadTaskSummary() {
 
       if (t.status === "todo" && t.dueDate) {
         const due = new Date(t.dueDate + "T00:00:00+09:00");
-        if (due >= thisWeek.start && due <= thisWeek.end) {
+        if (due < thisWeek.start) {
+          todo.push(`${label}　⚠️期限切れ`);
+        } else if (due >= thisWeek.start && due <= thisWeek.end) {
           todo.push(label);
         }
+      } else if (t.status === "todo" && !t.dueDate) {
+        // 期限なし未着手は省略
       } else if (t.status === "doing") {
         doing.push(label);
       } else if (t.status === "done" && t.completedAt) {
@@ -124,8 +128,13 @@ module.exports = async function handler(req, res) {
 
   // タスクセクション
   const taskLines = [];
-  if (todo.length > 0) {
-    taskLines.push(`*【未着手（今週期限）】*\n${todo.join("\n")}`);
+  const overdue = todo.filter(l => l.includes("⚠️期限切れ"));
+  const thisWeekTodo = todo.filter(l => !l.includes("⚠️期限切れ"));
+  if (overdue.length > 0) {
+    taskLines.push(`*【未着手（期限切れ）】*\n${overdue.join("\n")}`);
+  }
+  if (thisWeekTodo.length > 0) {
+    taskLines.push(`*【未着手（今週期限）】*\n${thisWeekTodo.join("\n")}`);
   }
   if (doing.length > 0) {
     taskLines.push(`*【進行中】*\n${doing.join("\n")}`);
