@@ -161,7 +161,7 @@ async function fetchChannelHistory(channelId, oldest) {
   });
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || "conversations.history failed");
-  return data.messages || [];
+  return (data.messages || []).filter(m => !m.bot_id && m.subtype !== "bot_message");
 }
 
 async function generateBulletSummary(messagesText) {
