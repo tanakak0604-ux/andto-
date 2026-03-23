@@ -822,7 +822,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
   const [modalTab, setModalTab] = useState("info");
   const [newMember, setNewMember] = useState({ name: "", org: "", isAndto: false });
   const [editingMemberId, setEditingMemberId] = useState(null);
-  const [editMemberForm, setEditMemberForm] = useState({ name: "", org: "", isAndto: false });
+  const [editMemberForm, setEditMemberForm] = useState({ name: "", org: "", isAndto: false, slackId: "" });
 
   const sortMembers = (members) => [...members].sort((a, b) => {
     if (a.name === "谷口" && a.isAndto) return -1;
@@ -1023,6 +1023,12 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                               <input value={editMemberForm.org} onChange={e => setEditMemberForm(f => ({ ...f, org: e.target.value }))} placeholder="所属"
                                 style={{ flex: 1, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", fontSize: 12, background: C.bg, color: C.text, outline: "none" }} />
                             </div>
+                            {editMemberForm.isAndto && (
+                              <div style={{ marginBottom: 8 }}>
+                                <input value={editMemberForm.slackId} onChange={e => setEditMemberForm(f => ({ ...f, slackId: e.target.value }))} placeholder="Slack ID（例: U037A6QU4QY）"
+                                  style={{ width: "100%", boxSizing: "border-box", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", fontSize: 12, background: C.bg, color: C.text, outline: "none" }} />
+                              </div>
+                            )}
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                               <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.muted, cursor: "pointer" }}>
                                 <input type="checkbox" checked={editMemberForm.isAndto} onChange={e => setEditMemberForm(f => ({ ...f, isAndto: e.target.checked, org: e.target.checked ? "andto" : f.org }))} />
@@ -1046,7 +1052,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                               <div style={{ fontSize: 11, color: C.muted }}>{m.isAndto ? "andto" : m.org || "所属未設定"}</div>
                             </div>
                             {m.isAndto && <span style={{ fontSize: 10, fontWeight: 700, color: C.accent, background: C.accentLight, padding: "2px 7px", borderRadius: 20 }}>andto</span>}
-                            <button onClick={() => { setEditingMemberId(m.id); setEditMemberForm({ name: m.name, org: m.org, isAndto: m.isAndto }); }} style={btn({ background: "transparent", color: C.muted, fontSize: 13, padding: "2px 6px" })}>✏️</button>
+                            <button onClick={() => { setEditingMemberId(m.id); setEditMemberForm({ name: m.name, org: m.org, isAndto: m.isAndto, slackId: m.slackId || "" }); }} style={btn({ background: "transparent", color: C.muted, fontSize: 13, padding: "2px 6px" })}>✏️</button>
                             <button onClick={() => setForm(f => ({ ...f, members: f.members.filter(x => x.id !== m.id) }))} style={btn({ background: "transparent", color: C.muted, fontSize: 14, padding: "2px 6px" })}>✕</button>
                           </div>
                         )}

@@ -18,12 +18,15 @@
  *   毎日 09:00 JST (00:00 UTC) に実行
  *   - 期日の 7 日前
  *   - 期日の 1 日前
+ *   - 期日当日
+ *   - 期限切れ（月曜のみ）
  *
  * 【通知先】
- *   Supabase の slack_settings.notifyChannel チャンネルへ投稿（田中航平にメンション）
+ *   Supabase の slack_settings.notifyChannel チャンネルへ投稿
+ *   担当者に slackId が設定されていれば個別メンション
  */
 
-const NOTIFY_USER_ID = "U037A6QU4QY"; // 田中航平
+const FALLBACK_NOTIFY_USER_ID = "U037A6QU4QY"; // 田中航平（SlackID未設定時のフォールバック）
 
 async function loadSlackSettings() {
   const res = await fetch(
@@ -75,37 +78,72 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: "Failed to fetch projects", detail: e.message });
   }
 
-  // 今日の日付（時刻なし）
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // 今日の日付（JST基準）
+  const nowJst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const todayJst = new Date(nowJst);
+  todayJst.setUTCHours(0, 0, 0, 0);
+  const isMonday = todayJst.getUTCDay() === 1;
+
+  // メンバーのSlackIDマップを全プロジェクト横断で構築
+  const memberSlackIdMap = {};
+  for (const project of projects) {
+    for (const m of project.members || []) {
+      if (m.id && m.slackId) memberSlackIdMap[m.id] = m.slackId;
+    }
+  }
 
   // 通知対象タスクを収集
   const notifications = [];
   for (const project of projects) {
     for (const task of project.tasks || []) {
       if (!task.dueDate || task.status === "done") continue;
-      const due = new Date(task.dueDate);
-      due.setHours(0, 0, 0, 0);
-      const diffDays = Math.round((due - today) / (1000 * 60 * 60 * 24));
-      if (diffDays === 7 || diffDays === 1) {
-        // 担当者名を解決
-        const assigneeNames = (task.assigneeIds || [])
-          .map((id) => (project.members || []).find((m) => m.id === id)?.name)
-          .filter(Boolean)
-          .join("・") || "（未割当）";
+      const due = new Date(task.dueDate + "T00:00:00+09:00");
+      const diffDays = Math.round((due - todayJst) / (1000 * 60 * 60 * 24));
 
-        notifications.push({ task, project, diffDays, assigneeNames });
-      }
+      const shouldNotify =
+        diffDays === 7 ||
+        diffDays === 1 ||
+        diffDays === 0 ||
+        (diffDays < 0 && isMonday);
+
+      if (!shouldNotify) continue;
+
+      // 担当者名とSlackIDを解決
+      const assignees = (task.assigneeIds || [])
+        .map((id) => {
+          const member = (project.members || []).find((m) => m.id === id);
+          return member ? { name: member.name, slackId: memberSlackIdMap[id] || null } : null;
+        })
+        .filter(Boolean);
+
+      const assigneeNames = assignees.map(a => a.name).join("・") || "（未割当）";
+      const mentionParts = assignees
+        .map(a => a.slackId ? `<@${a.slackId}>` : null)
+        .filter(Boolean);
+      const mention = mentionParts.length > 0
+        ? mentionParts.join(" ")
+        : `<@${FALLBACK_NOTIFY_USER_ID}>`;
+
+      notifications.push({ task, project, diffDays, assigneeNames, mention });
     }
   }
 
   // Slack チャンネル投稿
   let sent = 0;
-  for (const { task, project, diffDays, assigneeNames } of notifications) {
-    const label = diffDays === 1 ? "⚠️ *明日が期日です*" : "📅 *1週間後が期日です*";
+  for (const { task, project, diffDays, assigneeNames, mention } of notifications) {
+    let label;
+    if (diffDays < 0) {
+      label = `🚨 *期限切れ（${Math.abs(diffDays)}日経過）*`;
+    } else if (diffDays === 0) {
+      label = "⚠️ *本日が期日です*";
+    } else if (diffDays === 1) {
+      label = "⚠️ *明日が期日です*";
+    } else {
+      label = "📅 *1週間後が期日です*";
+    }
     const relatedDecision = (project.decisions || []).find((d) => d.source && task.title && d.source.includes(task.title))?.text || "—";
     const text = [
-      `<@${NOTIFY_USER_ID}>`,
+      mention,
       label,
       `プロジェクト: ${project.name}`,
       `決定事項　　: ${relatedDecision}`,
