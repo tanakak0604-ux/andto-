@@ -223,13 +223,18 @@ function KanbanPage({ project, onUpdate }) {
 
   const save = () => {
     if (!form.title.trim()) return;
-    const tasks = modal.isNew ? [...project.tasks, form] : project.tasks.map(t => t.id === form.id ? form : t);
+    const updatedForm = form.status === "done" && (!form.completedAt)
+      ? { ...form, completedAt: new Date().toISOString() }
+      : form.status !== "done"
+      ? { ...form, completedAt: undefined }
+      : form;
+    const tasks = modal.isNew ? [...project.tasks, updatedForm] : project.tasks.map(t => t.id === updatedForm.id ? updatedForm : t);
     onUpdate({ ...project, tasks });
     setModal(null);
   };
   const del = () => { onUpdate({ ...project, tasks: project.tasks.filter(t => t.id !== form.id) }); setModal(null); };
 
-  const drop = (taskId, status) => onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, status } : t) });
+  const drop = (taskId, status) => onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, status, ...(status === "done" && !t.completedAt ? { completedAt: new Date().toISOString() } : status !== "done" ? { completedAt: undefined } : {}) } : t) });
 
   const cols = [
     { s: "todo", label: "未着手", bg: C.todoLight, col: C.todo },

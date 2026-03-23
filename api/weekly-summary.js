@@ -25,6 +25,31 @@ async function loadSlackSettings() {
   return data?.[0]?.slack_settings || null;
 }
 
+async function loadCompletedTasksThisWeek() {
+  const res = await fetch(
+    `${process.env.REACT_APP_SUPABASE_URL}/rest/v1/projects?id=eq.main&select=data`,
+    {
+      headers: {
+        apikey: process.env.REACT_APP_SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${process.env.REACT_APP_SUPABASE_ANON_KEY}`,
+      },
+    }
+  );
+  const rows = await res.json();
+  const projects = rows?.[0]?.data || [];
+  const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const lines = [];
+  for (const p of projects) {
+    const tasks = (p.tasks || []).filter(
+      t => t.status === "done" && t.completedAt && new Date(t.completedAt).getTime() >= since
+    );
+    for (const t of tasks) {
+      lines.push(`・[${p.name}] ${t.title}`);
+    }
+  }
+  return lines;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
 
@@ -46,7 +71,10 @@ module.exports = async function handler(req, res) {
 
   const oldest = String(Date.now() / 1000 - 7 * 24 * 60 * 60);
 
-  // ── 1. チャンネルごとにメッセージ取得 → 個別要約 ───────
+  // ── 1. 完了タスク取得 ────────────────────────────────────
+  const completedTaskLines = await loadCompletedTasksThisWeek().catch(() => []);
+
+  // ── 2. チャンネルごとにメッセージ取得 → 個別要約 ───────
   const sections = [];
   for (const { id, name } of SOURCE_CHANNELS) {
     try {
@@ -65,8 +93,11 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ ok: true, skipped: "no messages" });
   }
 
-  // ── 2. サマリーを Slack に投稿 ───────────────────────────
-  const text = `今週の進捗サマリーです。\n\n${sections.join("\n\n")}`;
+  // ── 3. サマリーを Slack に投稿 ───────────────────────────
+  const completedSection = completedTaskLines.length > 0
+    ? `${DIVIDER}\n✅ 今週の完了タスク\n${completedTaskLines.join("\n")}\n\n`
+    : "";
+  const text = `今週の進捗サマリーです。\n\n${completedSection}${sections.join("\n\n")}`;
   await postToSlack(SUMMARY_CHANNEL, text);
 
   return res.status(200).json({ ok: true, channelsFetched: sections.length });
