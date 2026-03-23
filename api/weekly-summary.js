@@ -40,7 +40,7 @@ async function loadSlackSettings() {
 
 async function loadTaskSummary() {
   const res = await fetch(
-    `${process.env.REACT_APP_SUPABASE_URL}/rest/v1/projects?id=eq.main&select=data`,
+    `${process.env.REACT_APP_SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared&select=projects`,
     {
       headers: {
         apikey: process.env.REACT_APP_SUPABASE_ANON_KEY,
@@ -49,7 +49,7 @@ async function loadTaskSummary() {
     }
   );
   const rows = await res.json();
-  const projects = rows?.[0]?.data || [];
+  const projects = rows?.[0]?.projects || [];
 
   const thisWeek = getWeekRange(0);   // 今週
   const lastWeek = getWeekRange(-1);  // 先週
