@@ -479,7 +479,7 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontWeight: 800, color: C.done, fontSize: 12, letterSpacing: 1 }}>完了</span>
-          <span style={{ background: C.done, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>{doneTasks.length}</span>
+          <span style={{ background: C.done, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px", lineHeight: 1.4 }}>{doneTasks.length}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button onClick={() => onOpenNew("done")} style={btn({ color: C.done, fontSize: 18, fontWeight: 700, background: "transparent", padding: 0, lineHeight: 1 })}>+</button>
@@ -675,7 +675,7 @@ function KanbanPage({ project, onUpdate }) {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ fontWeight: 800, color: col, fontSize: 12, letterSpacing: 1 }}>{label}</span>
-                  <span style={{ background: col, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px" }}>{tasks.length}</span>
+                  <span style={{ background: col, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px", lineHeight: 1.4 }}>{tasks.length}</span>
                 </div>
                 <button onClick={() => openNew(s)} style={btn({ color: col, fontSize: 18, fontWeight: 700, background: "transparent", padding: 0, lineHeight: 1 })}>+</button>
               </div>
