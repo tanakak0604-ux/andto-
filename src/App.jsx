@@ -171,7 +171,7 @@ const SYSTEM_PROMPT = `あなたは建築設計・ホテル開発プロジェク
 文責　：（指定された担当者名。未指定の場合は空欄）　作成日：（議事録生成日）
 提出資料：（こちらが提出・画面共有した資料名。入力から読み取る。不明な場合は空欄）
 受領資料：（先方から受領・先方が画面共有した資料名。入力から読み取る。不明な場合は空欄）
-フェーズ　：（調査企画・基本計画・基本設計・実施設計・現場のいずれか。入力から推測。不明な場合は空欄）
+フェーズ　：（調査企画・基本計画・基本設計・実施設計・監理・竣工のいずれか。入力から推測。不明な場合は空欄）
 
 ---
 
@@ -812,7 +812,7 @@ function KanbanPage({ project, onUpdate }) {
 }
 
 const COLOR_PALETTE = ["#6B8F71","#C8A84B","#7B9EC0","#C8694A","#9B8EC0","#4A9B8E","#C8697A","#8E9B4A"];
-const PHASE_LABELS = ["調査企画", "基本計画", "基本設計", "実施設計", "現場"];
+const PHASE_LABELS = ["調査企画", "基本計画", "基本設計", "実施設計", "監理", "竣工"];
 
 function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes, onViewDecisions, onReorder }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -1725,7 +1725,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                       ["日時（時間帯）", "例：16:00-17:00", timeRange, setTimeRange],
                       ["提出資料", "こちらが提出・画面共有した資料名（空欄時はAIが推測）", teishutsushiryo, setTeishutsushiryo],
                       ["受領資料", "先方から受領・先方が画面共有した資料名（空欄時はAIが推測）", juryoshiryo, setJuryoshiryo],
-                      ["フェーズ", "調査企画・基本計画・基本設計・実施設計・現場（空欄時はAIが推測）", phase, setPhase]
+                      ["フェーズ", "調査企画・基本計画・基本設計・実施設計・監理・竣工（空欄時はAIが推測）", phase, setPhase]
                     ].map(([lbl, ph, val, setter]) => (
                       <div key={lbl}>
                         <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:4 }}>{lbl}</label>
