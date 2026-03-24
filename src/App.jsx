@@ -2628,6 +2628,8 @@ function DecisionsPage({ project, onBack, onUpdate }) {
   const [currentFolderId, setCurrentFolderId] = useState(null);
   const [editingDecisionId, setEditingDecisionId] = useState(null);
   const [editingDecisionText, setEditingDecisionText] = useState("");
+  const [editingDecisionSource, setEditingDecisionSource] = useState("");
+  const [editingDecisionDate, setEditingDecisionDate] = useState("");
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [showAddDecision, setShowAddDecision] = useState(false);
@@ -2693,7 +2695,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
   };
 
   const saveEditDecision = () => {
-    onUpdate({ ...project, decisions: allDecisions.map(d => d.id === editingDecisionId ? { ...d, text: editingDecisionText } : d) });
+    onUpdate({ ...project, decisions: allDecisions.map(d => d.id === editingDecisionId ? { ...d, text: editingDecisionText, source: editingDecisionSource.trim() || d.source, date: editingDecisionDate || d.date } : d) });
     setEditingDecisionId(null);
   };
 
@@ -2936,6 +2938,13 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                   <>
                     <textarea value={editingDecisionText} onChange={e=>setEditingDecisionText(e.target.value)} rows={4} autoFocus
                       style={{ width:"100%", border:`1.5px solid ${project.color}`, borderRadius:8, padding:"8px 10px", fontSize:13, background:C.bg, color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit", lineHeight:1.7, marginBottom:8 }} />
+                    <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                      <input value={editingDecisionSource} onChange={e=>setEditingDecisionSource(e.target.value)}
+                        placeholder="ソース（例：議事録、会議名）"
+                        style={{ flex:1, border:`1px solid ${C.border}`, borderRadius:7, padding:"5px 10px", fontSize:12, background:C.bg, color:C.text, outline:"none" }} />
+                      <input type="date" value={editingDecisionDate} onChange={e=>setEditingDecisionDate(e.target.value)}
+                        style={{ border:`1px solid ${C.border}`, borderRadius:7, padding:"5px 10px", fontSize:12, background:C.bg, color:C.text, outline:"none" }} />
+                    </div>
                     <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
                       <button onClick={()=>setEditingDecisionId(null)} style={btn({ padding:"5px 12px", borderRadius:7, border:`1px solid ${C.border}`, background:"transparent", color:C.muted, fontSize:12 })}>取消</button>
                       <button onClick={saveEditDecision} style={btn({ padding:"5px 14px", borderRadius:7, background:project.color, color:"#fff", fontSize:12, fontWeight:700 })}>保存</button>
@@ -2948,13 +2957,13 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                       <div style={{ display:"flex", gap:3 }}>
                         <button onClick={()=>setMovingDecisionId(d.id)} title="フォルダへ移動"
                           style={btn({ color:C.muted, background:"transparent", fontSize:12, padding:"2px 5px" })}>📁</button>
-                        <button onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); }}
+                        <button onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); setEditingDecisionSource(d.source||""); setEditingDecisionDate(d.date||""); }}
                           style={btn({ color:C.muted, background:"transparent", fontSize:12, padding:"2px 5px" })}>✏️</button>
                         <button onClick={()=>setConfirmDeleteDecisionId(d.id)}
                           style={btn({ color:C.muted, background:"transparent", fontSize:14, padding:"2px 5px" })}>✕</button>
                       </div>
                     </div>
-                    <p onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); }}
+                    <p onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); setEditingDecisionSource(d.source||""); setEditingDecisionDate(d.date||""); }}
                       style={{ fontSize:13, color:C.text, lineHeight:1.75, margin:"0 0 10px", fontWeight:500, cursor:"pointer" }}>{d.text}</p>
                     {(() => {
                       const linked = (project.tasks || []).filter(t => (t.relatedDecisionIds || []).includes(d.id));
