@@ -1508,8 +1508,10 @@ function MinutesPage({ projects, onUpdateProject }) {
       }
       return {...t, assigneeIds};
     });
+    const _meetingDateMatch = minutes.match(/日時[　\s]*：[　\s]*(\d{4}[\/\-年]\d{1,2}[\/\-月]\d{1,2})/);
+    const _meetingDateStr = _meetingDateMatch ? (() => { const d=new Date(_meetingDateMatch[1].replace(/[年月]/g,"/").replace(/-/g,"/")); return isNaN(d)?null:d.toISOString().slice(0,10); })() : null;
     const newDecisions = extractedDecisions.filter(d=>d.selected).map(d=>({
-      id: d.id, text: d.text, source: minutesTitle||"議事録", createdAt: new Date().toISOString()
+      id: d.id, text: d.text, source: minutesTitle||"議事録", createdAt: new Date().toISOString(), date: _meetingDateStr||undefined
     }));
     const updatedProj = {
       ...latestProj,
@@ -2116,9 +2118,11 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
     // localFoldersのうち既存に存在しないものを新規フォルダとして追加
     const existingFolderIds = new Set((project.decisionFolders||[]).map(f => f.id));
     const newFolders = localFolders.filter(f => !existingFolderIds.has(f.id));
+    const _mdMatch = selectedMinute.content.match(/日時[　\s]*：[　\s]*(\d{4}[\/\-年]\d{1,2}[\/\-月]\d{1,2})/);
+    const _mdStr = _mdMatch ? (() => { const d=new Date(_mdMatch[1].replace(/[年月]/g,"/").replace(/-/g,"/")); return isNaN(d)?null:d.toISOString().slice(0,10); })() : null;
     const newDecisions = detailExtractedDecisions.filter(d=>d.selected).map(d=>{
       const folderId = (d._folderSel && d._folderSel !== "__none__" && d._folderSel !== "__new__") ? d._folderSel : null;
-      return { id: d.id, text: d.text, source, createdAt: new Date().toISOString(), folderId };
+      return { id: d.id, text: d.text, source, createdAt: new Date().toISOString(), date: _mdStr||undefined, folderId };
     });
     onUpdate({
       ...project,
@@ -2829,7 +2833,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
               <input value={newDecisionSource} onChange={e=>setNewDecisionSource(e.target.value)}
                 placeholder="ソース（例：議事録、会議名）"
                 style={{ flex:1, border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 10px", fontSize:12, background:C.bg, color:C.text, outline:"none" }} />
-              <input type="date" value={newDecisionDate} onChange={e=>setNewDecisionDate(e.target.value)}
+              <input type="date" value={newDecisionDate} onChange={e=>setNewDecisionDate(e.target.value)} title="決定日"
                 style={{ border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 10px", fontSize:12, background:C.bg, color:C.text, outline:"none" }} />
             </div>
             <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
@@ -2981,7 +2985,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                     })()}
                     <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                       <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>📝 {d.source}</span>
-                      <span style={{ fontSize:10, color:C.muted }}>{new Date(d.createdAt).toLocaleDateString("ja-JP")}</span>
+                      <span style={{ fontSize:10, color:C.muted }}>{new Date(d.date||d.createdAt).toLocaleDateString("ja-JP")}</span>
                     </div>
                   </>
                 )}
