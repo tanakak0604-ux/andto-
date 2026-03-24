@@ -464,6 +464,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
   const [over, setOver] = useState(null);
   const [editingFolderId, setEditingFolderId] = useState(null);
   const [editFolderName, setEditFolderName] = useState("");
+  const [dragFolderId, setDragFolderId] = useState(null);
   const hoverBg = status === "todo" ? "#EDEBE4" : status === "doing" ? "#FFF8E1" : "#E8F5E9";
 
   const addFolder = () => {
@@ -476,6 +477,20 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
 
   const dropTask = (e, folderId) => {
     e.preventDefault(); setOver(null);
+    // フォルダ並び替えの場合はタスクドロップしない
+    const draggingFolder = e.dataTransfer.getData("folderId");
+    if (draggingFolder) {
+      if (draggingFolder === folderId) return;
+      const from = folders.findIndex(f => f.id === draggingFolder);
+      const to = folders.findIndex(f => f.id === folderId);
+      if (from === -1 || to === -1) return;
+      const next = [...folders];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      onUpdate({ ...project, [folderKey]: next });
+      setDragFolderId(null);
+      return;
+    }
     const taskId = e.dataTransfer.getData("id");
     if (!project.tasks.find(t => t.id === taskId)) return;
     onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? {
@@ -516,8 +531,11 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
               onDragOver={e => { e.preventDefault(); setOver(folder.id); }}
               onDragLeave={() => setOver(null)}
               onDrop={e => dropTask(e, folder.id)}
-              style={{ background: over === folder.id ? hoverBg : "#fff", borderRadius: 10, border: `1.5px solid ${over === folder.id ? col : C.border}`, overflow: "hidden" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px" }}>
+              style={{ background: dragFolderId === folder.id ? "transparent" : over === folder.id ? hoverBg : "#fff", borderRadius: 10, border: `1.5px solid ${dragFolderId && over === folder.id ? col : over === folder.id && !dragFolderId ? col : C.border}`, overflow: "hidden", opacity: dragFolderId === folder.id ? 0.4 : 1, transition: "opacity 0.15s" }}>
+              <div draggable={editingFolderId !== folder.id}
+                onDragStart={e => { e.dataTransfer.setData("folderId", folder.id); e.dataTransfer.effectAllowed = "move"; setDragFolderId(folder.id); }}
+                onDragEnd={() => setDragFolderId(null)}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", cursor: editingFolderId === folder.id ? "default" : "grab" }}>
                 <span onClick={() => setOpenFolders(s => ({ ...s, [folder.id]: !s[folder.id] }))} style={{ fontSize: 13, cursor: "pointer" }}>{isOpen ? "📂" : "📁"}</span>
                 {editingFolderId === folder.id ? (
                   <>
