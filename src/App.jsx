@@ -465,6 +465,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
   const [editingFolderId, setEditingFolderId] = useState(null);
   const [editFolderName, setEditFolderName] = useState("");
   const [dragFolderId, setDragFolderId] = useState(null);
+  const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState(null);
   const hoverBg = status === "todo" ? "#EDEBE4" : status === "doing" ? "#FFF8E1" : "#E8F5E9";
 
   const addFolder = () => {
@@ -547,7 +548,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
                       }}
                       onBlur={() => { if (editFolderName.trim()) onUpdate({ ...project, [folderKey]: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) }); setEditingFolderId(null); }}
                       style={{ flex: 1, border: `1.5px solid ${C.sage}`, borderRadius: 6, padding: "3px 8px", fontSize: 12, fontWeight: 700, color: C.text, outline: "none" }} />
-                    <button onMouseDown={e => { e.preventDefault(); onUpdate({ ...project, [folderKey]: folders.filter(f => f.id !== folder.id), tasks: project.tasks.map(t => t.folderId === folder.id ? { ...t, folderId: null } : t) }); setEditingFolderId(null); }}
+                    <button onMouseDown={e => { e.preventDefault(); setConfirmDeleteFolderId(folder.id); setEditingFolderId(null); }}
                       style={btn({ color: C.muted, background: "transparent", fontSize: 13, padding: "2px 4px" })}>✕</button>
                   </>
                 ) : (
@@ -579,6 +580,18 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
           {unfoldered.map(t => <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={onEdit} />)}
         </div>
       </div>
+      {confirmDeleteFolderId && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200 }} onMouseDown={e=>{if(e.target===e.currentTarget)setConfirmDeleteFolderId(null);}}>
+          <div style={{ background:C.surface, borderRadius:16, padding:24, width:340, boxShadow:"0 8px 32px rgba(0,0,0,0.18)" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontSize:15, fontWeight:800, color:C.text, marginBottom:8 }}>フォルダを削除しますか？</div>
+            <div style={{ fontSize:13, color:C.muted, marginBottom:20, lineHeight:1.6 }}>「{folders.find(f=>f.id===confirmDeleteFolderId)?.name}」を削除します。フォルダ内のタスクは未分類に移動します。</div>
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button onClick={()=>setConfirmDeleteFolderId(null)} style={btn({padding:"7px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12,fontWeight:700})}>キャンセル</button>
+              <button onClick={()=>{ onUpdate({ ...project, [folderKey]: folders.filter(f=>f.id!==confirmDeleteFolderId), tasks: project.tasks.map(t=>t.folderId===confirmDeleteFolderId?{...t,folderId:null}:t) }); setConfirmDeleteFolderId(null); }} style={btn({padding:"7px 16px",borderRadius:8,background:"#E53935",color:"#fff",fontSize:12,fontWeight:700})}>削除する</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -587,6 +600,7 @@ function KanbanPage({ project, onUpdate }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [assigneeFilter, setAssigneeFilter] = useState("all"); // all | andto | other
+  const [confirmDeleteTaskId, setConfirmDeleteTaskId] = useState(null);
 
   const openNew = (status) => { setForm({ id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }); setModal({ isNew: true }); };
   const openEdit = (t) => { setForm({ ...t }); setModal({ isNew: false }); };
@@ -803,9 +817,21 @@ function KanbanPage({ project, onUpdate }) {
               </div>
             )}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              {!modal.isNew && <button onClick={del} style={BTN.danger}>削除</button>}
+              {!modal.isNew && <button onClick={() => setConfirmDeleteTaskId(form.id)} style={BTN.danger}>削除</button>}
               <button onClick={closeModal} style={BTN.ghost}>キャンセル</button>
               <button onClick={save} style={BTN.primary}>保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmDeleteTaskId && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200 }} onMouseDown={e=>{if(e.target===e.currentTarget)setConfirmDeleteTaskId(null);}}>
+          <div style={{ background:C.surface, borderRadius:16, padding:24, width:340, boxShadow:"0 8px 32px rgba(0,0,0,0.18)" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontSize:15, fontWeight:800, color:C.text, marginBottom:8 }}>タスクを削除しますか？</div>
+            <div style={{ fontSize:13, color:C.muted, marginBottom:20, lineHeight:1.6 }}>「{(project.tasks||[]).find(t=>t.id===confirmDeleteTaskId)?.title}」を削除します。この操作は取り消せません。</div>
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button onClick={()=>setConfirmDeleteTaskId(null)} style={BTN.ghost}>キャンセル</button>
+              <button onClick={()=>{ del(); setConfirmDeleteTaskId(null); }} style={BTN.danger}>削除する</button>
             </div>
           </div>
         </div>
@@ -2633,6 +2659,7 @@ ${pastMinutesTitles}
 
 function DecisionsPage({ project, onBack, onUpdate }) {
   const [currentFolderId, setCurrentFolderId] = useState(null);
+  const [confirmDeleteDecisionFolderId, setConfirmDeleteDecisionFolderId] = useState(null);
   const [editingDecisionId, setEditingDecisionId] = useState(null);
   const [editingDecisionText, setEditingDecisionText] = useState("");
   const [editingDecisionSource, setEditingDecisionSource] = useState("");
@@ -2916,7 +2943,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                       <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:2, flexShrink:0, marginLeft:4 }}>
                         <button onClick={()=>{ setRenamingFolderId(f.id); setRenamingFolderText(f.name); }}
                           style={btn({ padding:"3px 6px", borderRadius:6, background:"transparent", color:C.muted, fontSize:11 })}>✏️</button>
-                        <button onClick={()=>deleteFolder(f.id)}
+                        <button onClick={()=>setConfirmDeleteDecisionFolderId(f.id)}
                           style={btn({ padding:"3px 6px", borderRadius:6, background:"transparent", color:C.muted, fontSize:13 })}>✕</button>
                       </div>
                     </div>
@@ -3015,6 +3042,21 @@ function DecisionsPage({ project, onBack, onUpdate }) {
               <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
                 <button onClick={()=>setConfirmDeleteDecisionId(null)} style={BTN.ghost}>キャンセル</button>
                 <button onClick={()=>{ deleteDecision(confirmDeleteDecisionId); setConfirmDeleteDecisionId(null); }} style={BTN.danger}>削除する</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {confirmDeleteDecisionFolderId && (() => {
+        const folder = (project.decisionFolders||[]).find(f=>f.id===confirmDeleteDecisionFolderId);
+        return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200 }} onMouseDown={e=>{if(e.target===e.currentTarget)setConfirmDeleteDecisionFolderId(null);}}>
+            <div style={{ background:"#fff", borderRadius:16, padding:24, maxWidth:380, width:"90%", boxShadow:"0 8px 32px rgba(0,0,0,0.18)" }} onClick={e=>e.stopPropagation()}>
+              <div style={{ fontSize:15, fontWeight:800, color:C.text, marginBottom:8 }}>フォルダを削除しますか？</div>
+              <div style={{ fontSize:13, color:C.muted, marginBottom:20, lineHeight:1.6 }}>「{folder?.name}」を削除します。フォルダ内の決定事項は上位フォルダに移動します。</div>
+              <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+                <button onClick={()=>setConfirmDeleteDecisionFolderId(null)} style={BTN.ghost}>キャンセル</button>
+                <button onClick={()=>{ deleteFolder(confirmDeleteDecisionFolderId); setConfirmDeleteDecisionFolderId(null); }} style={BTN.danger}>削除する</button>
               </div>
             </div>
           </div>
