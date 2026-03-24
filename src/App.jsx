@@ -2632,6 +2632,8 @@ function DecisionsPage({ project, onBack, onUpdate }) {
   const [newFolderName, setNewFolderName] = useState("");
   const [showAddDecision, setShowAddDecision] = useState(false);
   const [newDecisionText, setNewDecisionText] = useState("");
+  const [newDecisionSource, setNewDecisionSource] = useState("");
+  const [newDecisionDate, setNewDecisionDate] = useState("");
   const [movingDecisionId, setMovingDecisionId] = useState(null);
   const [renamingFolderId, setRenamingFolderId] = useState(null);
   const [renamingFolderText, setRenamingFolderText] = useState("");
@@ -2669,7 +2671,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
 
   const addDecision = () => {
     if (!newDecisionText.trim()) return;
-    const d = { id: uid(), text: newDecisionText.trim(), folderId: currentFolderId, createdAt: new Date().toISOString() };
+    const d = { id: uid(), text: newDecisionText.trim(), folderId: currentFolderId, createdAt: new Date().toISOString(), source: newDecisionSource.trim() || undefined, date: newDecisionDate || undefined };
     onUpdate({ ...project, decisions: [...allDecisions, d] });
     setNewDecisionText(""); setShowAddDecision(false);
   };
@@ -2802,7 +2804,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
           </h2>
           <span style={{ fontSize:12, color:C.muted, background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:"2px 10px", fontWeight:700 }}>{allDecisions.length}件</span>
           <div style={{ display:"flex", gap:8, marginLeft:"auto" }}>
-            <button onClick={()=>{ setShowAddDecision(v=>!v); setNewDecisionText(""); setShowCreateFolder(false); }}
+            <button onClick={()=>{ setShowAddDecision(v=>!v); setNewDecisionText(""); setNewDecisionSource(""); setNewDecisionDate(""); setShowCreateFolder(false); }}
               style={btn({ padding:"7px 14px", borderRadius:10, border:`1.5px solid ${showAddDecision?project.color:C.border}`, background:showAddDecision?project.color:"transparent", color:showAddDecision?"#fff":C.muted, fontSize:12, fontWeight:700 })}>
               ✏️ 決定事項を追加
             </button>
@@ -2815,15 +2817,22 @@ function DecisionsPage({ project, onBack, onUpdate }) {
 
         {/* 決定事項追加フォーム */}
         {showAddDecision && (
-          <div style={{ background:C.surface, borderRadius:12, padding:12, border:`1.5px solid ${project.color}`, marginBottom:14, display:"flex", gap:8, alignItems:"flex-start" }}>
+          <div style={{ background:C.surface, borderRadius:12, padding:14, border:`1.5px solid ${project.color}`, marginBottom:14, display:"flex", flexDirection:"column", gap:8 }}>
             <textarea autoFocus value={newDecisionText} onChange={e=>setNewDecisionText(e.target.value)}
-              onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); addDecision(); } if(e.key==="Escape"){ setShowAddDecision(false); setNewDecisionText(""); }}}
+              onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); addDecision(); } if(e.key==="Escape"){ setShowAddDecision(false); setNewDecisionText(""); setNewDecisionSource(""); setNewDecisionDate(""); }}}
               placeholder="決定事項を入力（Enterで保存、Shift+Enterで改行）"
               rows={3}
-              style={{ flex:1, border:`1.5px solid ${C.border}`, borderRadius:8, padding:"7px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none", resize:"vertical" }} />
-            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              <button onClick={addDecision} style={btn({ padding:"7px 18px", borderRadius:8, background:newDecisionText.trim()?project.color:C.border, color:"#fff", fontSize:12, fontWeight:700 })}>追加</button>
-              <button onClick={()=>{ setShowAddDecision(false); setNewDecisionText(""); }} style={btn({ padding:"7px 12px", borderRadius:8, border:`1px solid ${C.border}`, background:"transparent", color:C.muted, fontSize:12 })}>取消</button>
+              style={{ border:`1.5px solid ${C.border}`, borderRadius:8, padding:"7px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none", resize:"vertical" }} />
+            <div style={{ display:"flex", gap:8 }}>
+              <input value={newDecisionSource} onChange={e=>setNewDecisionSource(e.target.value)}
+                placeholder="ソース（例：議事録、会議名）"
+                style={{ flex:1, border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 10px", fontSize:12, background:C.bg, color:C.text, outline:"none" }} />
+              <input type="date" value={newDecisionDate} onChange={e=>setNewDecisionDate(e.target.value)}
+                style={{ border:`1px solid ${C.border}`, borderRadius:8, padding:"5px 10px", fontSize:12, background:C.bg, color:C.text, outline:"none" }} />
+            </div>
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button onClick={()=>{ setShowAddDecision(false); setNewDecisionText(""); setNewDecisionSource(""); setNewDecisionDate(""); }} style={btn({ padding:"6px 14px", borderRadius:8, border:`1px solid ${C.border}`, background:"transparent", color:C.muted, fontSize:12 })}>取消</button>
+              <button onClick={addDecision} style={btn({ padding:"6px 18px", borderRadius:8, background:newDecisionText.trim()?project.color:C.border, color:"#fff", fontSize:12, fontWeight:700 })}>追加</button>
             </div>
           </div>
         )}
