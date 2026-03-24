@@ -520,14 +520,18 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px" }}>
                 <span onClick={() => setOpenFolders(s => ({ ...s, [folder.id]: !s[folder.id] }))} style={{ fontSize: 13, cursor: "pointer" }}>{isOpen ? "📂" : "📁"}</span>
                 {editingFolderId === folder.id ? (
-                  <input autoFocus value={editFolderName}
-                    onChange={e => setEditFolderName(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") { if (editFolderName.trim()) onUpdate({ ...project, [folderKey]: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) }); setEditingFolderId(null); }
-                      if (e.key === "Escape") setEditingFolderId(null);
-                    }}
-                    onBlur={() => { if (editFolderName.trim()) onUpdate({ ...project, [folderKey]: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) }); setEditingFolderId(null); }}
-                    style={{ flex: 1, border: `1.5px solid ${C.sage}`, borderRadius: 6, padding: "3px 8px", fontSize: 12, fontWeight: 700, color: C.text, outline: "none" }} />
+                  <>
+                    <input autoFocus value={editFolderName}
+                      onChange={e => setEditFolderName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") { if (editFolderName.trim()) onUpdate({ ...project, [folderKey]: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) }); setEditingFolderId(null); }
+                        if (e.key === "Escape") setEditingFolderId(null);
+                      }}
+                      onBlur={() => { if (editFolderName.trim()) onUpdate({ ...project, [folderKey]: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) }); setEditingFolderId(null); }}
+                      style={{ flex: 1, border: `1.5px solid ${C.sage}`, borderRadius: 6, padding: "3px 8px", fontSize: 12, fontWeight: 700, color: C.text, outline: "none" }} />
+                    <button onMouseDown={e => { e.preventDefault(); onUpdate({ ...project, [folderKey]: folders.filter(f => f.id !== folder.id), tasks: project.tasks.map(t => t.folderId === folder.id ? { ...t, folderId: null } : t) }); setEditingFolderId(null); }}
+                      style={btn({ color: C.muted, background: "transparent", fontSize: 13, padding: "2px 4px" })}>✕</button>
+                  </>
                 ) : (
                   <span onDoubleClick={() => { setEditingFolderId(folder.id); setEditFolderName(folder.name); }}
                     onClick={() => setOpenFolders(s => ({ ...s, [folder.id]: !s[folder.id] }))}
