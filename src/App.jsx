@@ -571,10 +571,10 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
           onDragOver={e => { e.preventDefault(); setOver("__unfoldered__"); }}
           onDragLeave={() => setOver(null)}
           onDrop={e => dropTask(e, null)}
-          style={{ display:"flex", flexDirection:"column", gap:6, padding:"6px 8px", borderRadius:10, border:`1.5px dashed ${over==="__unfoldered__" ? col : C.border}`, background: over==="__unfoldered__" ? hoverBg : "transparent", minHeight:36, transition:"background 0.15s" }}>
+          style={{ display:"flex", flexDirection:"column", gap:6, padding:"6px 8px", borderRadius:10, border:`1.5px dashed ${over==="__unfoldered__" ? col : folders.length > 0 ? C.border : "transparent"}`, background: over==="__unfoldered__" ? hoverBg : "transparent", minHeight: folders.length > 0 ? 80 : 36, transition:"background 0.15s, border 0.15s" }}>
           {folders.length > 0 && <div style={{ fontSize:11, color:C.muted, fontWeight:600 }}>📂 未分類</div>}
-          {unfoldered.length === 0 && over !== "__unfoldered__" && folders.length > 0 && (
-            <div style={{ fontSize:11, color:C.muted, textAlign:"center", padding:"4px 0" }}>タスクをここにドロップ</div>
+          {unfoldered.length === 0 && folders.length > 0 && (
+            <div style={{ fontSize:11, color: over==="__unfoldered__" ? col : C.muted, textAlign:"center", padding:"8px 0" }}>タスクをここにドロップ</div>
           )}
           {unfoldered.map(t => <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={onEdit} />)}
         </div>
