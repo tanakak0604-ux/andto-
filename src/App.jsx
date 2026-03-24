@@ -2937,7 +2937,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                 onDragLeave={handleDragLeave}
                 onDrop={e=>{ e.stopPropagation(); handleDrop(e,d.id,'decision'); }}
                 onDragEnd={handleDragEnd}
-                style={{ background:C.surface, border:`1.5px solid ${editingDecisionId===d.id?project.color:C.border}`, borderRadius:14, padding:16, boxShadow:shadow, opacity:dragItem?.id===d.id?0.4:1, transition:"box-shadow 0.1s" }}>
+                style={{ background:C.surface, border:`1.5px solid ${editingDecisionId===d.id?project.color:C.border}`, borderRadius:14, padding:16, boxShadow:shadow, opacity:dragItem?.id===d.id?0.4:1, transition:"box-shadow 0.1s", display:"flex", flexDirection:"column" }}>
                 {editingDecisionId === d.id ? (
                   <>
                     <textarea value={editingDecisionText} onChange={e=>setEditingDecisionText(e.target.value)} rows={4} autoFocus
@@ -2983,7 +2983,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
                         </div>
                       );
                     })()}
-                    <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:8, display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:"auto" }}>
                       <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>📝 {d.source}</span>
                       <span style={{ fontSize:10, color:C.muted }}>{new Date(d.date||d.createdAt).toLocaleDateString("ja-JP")}</span>
                     </div>
