@@ -446,44 +446,56 @@ function TaskCard({ t, project, onUpdate, onEdit }) {
   );
 }
 
-function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
-  const tasksForView = viewTasks ?? project.tasks;
-  const doneTasks = tasksForView.filter(t => t.status === "done");
-  const folders = project.donefolders || [{ id: "default", name: "完了タスク" }];
+function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, onEdit, onOpenNew }) {
+  const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+  const folderKey = status + "folders";
+  const folders = project[folderKey] || [];
+  const colTasks = (viewTasks ?? project.tasks).filter(t => t.status === status).sort((a, b) => {
+    const pd = (PRIORITY_ORDER[a.priority]||1) - (PRIORITY_ORDER[b.priority]||1);
+    if (pd !== 0) return pd;
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return new Date(a.dueDate) - new Date(b.dueDate);
+  });
   const [openFolders, setOpenFolders] = useState(() => Object.fromEntries(folders.map(f => [f.id, true])));
   const [addingFolder, setAddingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [over, setOver] = useState(null);
-　const [editingFolderId, setEditingFolderId] = useState(null);
-　const [editFolderName, setEditFolderName] = useState("");
-  
+  const [editingFolderId, setEditingFolderId] = useState(null);
+  const [editFolderName, setEditFolderName] = useState("");
+  const hoverBg = status === "todo" ? "#EDEBE4" : status === "doing" ? "#FFF8E1" : "#E8F5E9";
+
   const addFolder = () => {
     if (!newFolderName.trim()) return;
     const nf = { id: uid(), name: newFolderName.trim() };
-    onUpdate({ ...project, donefolders: [...folders, nf] });
+    onUpdate({ ...project, [folderKey]: [...folders, nf] });
     setOpenFolders(s => ({ ...s, [nf.id]: true }));
     setNewFolderName(""); setAddingFolder(false);
   };
 
-  const dropToFolder = (e, folderId) => {
+  const dropTask = (e, folderId) => {
     e.preventDefault(); setOver(null);
     const taskId = e.dataTransfer.getData("id");
     if (!project.tasks.find(t => t.id === taskId)) return;
-    onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, status: "done", folderId } : t) });
+    onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? {
+      ...t, status, folderId: folderId || null,
+      completedAt: status === "done" ? (t.completedAt || new Date().toISOString()) : t.completedAt
+    } : t) });
   };
 
-  const unfoldered = doneTasks.filter(t => !t.folderId || !folders.find(f => f.id === t.folderId));
+  const unfoldered = colTasks.filter(t => !t.folderId || !folders.find(f => f.id === t.folderId));
 
   return (
-    <div style={{ flex: 1, minWidth: 240, background: C.doneLight, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}` }}>
+    <div style={{ flex: 1, minWidth: 240, background: bg, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}` }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontWeight: 800, color: C.done, fontSize: 12, letterSpacing: 1 }}>完了</span>
-          <span style={{ background: C.done, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px", lineHeight: 1.4 }}>{doneTasks.length}</span>
+          <span style={{ fontWeight: 800, color: col, fontSize: 12, letterSpacing: 1 }}>{label}</span>
+          <span style={{ background: col, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px", lineHeight: 1.4 }}>{colTasks.length}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button onClick={() => onOpenNew("done")} style={btn({ color: C.done, fontSize: 18, fontWeight: 700, background: "transparent", padding: 0, lineHeight: 1 })}>+</button>
-          <button onClick={() => setAddingFolder(true)} style={btn({ fontSize: 14, color: C.done, background: "transparent" })}>📁+</button>
+          <button onClick={() => onOpenNew(status)} style={btn({ color: col, fontSize: 18, fontWeight: 700, background: "transparent", padding: 0, lineHeight: 1 })}>+</button>
+          <button onClick={() => setAddingFolder(true)} style={btn({ fontSize: 14, color: col, background: "transparent" })}>📁+</button>
         </div>
       </div>
       {addingFolder && (
@@ -491,46 +503,30 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
           <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") addFolder(); if (e.key === "Escape") setAddingFolder(false); }}
             placeholder="フォルダ名" style={{ flex: 1, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "5px 9px", fontSize: 12, background: "#fff", outline: "none" }} />
-          <button onClick={addFolder} style={btn({ padding: "5px 10px", borderRadius: 8, background: C.done, color: "#fff", fontSize: 12 })}>追加</button>
+          <button onClick={addFolder} style={btn({ padding: "5px 10px", borderRadius: 8, background: col, color: "#fff", fontSize: 12 })}>追加</button>
           <button onClick={() => setAddingFolder(false)} style={btn({ padding: "5px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 12 })}>✕</button>
         </div>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {folders.map(folder => {
-          const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
-          const folderTasks = doneTasks
-            .filter(t => t.folderId === folder.id)
-            .sort((a, b) => {
-              const pd = (PRIORITY_ORDER[a.priority]||1) - (PRIORITY_ORDER[b.priority]||1);
-              if (pd !== 0) return pd;
-              if (!a.dueDate && !b.dueDate) return 0;
-              if (!a.dueDate) return 1;
-              if (!b.dueDate) return -1;
-              return new Date(a.dueDate) - new Date(b.dueDate);
-            });
+          const folderTasks = colTasks.filter(t => t.folderId === folder.id);
           const isOpen = openFolders[folder.id] !== false;
           return (
             <div key={folder.id}
               onDragOver={e => { e.preventDefault(); setOver(folder.id); }}
               onDragLeave={() => setOver(null)}
-              onDrop={e => dropToFolder(e, folder.id)}
-              style={{ background: over === folder.id ? "#D4E8D5" : "#fff", borderRadius: 10, border: `1.5px solid ${over === folder.id ? C.done : C.border}`, overflow: "hidden" }}>
+              onDrop={e => dropTask(e, folder.id)}
+              style={{ background: over === folder.id ? hoverBg : "#fff", borderRadius: 10, border: `1.5px solid ${over === folder.id ? col : C.border}`, overflow: "hidden" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px" }}>
                 <span onClick={() => setOpenFolders(s => ({ ...s, [folder.id]: !s[folder.id] }))} style={{ fontSize: 13, cursor: "pointer" }}>{isOpen ? "📂" : "📁"}</span>
                 {editingFolderId === folder.id ? (
                   <input autoFocus value={editFolderName}
                     onChange={e => setEditFolderName(e.target.value)}
                     onKeyDown={e => {
-                      if (e.key === "Enter") {
-                        if (editFolderName.trim()) onUpdate({ ...project, donefolders: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) });
-                        setEditingFolderId(null);
-                      }
+                      if (e.key === "Enter") { if (editFolderName.trim()) onUpdate({ ...project, [folderKey]: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) }); setEditingFolderId(null); }
                       if (e.key === "Escape") setEditingFolderId(null);
                     }}
-                    onBlur={() => {
-                      if (editFolderName.trim()) onUpdate({ ...project, donefolders: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) });
-                      setEditingFolderId(null);
-                    }}
+                    onBlur={() => { if (editFolderName.trim()) onUpdate({ ...project, [folderKey]: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) }); setEditingFolderId(null); }}
                     style={{ flex: 1, border: `1.5px solid ${C.sage}`, borderRadius: 6, padding: "3px 8px", fontSize: 12, fontWeight: 700, color: C.text, outline: "none" }} />
                 ) : (
                   <span onDoubleClick={() => { setEditingFolderId(folder.id); setEditFolderName(folder.name); }}
@@ -540,7 +536,6 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
                 <span style={{ fontSize: 11, color: C.muted }}>{folderTasks.length}件</span>
                 <span onClick={() => setOpenFolders(s => ({ ...s, [folder.id]: !s[folder.id] }))} style={{ fontSize: 11, color: C.muted, cursor: "pointer" }}>{isOpen ? "▲" : "▼"}</span>
               </div>
-
               {isOpen && (
                 <div style={{ padding: "0 10px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
                   {folderTasks.length === 0 && <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "10px 0" }}>タスクをここにドロップ</div>}
@@ -553,10 +548,10 @@ function DoneColumn({ project, onUpdate, onEdit, onOpenNew, viewTasks }) {
         <div
           onDragOver={e => { e.preventDefault(); setOver("__unfoldered__"); }}
           onDragLeave={() => setOver(null)}
-          onDrop={e => { e.preventDefault(); const taskId = e.dataTransfer.getData("id"); setOver(null); if (!project.tasks.find(t => t.id === taskId)) return; onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, status: "done", folderId: null } : t) }); }}
-          style={{ display:"flex", flexDirection:"column", gap:6, padding:"6px 8px", borderRadius:10, border:`1.5px dashed ${over==="__unfoldered__" ? C.done : C.border}`, background: over==="__unfoldered__" ? "#E8F5E9" : "transparent", minHeight:36, transition:"background 0.15s" }}>
-          <div style={{ fontSize:11, color:C.muted, fontWeight:600 }}>📂 未分類</div>
-          {unfoldered.length === 0 && over !== "__unfoldered__" && (
+          onDrop={e => dropTask(e, null)}
+          style={{ display:"flex", flexDirection:"column", gap:6, padding:"6px 8px", borderRadius:10, border:`1.5px dashed ${over==="__unfoldered__" ? col : C.border}`, background: over==="__unfoldered__" ? hoverBg : "transparent", minHeight:36, transition:"background 0.15s" }}>
+          {folders.length > 0 && <div style={{ fontSize:11, color:C.muted, fontWeight:600 }}>📂 未分類</div>}
+          {unfoldered.length === 0 && over !== "__unfoldered__" && folders.length > 0 && (
             <div style={{ fontSize:11, color:C.muted, textAlign:"center", padding:"4px 0" }}>タスクをここにドロップ</div>
           )}
           {unfoldered.map(t => <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={onEdit} />)}
@@ -584,7 +579,6 @@ function KanbanPage({ project, onUpdate }) {
     onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, needsReview: false } : t) });
   };
   const del = () => { onUpdate({ ...project, tasks: project.tasks.filter(t => t.id !== form.id) }); closeModal(); };
-  const drop = (taskId, status) => onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, status } : t) });
 
   const memberAndtoIds = new Set((project.members || []).filter(m => m.isAndto).map(m => m.id));
   const memberOtherIds = new Set((project.members || []).filter(m => !m.isAndto).map(m => m.id));
@@ -655,37 +649,9 @@ function KanbanPage({ project, onUpdate }) {
         })}
       </div>
       <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
-        {[{ s: "todo", label: "未着手", bg: C.todoLight, col: C.todo }, { s: "doing", label: "進行中", bg: C.doingLight, col: C.doing }].map(({ s, label, bg, col }) => {
-          const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
-          const tasks = viewTasks
-            .filter(t => t.status === s)
-            .sort((a, b) => {
-              const pd = (PRIORITY_ORDER[a.priority]||1) - (PRIORITY_ORDER[b.priority]||1);
-              if (pd !== 0) return pd;
-              if (!a.dueDate && !b.dueDate) return 0;
-              if (!a.dueDate) return 1;
-              if (!b.dueDate) return -1;
-              return new Date(a.dueDate) - new Date(b.dueDate);
-            });
-          const [over, setOver] = useState(false);
-          return (
-            <div key={s} style={{ flex: 1, minWidth: 240, background: over ? "#EDEBE4" : bg, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}` }}
-              onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
-              onDrop={e => { e.preventDefault(); setOver(false); drop(e.dataTransfer.getData("id"), s); }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontWeight: 800, color: col, fontSize: 12, letterSpacing: 1 }}>{label}</span>
-                  <span style={{ background: col, color: "#fff", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "2px 8px", lineHeight: 1.4 }}>{tasks.length}</span>
-                </div>
-                <button onClick={() => openNew(s)} style={btn({ color: col, fontSize: 18, fontWeight: 700, background: "transparent", padding: 0, lineHeight: 1 })}>+</button>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {tasks.map(t => <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={openEdit} />)}
-              </div>
-            </div>
-          );
-        })}
-        <DoneColumn project={project} viewTasks={viewTasks} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />
+        <KanbanColumn status="todo" label="未着手" bg={C.todoLight} col={C.todo} project={project} viewTasks={viewTasks} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />
+        <KanbanColumn status="doing" label="進行中" bg={C.doingLight} col={C.doing} project={project} viewTasks={viewTasks} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />
+        <KanbanColumn status="done" label="完了" bg={C.doneLight} col={C.done} project={project} viewTasks={viewTasks} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />
       </div>
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onMouseDown={e=>{if(e.target===e.currentTarget)closeModal();}}>
