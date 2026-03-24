@@ -689,12 +689,27 @@ function KanbanPage({ project, onUpdate }) {
             {[["ステータス", "status", [["todo","未着手"],["doing","進行中"],["done","完了"]]], ["優先度", "priority", [["high","高"],["medium","中"],["low","低"]]]].map(([lbl, key, opts]) => (
               <div key={key} style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>{lbl}</label>
-                <select value={form[key] || ""} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                <select value={form[key] || ""} onChange={e => setForm(f => ({ ...f, [key]: e.target.value, ...(key === "status" ? { folderId: null } : {}) }))}
                   style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 11px", fontSize: 13, background: C.bg, color: C.text, outline: "none" }}>
                   {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
             ))}
+            {(() => {
+              const folderKey = (form.status || "todo") + "folders";
+              const folders = project[folderKey] || [];
+              if (folders.length === 0) return null;
+              return (
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>フォルダ</label>
+                  <select value={form.folderId || ""} onChange={e => setForm(f => ({ ...f, folderId: e.target.value || null }))}
+                    style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 11px", fontSize: 13, background: C.bg, color: C.text, outline: "none" }}>
+                    <option value="">未分類</option>
+                    {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                </div>
+              );
+            })()}
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>担当者</label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
