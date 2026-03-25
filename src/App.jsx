@@ -3269,6 +3269,7 @@ export default function App() {
   const [slackSettings, setSlackSettings] = useState({ summaryChannel: "", notifyChannel: "", sourceChannels: [] });
   const [toast, setToast] = useState(null);
   const [saveError, setSaveError] = useState(null);
+  const [importModal, setImportModal] = useState(null); // { projects: [...], selected: Set }
   const isRemoteUpdate = useRef(false);
   const channelRef = useRef(null);
   const saveTimer = useRef(null);
@@ -3424,11 +3425,28 @@ export default function App() {
     r.onload=ev=>{
       try {
         const data=JSON.parse(ev.target.result);
-        if(data.projects&&Array.isArray(data.projects)){setProjects(data.projects);setTab("projects");}
-        else alert("正しいバックアップファイルではありません");
+        if(data.projects&&Array.isArray(data.projects)){
+          setImportModal({ projects: data.projects, selected: new Set(data.projects.map(p=>p.id)) });
+        } else alert("正しいバックアップファイルではありません");
       } catch { alert("ファイルの読み込みに失敗しました"); }
     };
     r.readAsText(file); e.target.value="";
+  };
+
+  const execImport = () => {
+    if(!importModal) return;
+    const toImport = importModal.projects.filter(p => importModal.selected.has(p.id));
+    const existingIds = new Set(projects.map(p=>p.id));
+    const merged = [
+      ...projects.map(p => {
+        const found = toImport.find(x=>x.id===p.id);
+        return found || p;
+      }),
+      ...toImport.filter(p => !existingIds.has(p.id))
+    ];
+    setProjects(merged);
+    setImportModal(null);
+    setTab("projects");
   };
 
   const importRef = useRef(null);
@@ -3439,6 +3457,39 @@ export default function App() {
         <div style={{ background:"#DC2626", color:"#fff", padding:"10px 20px", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"space-between", zIndex:9999 }}>
           <span>⚠️ {saveError}</span>
           <button onClick={()=>setSaveError(null)} style={{ background:"transparent", border:"none", color:"#fff", cursor:"pointer", fontSize:16, fontWeight:700, padding:"0 4px" }}>✕</button>
+        </div>
+      )}
+      {importModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:9000, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <div style={{ background:C.surface, borderRadius:12, padding:28, width:460, maxWidth:"90vw", boxShadow:"0 8px 32px rgba(0,0,0,0.18)" }}>
+            <div style={{ fontWeight:700, fontSize:16, marginBottom:6 }}>インポートするプロジェクトを選択</div>
+            <div style={{ fontSize:12, color:C.muted, marginBottom:18 }}>選択したプロジェクトのみをインポートします。</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, maxHeight:320, overflowY:"auto", marginBottom:20 }}>
+              {importModal.projects.map(p => {
+                const exists = projects.some(x=>x.id===p.id);
+                const checked = importModal.selected.has(p.id);
+                return (
+                  <label key={p.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:8, border:`1.5px solid ${C.border}`, background:C.bg, cursor:"pointer" }}>
+                    <input type="checkbox" checked={checked} onChange={() => setImportModal(m => {
+                      const next = new Set(m.selected);
+                      checked ? next.delete(p.id) : next.add(p.id);
+                      return { ...m, selected: next };
+                    })} style={{ width:15, height:15, margin:0, accentColor:C.sage }} />
+                    <span style={{ width:8, height:8, borderRadius:"50%", background:p.color, flexShrink:0 }} />
+                    <span style={{ flex:1, fontWeight:600, fontSize:13 }}>{p.name}</span>
+                    {exists
+                      ? <span style={{ fontSize:11, color:"#D97706", background:"#FEF3C7", padding:"2px 7px", borderRadius:10 }}>⚠️ 上書きされます</span>
+                      : <span style={{ fontSize:11, color:"#059669", background:"#D1FAE5", padding:"2px 7px", borderRadius:10 }}>✅ 新規追加されます</span>
+                    }
+                  </label>
+                );
+              })}
+            </div>
+            <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
+              <button onClick={()=>setImportModal(null)} style={btn({ background:"transparent", border:`1.5px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"7px 18px", fontSize:13 })}>キャンセル</button>
+              <button onClick={execImport} disabled={importModal.selected.size===0} style={btn({ background:importModal.selected.size===0?C.border:C.accent, color:"#fff", borderRadius:8, padding:"7px 18px", fontSize:13, fontWeight:700, cursor:importModal.selected.size===0?"not-allowed":"pointer" })}>インポート実行 ({importModal.selected.size}件)</button>
+            </div>
+          </div>
         </div>
       )}
       <div style={{ background:C.surface, borderBottom:`1.5px solid ${C.border}`, display:"flex", alignItems:"stretch", overflowX:"auto", paddingLeft:20 }}>
