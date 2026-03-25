@@ -3296,6 +3296,7 @@ export default function App() {
       setStorageReady(true);
     }).catch(e => {
       setSaveError("データの読み込みに失敗しました：" + e.message);
+      isRemoteUpdate.current = true; // 読み込み失敗時にINIT_PROJECTSを上書き保存しない
       setStorageReady(true);
     });
     loadSlackSettings().then(s => { if (s) setSlackSettings(s); });
