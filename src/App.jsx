@@ -3291,6 +3291,7 @@ export default function App() {
         isRemoteUpdate.current = true;
         setProjects(saved);
       } else {
+        isRemoteUpdate.current = true; // データが取れなかった場合もINIT_PROJECTSを保存しない
         setShowWelcome(true);
       }
       setStorageReady(true);
