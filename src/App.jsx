@@ -427,15 +427,15 @@ function TaskCard({ t, project, onUpdate, onEdit }) {
               <span style={{ fontSize: 10, color: C.muted }}>{done}/{total}</span>
             </div>
             {t.subtasks.map(s => (
-              <div key={s.id} onClick={e => {
-                e.stopPropagation();
-                const updated = { ...t, subtasks: t.subtasks.map(x => x.id === s.id ? { ...x, done: !x.done } : x) };
-                onUpdate({ ...project, tasks: project.tasks.map(x => x.id === t.id ? updated : x) });
-              }} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "2px 0" }}>
-                <div style={{ width: 13, height: 13, borderRadius: 3, border: `1.5px solid ${s.done ? C.sage : C.border}`, background: s.done ? C.sage : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0" }}>
+                <div onClick={e => {
+                  e.stopPropagation();
+                  const updated = { ...t, subtasks: t.subtasks.map(x => x.id === s.id ? { ...x, done: !x.done } : x) };
+                  onUpdate({ ...project, tasks: project.tasks.map(x => x.id === t.id ? updated : x) });
+                }} style={{ width: 13, height: 13, borderRadius: 3, border: `1.5px solid ${s.done ? C.sage : C.border}`, background: s.done ? C.sage : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                   {s.done && <span style={{ color: "#fff", fontSize: 9 }}>✓</span>}
                 </div>
-                <span style={{ fontSize: 11, color: s.done ? C.muted : C.text, textDecoration: s.done ? "line-through" : "none" }}>{s.title}</span>
+                <span style={{ fontSize: 11, color: s.done ? C.muted : C.text, textDecoration: s.done ? "line-through" : "none", cursor: "pointer" }}>{s.title}</span>
               </div>
             ))}
           </div>
