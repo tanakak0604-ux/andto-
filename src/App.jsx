@@ -530,7 +530,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
           return (
             <div key={folder.id}
               onDragOver={e => { e.preventDefault(); setOver(folder.id); }}
-              onDragLeave={() => setOver(null)}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(null); }}
               onDrop={e => dropTask(e, folder.id)}
               style={{ background: dragFolderId === folder.id ? "transparent" : over === folder.id ? hoverBg : "#fff", borderRadius: 10, border: `1.5px solid ${dragFolderId && over === folder.id ? col : over === folder.id && !dragFolderId ? col : C.border}`, overflow: "hidden", opacity: dragFolderId === folder.id ? 0.4 : 1, transition: "opacity 0.15s" }}>
               <div draggable={editingFolderId !== folder.id}
@@ -560,7 +560,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
                 <span onClick={() => setOpenFolders(s => ({ ...s, [folder.id]: !s[folder.id] }))} style={{ fontSize: 11, color: C.muted, cursor: "pointer" }}>{isOpen ? "▲" : "▼"}</span>
               </div>
               {isOpen && (
-                <div style={{ padding: "0 10px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ padding: "0 10px 10px", display: "flex", flexDirection: "column", gap: 6 }} onDragOver={e => e.preventDefault()}>
                   {folderTasks.length === 0 && <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "10px 0" }}>タスクをここにドロップ</div>}
                   {folderTasks.map(t => <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={onEdit} />)}
                 </div>
