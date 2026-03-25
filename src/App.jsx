@@ -395,6 +395,16 @@ function StatusBadge({ s }) {
 }
 
 function TaskCard({ t, project, onUpdate, onEdit }) {
+  const [editingSubtaskId, setEditingSubtaskId] = useState(null);
+  const [editingSubtaskTitle, setEditingSubtaskTitle] = useState("");
+
+  const saveSubtaskEdit = () => {
+    if (editingSubtaskId === null) return;
+    const updated = { ...t, subtasks: t.subtasks.map(x => x.id === editingSubtaskId ? { ...x, title: editingSubtaskTitle } : x) };
+    onUpdate({ ...project, tasks: project.tasks.map(x => x.id === t.id ? updated : x) });
+    setEditingSubtaskId(null);
+  };
+
   return (
     <div draggable
       onDragStart={e => { e.dataTransfer.setData("id", t.id); e.currentTarget.style.opacity = "0.4"; }}
@@ -435,7 +445,19 @@ function TaskCard({ t, project, onUpdate, onEdit }) {
                 }} style={{ width: 13, height: 13, borderRadius: 3, border: `1.5px solid ${s.done ? C.sage : C.border}`, background: s.done ? C.sage : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                   {s.done && <span style={{ color: "#fff", fontSize: 9 }}>✓</span>}
                 </div>
-                <span style={{ fontSize: 11, color: s.done ? C.muted : C.text, textDecoration: s.done ? "line-through" : "none", cursor: "pointer" }}>{s.title}</span>
+                {editingSubtaskId === s.id ? (
+                  <input
+                    autoFocus
+                    value={editingSubtaskTitle}
+                    onChange={e => setEditingSubtaskTitle(e.target.value)}
+                    onBlur={saveSubtaskEdit}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveSubtaskEdit(); } if (e.key === "Escape") { setEditingSubtaskId(null); } }}
+                    onClick={e => e.stopPropagation()}
+                    style={{ flex: 1, border: "none", borderBottom: `1px solid ${C.sage}`, background: "transparent", fontSize: 11, color: C.text, outline: "none", padding: "0 2px" }}
+                  />
+                ) : (
+                  <span onClick={e => { e.stopPropagation(); setEditingSubtaskId(s.id); setEditingSubtaskTitle(s.title); }} style={{ fontSize: 11, color: s.done ? C.muted : C.text, textDecoration: s.done ? "line-through" : "none", cursor: "text" }}>{s.title}</span>
+                )}
               </div>
             ))}
           </div>
