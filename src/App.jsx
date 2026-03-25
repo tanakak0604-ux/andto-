@@ -453,6 +453,8 @@ function TaskCard({ t, project, onUpdate, onEdit }) {
                     onBlur={saveSubtaskEdit}
                     onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveSubtaskEdit(); } if (e.key === "Escape") { setEditingSubtaskId(null); } }}
                     onClick={e => e.stopPropagation()}
+                    onMouseDown={e => e.stopPropagation()}
+                    draggable={false}
                     style={{ flex: 1, border: "none", borderBottom: `1px solid ${C.sage}`, background: "transparent", fontSize: 11, color: C.text, outline: "none", padding: "0 2px" }}
                   />
                 ) : (
