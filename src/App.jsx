@@ -344,7 +344,7 @@ function buildMinutesBody(content) {
     }
     if (!t) { closeList(); continue; }
     closeList();
-    const pText = inOther ? t.replace(/^〇\s*/, "・") : t.replace(/^〇\s*/, "");
+    const pText = t;
     body += `<p class="p">${esc(pText)}</p>\n`;
   }
   closeList();
