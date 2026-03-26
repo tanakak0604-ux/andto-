@@ -3387,7 +3387,20 @@ export default function App() {
       });
 
     channelRef.current = ch;
-    return () => { supabase.removeChannel(ch); };
+
+    // タブにフォーカスが戻った時にSupabaseから最新データを再取得（フォルダ変更の同期）
+    const handleFocus = () => {
+      if (saveTimer.current) return; // 未保存の変更がある場合はスキップ
+      loadProjects().then(saved => {
+        if (saved && Array.isArray(saved) && saved.length > 0) {
+          isRemoteUpdate.current = true;
+          setProjects(saved);
+        }
+      }).catch(() => {});
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => { supabase.removeChannel(ch); window.removeEventListener('focus', handleFocus); };
   }, []); // eslint-disable-line
 
   useEffect(() => {
