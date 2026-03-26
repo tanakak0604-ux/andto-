@@ -1373,6 +1373,7 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [editingDecisionText, setEditingDecisionText] = useState("");
   const [prevStep, setPrevStep] = useState("tasks");
   const [minutesSaved, setMinutesSaved] = useState(false);
+  const [savedMinutesId, setSavedMinutesId] = useState(null);
   const fileRef = useRef();
   const abortControllerRef = useRef(null);
   const selProjObj = projects.find(p => p.id === selProj);
@@ -1524,6 +1525,7 @@ function MinutesPage({ projects, onUpdateProject }) {
     onUpdateProject({...latestProj, minutes:[...(latestProj.minutes||[]),entry]});
     setSaveMsg("議事録を保存しました");
     setMinutesSaved(true);
+    setSavedMinutesId(entry.id);
     return {...entry, projName: latestProj.name, projColor: latestProj.color, projId: latestProj.id};
   };
 
@@ -1569,11 +1571,19 @@ function MinutesPage({ projects, onUpdateProject }) {
     const decisionTasks = extractedDecisions.filter(d=>d.selected && d.addAsTask).map(d=>({
       id: uid(), title: d.text, status: "todo", dueDate: "", priority: "medium", desc: "", subtasks: [], assigneeIds: []
     }));
+    const allNewTaskIds = [...tasksToAdd.map(t=>t.id), ...decisionTasks.map(t=>t.id)];
+    let newMinutes;
+    if (minutesSaved) {
+      newMinutes = (latestProj.minutes||[]).map(m => m.id === savedMinutesId ? {...m, taskIds: [...(m.taskIds||[]), ...allNewTaskIds]} : m);
+    } else {
+      const entry = buildMinutesEntry();
+      newMinutes = [...(latestProj.minutes||[]), {...entry, taskIds: allNewTaskIds}];
+    }
     const updatedProj = {
       ...latestProj,
       tasks: [...latestProj.tasks, ...tasksToAdd, ...decisionTasks],
       decisions: [...(latestProj.decisions||[]), ...newDecisions],
-      minutes: minutesSaved ? (latestProj.minutes||[]) : [...(latestProj.minutes||[]), buildMinutesEntry()],
+      minutes: newMinutes,
     };
     onUpdateProject(updatedProj);
     if (!minutesSaved) setMinutesSaved(true);
@@ -2187,11 +2197,14 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
     const decisionTasks = detailExtractedDecisions.filter(d=>d.selected && d.addAsTask).map(d=>({
       id: uid(), title: d.text, status: "todo", dueDate: "", priority: "medium", desc: "", subtasks: [], assigneeIds: []
     }));
+    const allNewTaskIds = [...tasksToAdd.map(t=>t.id), ...decisionTasks.map(t=>t.id)];
+    const updatedMinutes = (project.minutes||[]).map(m => m.id === selectedMinute.id ? {...m, taskIds: [...(m.taskIds||[]), ...allNewTaskIds]} : m);
     onUpdate({
       ...project,
       tasks: [...project.tasks, ...tasksToAdd, ...decisionTasks],
       decisions: [...(project.decisions||[]), ...newDecisions],
       decisionFolders: [...(project.decisionFolders||[]), ...newFolders],
+      minutes: updatedMinutes,
     });
     setApproveMsg(`決定事項 ${newDecisions.length}件・タスク ${tasksToAdd.length}件を保存しました`);
     setExtractMode(false);
@@ -2641,6 +2654,39 @@ ${pastMinutesTitles}
             ) : (
               <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}`, wordBreak:"break-word", overflowWrap:"break-word", overflow:"hidden" }}
                 dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
+              {(selectedMinute.taskIds||[]).length > 0 && (() => {
+                const linkedTasks = (project.tasks||[]).filter(t => (selectedMinute.taskIds||[]).includes(t.id));
+                if (linkedTasks.length === 0) return null;
+                return (
+                  <div style={{ marginTop:16, background:"#fff", borderRadius:12, padding:"20px 28px", border:`1px solid ${C.border}` }}>
+                    <div style={{ fontSize:13, fontWeight:800, color:C.text, marginBottom:12, borderBottom:`1px solid ${C.border}`, paddingBottom:8 }}>■ タスク一覧</div>
+                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                      <thead>
+                        <tr style={{ background:C.bg }}>
+                          <th style={{ padding:"6px 10px", textAlign:"left", fontWeight:700, color:C.muted, borderBottom:`1px solid ${C.border}` }}>タスク</th>
+                          <th style={{ padding:"6px 10px", textAlign:"left", fontWeight:700, color:C.muted, borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap" }}>担当者</th>
+                          <th style={{ padding:"6px 10px", textAlign:"left", fontWeight:700, color:C.muted, borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap" }}>期日</th>
+                          <th style={{ padding:"6px 10px", textAlign:"left", fontWeight:700, color:C.muted, borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap" }}>状態</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {linkedTasks.map(t => {
+                          const names = (t.assigneeIds||[]).map(id=>(project.members||[]).find(m=>m.id===id)?.name).filter(Boolean).join("・");
+                          const statusLabel = t.status==="done"?"✅ 完了":t.status==="doing"?"🔄 進行中":"⬜ 未着手";
+                          return (
+                            <tr key={t.id} style={{ borderBottom:`1px solid ${C.border}` }}>
+                              <td style={{ padding:"7px 10px", color:C.text, textDecoration:t.status==="done"?"line-through":"none" }}>{t.title}</td>
+                              <td style={{ padding:"7px 10px", color:C.muted, whiteSpace:"nowrap" }}>{names||"—"}</td>
+                              <td style={{ padding:"7px 10px", color:C.muted, whiteSpace:"nowrap" }}>{t.dueDate||"—"}</td>
+                              <td style={{ padding:"7px 10px", whiteSpace:"nowrap" }}>{statusLabel}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             )}
               </div>
               {/* 右：アジェンダプレビュー */}
