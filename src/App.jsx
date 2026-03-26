@@ -517,6 +517,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
     }
     const taskId = e.dataTransfer.getData("id");
     if (!project.tasks.find(t => t.id === taskId)) return;
+    if (folderId) setOpenFolders(s => ({ ...s, [folderId]: true })); // ドロップ先フォルダを自動展開
     onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? {
       ...t, status, folderId: folderId || null,
       completedAt: status === "done" ? (t.completedAt || new Date().toISOString()) : t.completedAt
