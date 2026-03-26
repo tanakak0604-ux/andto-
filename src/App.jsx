@@ -1540,7 +1540,7 @@ function MinutesPage({ projects, onUpdateProject }) {
       ]);
       try { const tasks = JSON.parse(rawTasks.replace(/```json|```/g,"").trim()); setExtracted(tasks.map(t=>({...t,id:uid(),status:"todo",desc:"",selected:true}))); }
       catch { setGenError("タスクのJSON解析に失敗しました。再度お試しください。"); setExtracted([]); }
-      try { const decs = JSON.parse(rawDecs.replace(/```json|```/g,"").trim()); setExtractedDecisions(decs.map(d=>({...d,id:uid(),selected:true}))); }
+      try { const decs = JSON.parse(rawDecs.replace(/```json|```/g,"").trim()); setExtractedDecisions(decs.map(d=>({...d,id:uid(),selected:true,addAsTask:false}))); }
       catch { setExtractedDecisions([]); }
     } catch(e) {
       setGenError("抽出に失敗しました：" + e.message);
@@ -1566,9 +1566,12 @@ function MinutesPage({ projects, onUpdateProject }) {
     const newDecisions = extractedDecisions.filter(d=>d.selected).map(d=>({
       id: d.id, text: d.text, source: minutesTitle||"議事録", createdAt: new Date().toISOString(), date: _meetingDateStr||undefined
     }));
+    const decisionTasks = extractedDecisions.filter(d=>d.selected && d.addAsTask).map(d=>({
+      id: uid(), title: d.text, status: "todo", dueDate: "", priority: "medium", desc: "", subtasks: [], assigneeIds: []
+    }));
     const updatedProj = {
       ...latestProj,
-      tasks: [...latestProj.tasks, ...tasksToAdd],
+      tasks: [...latestProj.tasks, ...tasksToAdd, ...decisionTasks],
       decisions: [...(latestProj.decisions||[]), ...newDecisions],
       minutes: minutesSaved ? (latestProj.minutes||[]) : [...(latestProj.minutes||[]), buildMinutesEntry()],
     };
@@ -1914,6 +1917,10 @@ function MinutesPage({ projects, onUpdateProject }) {
                             )}
                           </div>
                         </div>
+                        <div onClick={e=>e.stopPropagation()} style={{ padding:"0 14px 8px 42px" }}>
+                          <button onClick={()=>setExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,addAsTask:!x.addAsTask}:x))}
+                            style={btn({padding:"3px 9px",borderRadius:6,background:d.addAsTask?C.sage:"transparent",color:d.addAsTask?"#fff":C.muted,fontSize:11,fontWeight:700,border:`1px solid ${d.addAsTask?C.sage:C.border}`})}>✅ タスクとしても追加</button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2131,7 +2138,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
         setDetailExtractedDecisions(d.map(x=>{
           const matchedFolder = existingFolders.find(f => f.name === x.suggestedFolder);
           const folderId = matchedFolder?.id || null;
-          return { ...x, id:uid(), selected:true, folderId, newFolderName:"", _folderSel: folderId || "__none__" };
+          return { ...x, id:uid(), selected:true, folderId, newFolderName:"", _folderSel: folderId || "__none__", addAsTask:false };
         }));
       } catch {
         setDetailExtractedDecisions([{id:uid(),text:"決定事項の抽出に失敗しました",selected:false,folderId:null,newFolderName:"",_folderSel:"__none__"}]);
@@ -2177,9 +2184,12 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
       const folderId = (d._folderSel && d._folderSel !== "__none__" && d._folderSel !== "__new__") ? d._folderSel : null;
       return { id: d.id, text: d.text, source, createdAt: new Date().toISOString(), date: _mdStr||undefined, folderId };
     });
+    const decisionTasks = detailExtractedDecisions.filter(d=>d.selected && d.addAsTask).map(d=>({
+      id: uid(), title: d.text, status: "todo", dueDate: "", priority: "medium", desc: "", subtasks: [], assigneeIds: []
+    }));
     onUpdate({
       ...project,
-      tasks: [...project.tasks, ...tasksToAdd],
+      tasks: [...project.tasks, ...tasksToAdd, ...decisionTasks],
       decisions: [...(project.decisions||[]), ...newDecisions],
       decisionFolders: [...(project.decisionFolders||[]), ...newFolders],
     });
@@ -2482,6 +2492,8 @@ ${pastMinutesTitles}
                           </div>
                         </div>
                         <div onClick={e=>e.stopPropagation()} style={{ padding:"0 14px 10px 42px", display:"flex", flexDirection:"column", gap:4 }}>
+                          <button onClick={()=>setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,addAsTask:!x.addAsTask}:x))}
+                            style={btn({padding:"3px 9px",borderRadius:6,background:d.addAsTask?C.sage:"transparent",color:d.addAsTask?"#fff":C.muted,fontSize:11,fontWeight:700,border:`1px solid ${d.addAsTask?C.sage:C.border}`,alignSelf:"flex-start"})}>✅ タスクとしても追加</button>
                           <select value={d._folderSel||"__none__"} onChange={e=>setDetailExtractedDecisions(ds=>ds.map(x=>x.id===d.id?{...x,_folderSel:e.target.value,newFolderName:""}:x))}
                             style={{ border:`1px solid ${C.border}`, borderRadius:6, padding:"3px 8px", fontSize:11, background:C.surface, color:C.text, outline:"none" }}>
                             <option value="__none__">📁 フォルダなし</option>
