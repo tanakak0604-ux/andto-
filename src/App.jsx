@@ -2198,7 +2198,9 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
       id: uid(), title: d.text, status: "todo", dueDate: "", priority: "medium", desc: "", subtasks: [], assigneeIds: []
     }));
     const allNewTaskIds = [...tasksToAdd.map(t=>t.id), ...decisionTasks.map(t=>t.id)];
-    const updatedMinutes = (project.minutes||[]).map(m => m.id === selectedMinute.id ? {...m, taskIds: [...(m.taskIds||[]), ...allNewTaskIds]} : m);
+    const updatedMinutes = selectedMinute
+      ? (project.minutes||[]).map(m => m.id === selectedMinute.id ? {...m, taskIds: [...(m.taskIds||[]), ...allNewTaskIds]} : m)
+      : (project.minutes||[]);
     onUpdate({
       ...project,
       tasks: [...project.tasks, ...tasksToAdd, ...decisionTasks],
