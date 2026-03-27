@@ -3470,15 +3470,19 @@ export default function App() {
 
   useEffect(() => {
     if (!storageReady) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
     if (isRemoteUpdate.current) {
       isRemoteUpdate.current = false;
-      saveTimer.current = setTimeout(() => {
-        saveTimer.current = null;
-        saveProjects(projects).catch(e => setSaveError("データの保存に失敗しました：" + e.message));
-      }, 500);
+      if (saveTimer.current) {
+        // ローカルに未保存の変更があった → マージ済みの最新stateで保存
+        clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(() => {
+          saveTimer.current = null;
+          saveProjects(projects).catch(e => setSaveError("データの保存に失敗しました：" + e.message));
+        }, 500);
+      }
       return;
     }
+    if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
       saveProjects(projects).catch(e => setSaveError("データの保存に失敗しました：" + e.message));
