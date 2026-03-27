@@ -3465,9 +3465,19 @@ export default function App() {
 
   useEffect(() => {
     if (!storageReady) return;
-    if (isRemoteUpdate.current) { isRemoteUpdate.current = false; return; }
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => { saveProjects(projects).catch(e => setSaveError("データの保存に失敗しました：" + e.message)); }, 500);
+    if (isRemoteUpdate.current) {
+      isRemoteUpdate.current = false;
+      saveTimer.current = setTimeout(() => {
+        saveTimer.current = null;
+        saveProjects(projects).catch(e => setSaveError("データの保存に失敗しました：" + e.message));
+      }, 500);
+      return;
+    }
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      saveProjects(projects).catch(e => setSaveError("データの保存に失敗しました：" + e.message));
+    }, 500);
   }, [projects, storageReady]);
 
   const updateSlackSettings = s => { setSlackSettings(s); saveSlackSettings(s); };
