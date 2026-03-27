@@ -635,6 +635,11 @@ function KanbanPage({ project, onUpdate }) {
     const tasks = modal.isNew ? [...project.tasks, form] : project.tasks.map(t => t.id === form.id ? form : t);
     onUpdate({ ...project, tasks }); closeModal();
   };
+  const closeWithSave = () => {
+    if (!form.title || !form.title.trim()) { closeModal(); return; }
+    const tasks = modal.isNew ? [...project.tasks, form] : project.tasks.map(t => t.id === form.id ? form : t);
+    onUpdate({ ...project, tasks }); closeModal();
+  };
   const confirmTask = (taskId) => {
     onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, needsReview: false } : t) });
   };
@@ -714,7 +719,7 @@ function KanbanPage({ project, onUpdate }) {
         <KanbanColumn status="done" label="完了" bg={C.doneLight} col={C.done} project={project} viewTasks={viewTasks} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />
       </div>
       {modal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onMouseDown={e=>{if(e.target===e.currentTarget)closeModal();}}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onMouseDown={e=>{if(e.target===e.currentTarget)closeWithSave();}}>
           <div style={{ background: C.surface, borderRadius: 20, padding: 28, width: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.18)", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 18px", fontSize: 16, fontWeight: 800, color: C.text }}>{modal.isNew ? "タスク追加" : "タスク編集"}</h3>
             {[["タイトル", "title", "text"], ["期日", "dueDate", "date"]].map(([lbl, key, type]) => (
