@@ -2668,7 +2668,7 @@ ${pastMinutesTitles}
             ) : isEditing ? (
               <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
                 style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
-            ) : (
+            ) : (<>
               <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}`, wordBreak:"break-word", overflowWrap:"break-word", overflow:"hidden" }}
                 dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
               {(selectedMinute.taskIds||[]).length > 0 && (() => {
@@ -2704,7 +2704,7 @@ ${pastMinutesTitles}
                   </div>
                 );
               })()}
-            )}
+            </>)}
               </div>
               {/* 右：アジェンダプレビュー */}
               {hasAgenda && (
