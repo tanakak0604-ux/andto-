@@ -19,6 +19,16 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   realtime: { params: { eventsPerSecond: 10 } }
 });
 
+async function loadUpdatedAt() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared&select=updated_at`, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
+    });
+    const data = await res.json();
+    return data?.[0]?.updated_at || null;
+  } catch { return null; }
+}
+
 async function loadProjects() {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared&select=projects`, {
@@ -3362,6 +3372,8 @@ export default function App() {
   const isRemoteUpdate = useRef(false);
   const channelRef = useRef(null);
   const saveTimer = useRef(null);
+  const lastSavedAt = useRef(null);
+  const isSaving = useRef(false);
   const localUserId = useRef(
     sessionStorage.getItem('taskflow-uid') ||
     (() => { const id = Math.random().toString(36).slice(2); sessionStorage.setItem('taskflow-uid', id); return id; })()
@@ -3455,12 +3467,17 @@ export default function App() {
 
     // タブにフォーカスが戻った時にSupabaseから最新データを再取得（フォルダ変更の同期）
     const handleFocus = () => {
-      if (saveTimer.current) return; // 未保存の変更がある場合はスキップ
-      loadProjects().then(saved => {
-        if (saved && Array.isArray(saved) && saved.length > 0) {
-          isRemoteUpdate.current = true;
-          setProjects(saved);
-        }
+      if (saveTimer.current || isSaving.current) return; // 保存中・未保存の変更がある場合はスキップ
+      loadUpdatedAt().then(remoteUpdatedAt => {
+        if (!remoteUpdatedAt) return;
+        // 自分が最後に保存した時刻以前のデータはスキップ（自分の保存を上書きしない）
+        if (lastSavedAt.current && remoteUpdatedAt <= lastSavedAt.current) return;
+        loadProjects().then(saved => {
+          if (saved && Array.isArray(saved) && saved.length > 0) {
+            isRemoteUpdate.current = true;
+            setProjects(saved);
+          }
+        }).catch(() => {});
       }).catch(() => {});
     };
     window.addEventListener('focus', handleFocus);
@@ -3470,23 +3487,25 @@ export default function App() {
 
   useEffect(() => {
     if (!storageReady) return;
+    const doSave = () => {
+      saveTimer.current = null;
+      isSaving.current = true;
+      saveProjects(projects)
+        .then(savedAt => { lastSavedAt.current = savedAt; })
+        .catch(e => setSaveError("データの保存に失敗しました：" + e.message))
+        .finally(() => { isSaving.current = false; });
+    };
     if (isRemoteUpdate.current) {
       isRemoteUpdate.current = false;
       if (saveTimer.current) {
         // ローカルに未保存の変更があった → マージ済みの最新stateで保存
         clearTimeout(saveTimer.current);
-        saveTimer.current = setTimeout(() => {
-          saveTimer.current = null;
-          saveProjects(projects).catch(e => setSaveError("データの保存に失敗しました：" + e.message));
-        }, 500);
+        saveTimer.current = setTimeout(doSave, 500);
       }
       return;
     }
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      saveTimer.current = null;
-      saveProjects(projects).catch(e => setSaveError("データの保存に失敗しました：" + e.message));
-    }, 500);
+    saveTimer.current = setTimeout(doSave, 500);
   }, [projects, storageReady]);
 
   const updateSlackSettings = s => { setSlackSettings(s); saveSlackSettings(s); };
