@@ -2060,6 +2060,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [isEditingAgenda, setIsEditingAgenda] = useState(false);
   const [agendaContent, setAgendaContent] = useState('');
   const [currentAgenda, setCurrentAgenda] = useState(null);
+  const [confirmDeleteAgenda, setConfirmDeleteAgenda] = useState(false);
   const [subtaskLoading, setSubtaskLoading] = useState(false);
   const [localFolders, setLocalFolders] = useState(project.decisionFolders || []);
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -2361,7 +2362,7 @@ ${pastMinutesTitles}
   };
 
   return (
-    <div style={{ display:"flex", height:"calc(100vh - 52px)", overflow:"hidden" }}>
+    <><div style={{ display:"flex", height:"calc(100vh - 52px)", overflow:"hidden" }}>
       {/* 左カラム：議事録一覧 */}
       <div style={{ width:160, borderRight:`1.5px solid ${C.border}`, display:"flex", flexDirection:"column", background:C.surface, flexShrink:0 }}>
         <div style={{ padding:"14px 16px 12px", borderBottom:`1px solid ${C.border}` }}>
@@ -2465,6 +2466,12 @@ ${pastMinutesTitles}
                         style={{ background:hoveredBtn==='delete'?"#FFEBEE":"transparent", border:"1.5px solid #E53935", color:"#E53935", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer", transition:"all 0.15s" }}>
                         🗑 削除
                       </button>
+                      {currentAgenda === null && (selectedMinute?.agendas||[]).length > 0 && (
+                        <button onClick={()=>{ const latest = selectedMinute.agendas[selectedMinute.agendas.length-1]; setCurrentAgenda(latest); setAgendaContent(latest.content||''); }}
+                          style={{ background:"transparent", border:`1.5px solid ${C.border}`, color:C.text, borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                          アジェンダを表示
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -2724,7 +2731,9 @@ ${pastMinutesTitles}
                     <button onClick={()=>downloadAgendaPdf(currentAgenda)}
                       style={btn({padding:"6px 12px",borderRadius:6,background:"#E8412A",color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
                     <button onClick={()=>setCurrentAgenda(null)}
-                      style={btn({padding:"6px 10px",borderRadius:6,fontSize:12,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>✕</button>
+                      style={btn({padding:"6px 12px",borderRadius:6,fontSize:12,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>非表示</button>
+                    <button onClick={()=>setConfirmDeleteAgenda(true)}
+                      style={btn({padding:"6px 12px",borderRadius:6,fontSize:12,color:"#E53935",background:"transparent",border:"1.5px solid #E53935"})}>削除</button>
                   </div>
                   {isEditingAgenda ? (
                     <textarea value={agendaContent} onChange={e=>setAgendaContent(e.target.value)} rows={30}
@@ -2753,7 +2762,26 @@ ${pastMinutesTitles}
         )}
       </div>
     </div>
-  );
+    {confirmDeleteAgenda && (
+      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200 }}>
+        <div style={{ background:"#fff", borderRadius:16, padding:28, width:340, boxShadow:"0 8px 32px rgba(0,0,0,0.18)" }}>
+          <div style={{ fontSize:15, fontWeight:800, color:"#222", marginBottom:8 }}>アジェンダを削除しますか？</div>
+          <div style={{ fontSize:13, color:"#888", marginBottom:20, lineHeight:1.6 }}>この操作は取り消せません。</div>
+          <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+            <button onClick={()=>setConfirmDeleteAgenda(false)} style={{ padding:"7px 16px", borderRadius:8, border:"1.5px solid #ddd", background:"transparent", fontSize:13, cursor:"pointer" }}>キャンセル</button>
+            <button onClick={()=>{
+              const updatedAgendas = (selectedMinute.agendas||[]).filter(a=>a.id!==currentAgenda.id);
+              const updatedMinutes = project.minutes.map(m=>m.id===selectedMinute.id?{...m,agendas:updatedAgendas}:m);
+              onUpdate({...project, minutes:updatedMinutes});
+              setCurrentAgenda(null);
+              setAgendaContent('');
+              setConfirmDeleteAgenda(false);
+            }} style={{ padding:"7px 16px", borderRadius:8, background:"#E53935", color:"#fff", border:"none", fontSize:13, fontWeight:700, cursor:"pointer" }}>削除する</button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>);
 }
 
 function DecisionsPage({ project, onBack, onUpdate }) {
