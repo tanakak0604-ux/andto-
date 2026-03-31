@@ -2733,7 +2733,8 @@ ${pastMinutesTitles}
                     <button onClick={()=>setCurrentAgenda(null)}
                       style={btn({padding:"6px 12px",borderRadius:6,fontSize:12,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>非表示</button>
                     <button onClick={()=>setConfirmDeleteAgenda(true)}
-                      style={btn({padding:"6px 12px",borderRadius:6,fontSize:12,color:"#E53935",background:"transparent",border:"1.5px solid #E53935"})}>削除</button>
+                      onMouseEnter={()=>setHoveredBtn('agendaDelete')} onMouseLeave={()=>setHoveredBtn(null)}
+                      style={{ background:hoveredBtn==='agendaDelete'?"#FFEBEE":"transparent", border:"1.5px solid #E53935", color:"#E53935", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer", transition:"all 0.15s" }}>🗑 削除</button>
                   </div>
                   {isEditingAgenda ? (
                     <textarea value={agendaContent} onChange={e=>setAgendaContent(e.target.value)} rows={30}
