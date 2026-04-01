@@ -3709,7 +3709,7 @@ export default function App() {
       {decisionsProjectId ? (
         <DecisionsPage project={projects.find(p=>p.id===decisionsProjectId)} onBack={()=>setDecisionsProjectId(null)} onUpdate={updateProject} />
       ) : minutesProjectId ? (
-        <MinutesDetailPage project={projects.find(p=>p.id===minutesProjectId)} onBack={()=>setMinutesProjectId(null)} onUpdate={updateProject} />
+        <MinutesDetailPage project={projects.find(p=>p.id===minutesProjectId)} onBack={()=>setMinutesProjectId(null)} onUpdate={p => { lastBroadcastAt.current = new Date().toISOString(); updateProject(p); }} />
       ) : (
         <>
           <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={sortedProjects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} onViewDecisions={id=>setDecisionsProjectId(id)} onReorder={reorderProjects} /></div>
