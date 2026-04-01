@@ -2717,7 +2717,8 @@ ${pastMinutesTitles}
               {hasAgenda && (
                 <div style={{ flex:"1 1 320px", minWidth:0, overflow:"hidden", borderLeft:`1.5px solid ${C.border}`, paddingLeft:16 }}>
                   <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, gap:8 }}>
-                    {isEditingAgenda ? (
+                    {isEditingAgenda ? (<>
+                      <button onClick={()=>{ setAgendaContent(currentAgenda.content||''); setIsEditingAgenda(false); }} style={BTN.ghost}>キャンセル</button>
                       <button onClick={()=>{
                         const updated = { ...currentAgenda, content: agendaContent };
                         setCurrentAgenda(updated);
@@ -2725,7 +2726,7 @@ ${pastMinutesTitles}
                         onUpdate({ ...project, minutes: updatedMinutes });
                         setIsEditingAgenda(false);
                       }} style={BTN.primary}>💾 保存</button>
-                    ) : (
+                    </>) : (
                       <button onClick={()=>setIsEditingAgenda(true)} style={BTN.ghost}>✏️ 編集</button>
                     )}
                     <button onClick={()=>downloadAgendaPdf(currentAgenda)}
