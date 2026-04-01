@@ -2460,7 +2460,7 @@ ${pastMinutesTitles}
                       </button>
                       <button onClick={()=>downloadPdf(selectedMinute)}
                         onMouseEnter={()=>setHoveredBtn('pdf')} onMouseLeave={()=>setHoveredBtn(null)}
-                        style={{ background:hoveredBtn==='pdf'?"#C62828":"#E8412A", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer", transition:"all 0.15s" }}>PDF</button>
+                        style={{ ...BTN.pdf, background:hoveredBtn==='pdf'?"#C62828":"#E8412A", transition:"all 0.15s" }}>PDF</button>
                       <button onClick={()=>{ if(window.confirm("この議事録を削除しますか？この操作は取り消せません。")) { onUpdate({...project, minutes:project.minutes.filter(m=>m.id!==selectedMinute.id)}); setSelectedId(null); } }}
                         onMouseEnter={()=>setHoveredBtn('delete')} onMouseLeave={()=>setHoveredBtn(null)}
                         style={{ background:hoveredBtn==='delete'?"#FFEBEE":"transparent", border:"1.5px solid #E53935", color:"#E53935", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer", transition:"all 0.15s" }}>
@@ -2729,7 +2729,8 @@ ${pastMinutesTitles}
                       <button onClick={()=>setIsEditingAgenda(true)} style={BTN.ghost}>✏️ 編集</button>
                     )}
                     <button onClick={()=>downloadAgendaPdf(currentAgenda)}
-                      style={btn({padding:"6px 12px",borderRadius:6,background:"#E8412A",color:"#fff",fontSize:12,fontWeight:700})}>PDF</button>
+                      onMouseEnter={()=>setHoveredBtn('agendaPdf')} onMouseLeave={()=>setHoveredBtn(null)}
+                      style={{ ...BTN.pdf, background:hoveredBtn==='agendaPdf'?"#C62828":"#E8412A", transition:"all 0.15s" }}>PDF</button>
                     <button onClick={()=>setCurrentAgenda(null)}
                       style={btn({padding:"6px 12px",borderRadius:6,fontSize:12,color:C.muted,background:"transparent",border:`1.5px solid ${C.border}`})}>非表示</button>
                     <button onClick={()=>setConfirmDeleteAgenda(true)}
