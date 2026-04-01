@@ -3402,6 +3402,7 @@ export default function App() {
   const channelRef = useRef(null);
   const saveTimer = useRef(null);
   const lastSavedAt = useRef(null);
+  const lastBroadcastAt = useRef(null);
   const isSaving = useRef(false);
   const localUserId = useRef(
     sessionStorage.getItem('taskflow-uid') ||
@@ -3416,7 +3417,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadProjects().then(saved => {
+    Promise.all([loadProjects(), loadUpdatedAt()]).then(([saved, ua]) => {
+      if (ua) lastSavedAt.current = ua;
       if (saved && Array.isArray(saved) && saved.length > 0) {
         isRemoteUpdate.current = true;
         setProjects(saved);
@@ -3437,54 +3439,63 @@ export default function App() {
       .on('broadcast', { event: 'task-added' }, ({ payload }) => {
         if (payload.senderId === localUserId.current) return;
         isRemoteUpdate.current = true;
+        lastBroadcastAt.current = new Date().toISOString();
         setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, tasks: [...(p.tasks || []), payload.newTask] } : p));
         toastWithProject(payload.projectId, 'タスクが追加されました');
       })
       .on('broadcast', { event: 'task-updated' }, ({ payload }) => {
         if (payload.senderId === localUserId.current) return;
         isRemoteUpdate.current = true;
+        lastBroadcastAt.current = new Date().toISOString();
         setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, tasks: (p.tasks || []).map(t => t.id === payload.taskId ? payload.updatedTask : t) } : p));
         toastWithProject(payload.projectId, 'タスクが更新されました');
       })
       .on('broadcast', { event: 'task-deleted' }, ({ payload }) => {
         if (payload.senderId === localUserId.current) return;
         isRemoteUpdate.current = true;
+        lastBroadcastAt.current = new Date().toISOString();
         setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, tasks: (p.tasks || []).filter(t => t.id !== payload.taskId) } : p));
         toastWithProject(payload.projectId, 'タスクが削除されました');
       })
       .on('broadcast', { event: 'decision-added' }, ({ payload }) => {
         if (payload.senderId === localUserId.current) return;
         isRemoteUpdate.current = true;
+        lastBroadcastAt.current = new Date().toISOString();
         setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, decisions: [...(p.decisions || []), payload.newDecision] } : p));
         toastWithProject(payload.projectId, '決定事項が追加されました');
       })
       .on('broadcast', { event: 'decision-updated' }, ({ payload }) => {
         if (payload.senderId === localUserId.current) return;
         isRemoteUpdate.current = true;
+        lastBroadcastAt.current = new Date().toISOString();
         setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, decisions: (p.decisions || []).map(d => d.id === payload.decisionId ? payload.updatedDecision : d) } : p));
         toastWithProject(payload.projectId, '決定事項が更新されました');
       })
       .on('broadcast', { event: 'decision-deleted' }, ({ payload }) => {
         if (payload.senderId === localUserId.current) return;
         isRemoteUpdate.current = true;
+        lastBroadcastAt.current = new Date().toISOString();
         setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, decisions: (p.decisions || []).filter(d => d.id !== payload.decisionId) } : p));
         toastWithProject(payload.projectId, '決定事項が削除されました');
       })
       .on('broadcast', { event: 'minutes-added' }, ({ payload }) => {
         if (payload.senderId === localUserId.current) return;
         isRemoteUpdate.current = true;
+        lastBroadcastAt.current = new Date().toISOString();
         setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, minutes: [...(p.minutes || []), payload.newMinutes] } : p));
         toastWithProject(payload.projectId, '議事録が追加されました');
       })
       .on('broadcast', { event: 'minutes-updated' }, ({ payload }) => {
         if (payload.senderId === localUserId.current) return;
         isRemoteUpdate.current = true;
+        lastBroadcastAt.current = new Date().toISOString();
         setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, minutes: (p.minutes || []).map(m => m.id === payload.minutesId ? payload.updatedMinutes : m) } : p));
         toastWithProject(payload.projectId, '議事録が更新されました');
       })
       .on('broadcast', { event: 'minutes-deleted' }, ({ payload }) => {
         if (payload.senderId === localUserId.current) return;
         isRemoteUpdate.current = true;
+        lastBroadcastAt.current = new Date().toISOString();
         setProjects(prev => prev.map(p => p.id === payload.projectId ? { ...p, minutes: (p.minutes || []).filter(m => m.id !== payload.minutesId) } : p));
         toastWithProject(payload.projectId, '議事録が削除されました');
       })
@@ -3499,8 +3510,9 @@ export default function App() {
       if (saveTimer.current || isSaving.current) return; // 保存中・未保存の変更がある場合はスキップ
       loadUpdatedAt().then(remoteUpdatedAt => {
         if (!remoteUpdatedAt) return;
-        // 自分が最後に保存した時刻以前のデータはスキップ（自分の保存を上書きしない）
-        if (lastSavedAt.current && remoteUpdatedAt <= lastSavedAt.current) return;
+        // 保存時刻またはbroadcast受信時刻のうち新しい方と比較（未保存のbroadcast変更を上書きしない）
+        const localLatest = [lastSavedAt.current, lastBroadcastAt.current].filter(Boolean).sort().pop();
+        if (localLatest && remoteUpdatedAt <= localLatest) return;
         loadProjects().then(saved => {
           if (saved && Array.isArray(saved) && saved.length > 0) {
             isRemoteUpdate.current = true;
