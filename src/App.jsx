@@ -417,7 +417,7 @@ function TaskCard({ t, project, onUpdate, onEdit }) {
 
   return (
     <div draggable
-      onDragStart={e => { e.dataTransfer.setData("id", t.id); e.currentTarget.style.opacity = "0.4"; }}
+      onDragStart={e => { if (e.target.tagName === 'INPUT') { e.preventDefault(); return; } e.dataTransfer.setData("id", t.id); e.currentTarget.style.opacity = "0.4"; }}
       onDragEnd={e => { e.currentTarget.style.opacity = "1"; }}
       onClick={() => onEdit(t)}
       style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "11px 13px", cursor: "grab", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
