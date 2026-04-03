@@ -898,11 +898,11 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
     return (a.org || "ん").localeCompare(b.org || "ん", "ja");
   });
 
-  const openEdit = (p) => { setForm({ name: p.name, desc: p.desc||"", color: p.color, members: p.members||[], phase: p.phase||"", slackChannelId: p.slackChannelId||"" }); setModalTab("info"); setEditingId(p.id); };
+  const openEdit = (p) => { setForm({ name: p.name, desc: p.desc||"", color: p.color, members: p.members||[], phase: p.phase||"", phaseDates: p.phaseDates||{}, slackChannelId: p.slackChannelId||"" }); setModalTab("info"); setEditingId(p.id); };
   const closeEdit = () => { setEditingId(null); };
   const saveEdit = () => {
     if (!form.name.trim()) return;
-    onUpdate({ ...projects.find(p => p.id === editingId), name: form.name, desc: form.desc, color: form.color, members: form.members, phase: form.phase, slackChannelId: form.slackChannelId });
+    onUpdate({ ...projects.find(p => p.id === editingId), name: form.name, desc: form.desc, color: form.color, members: form.members, phase: form.phase, phaseDates: form.phaseDates||{}, slackChannelId: form.slackChannelId });
     closeEdit();
   };
   const addMember = () => {
@@ -967,6 +967,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                                   {cur && <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#fff" }} />}
                                 </div>
                                 <span style={{ fontSize: 8, fontWeight: cur ? 900 : 600, color: done || cur ? p.color : C.muted, whiteSpace: "nowrap" }}>{ph}</span>
+                                {(p.phaseDates||{})[ph] && <span style={{ fontSize: 7, color: C.muted, whiteSpace: "nowrap" }}>{(p.phaseDates||{})[ph].replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$2/$3")}</span>}
                               </div>
                             </React.Fragment>
                           );
@@ -1058,6 +1059,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                               {cur && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#fff" }} />}
                             </div>
                             <span style={{ fontSize: 9, fontWeight: cur ? 900 : 600, color: done || cur ? form.color : C.muted, whiteSpace: "nowrap" }}>{ph}</span>
+                            <input type="date" value={(form.phaseDates||{})[ph]||""} onChange={e => setForm(f => ({ ...f, phaseDates: { ...(f.phaseDates||{}), [ph]: e.target.value } }))} onClick={e => e.stopPropagation()} style={{ fontSize: 8, border: `1px solid ${C.border}`, borderRadius: 4, padding: "1px 2px", background: C.bg, color: C.muted, width: 72, cursor: "pointer" }} />
                           </div>
                         </React.Fragment>
                       );
