@@ -967,7 +967,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                                   {cur && <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#fff" }} />}
                                 </div>
                                 <span style={{ fontSize: 8, fontWeight: cur ? 900 : 600, color: done || cur ? p.color : C.muted, whiteSpace: "nowrap" }}>{ph}</span>
-                                {(p.phaseDates||{})[ph] && <span style={{ fontSize: 7, color: C.muted, whiteSpace: "nowrap" }}>{(p.phaseDates||{})[ph].replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$2/$3")}</span>}
+                                {(p.phaseDates||{})[ph] && <span style={{ fontSize: 7, color: C.muted, whiteSpace: "nowrap" }}>{(p.phaseDates||{})[ph].replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1/$2/$3")}</span>}
                               </div>
                             </React.Fragment>
                           );
@@ -1005,7 +1005,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
         const target = projects.find(p => p.id === editingId);
         return (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }} onMouseDown={e=>{if(e.target===e.currentTarget)closeEdit();}}>
-            <div style={{ background: C.surface, borderRadius: 20, padding: 28, width: 440, boxShadow: "0 24px 70px rgba(0,0,0,0.2)", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: C.surface, borderRadius: 20, padding: 28, width: 560, boxShadow: "0 24px 70px rgba(0,0,0,0.2)", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
               <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `1.5px solid ${C.border}` }}>
                 {[["info","⚙️ 基本情報"],["members","👥 メンバー"]].map(([id,lbl]) => (
                   <button key={id} onClick={() => setModalTab(id)} style={btn({ padding: "8px 16px", fontSize: 12, fontWeight: 700, background: "transparent", color: modalTab===id ? C.accent : C.muted, borderBottom: modalTab===id ? `2.5px solid ${C.accent}` : "2.5px solid transparent", borderRadius: 0 })}>{lbl}</button>
