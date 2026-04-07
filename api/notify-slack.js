@@ -26,7 +26,6 @@
  *   担当者に slackId が設定されていれば個別メンション
  */
 
-const FALLBACK_NOTIFY_USER_ID = "U037A6QU4QY"; // 田中航平（SlackID未設定時のフォールバック）
 
 async function loadSlackSettings() {
   const res = await fetch(
@@ -92,8 +91,10 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // 通知対象タスクを収集
-  const notifications = [];
+  // 通知対象タスクをプロジェクトごとに収集
+  // { projectId: { project, tasks: [{ task, diffDays, assigneeNames, mentions }] } }
+  const projectNotifications = {};
+
   for (const project of projects) {
     for (const task of project.tasks || []) {
       if (!task.dueDate || task.status === "done") continue;
@@ -120,37 +121,39 @@ module.exports = async function handler(req, res) {
       const mentionParts = assignees
         .map(a => a.slackId ? `<@${a.slackId}>` : null)
         .filter(Boolean);
-      const mention = mentionParts.length > 0
-        ? mentionParts.join(" ")
-        : `<@${FALLBACK_NOTIFY_USER_ID}>`;
 
-      notifications.push({ task, project, diffDays, assigneeNames, mention });
+      if (!projectNotifications[project.id]) {
+        projectNotifications[project.id] = { project, tasks: [] };
+      }
+      projectNotifications[project.id].tasks.push({ task, diffDays, assigneeNames, mentionParts });
     }
   }
 
-  // Slack チャンネル投稿
+  // プロジェクトごとに1メッセージ投稿
   let sent = 0;
-  for (const { task, project, diffDays, assigneeNames, mention } of notifications) {
-    let label;
-    if (diffDays < 0) {
-      label = `🚨 *期限切れ（${Math.abs(diffDays)}日経過）*`;
-    } else if (diffDays === 0) {
-      label = "⚠️ *本日が期日です*";
-    } else if (diffDays === 1) {
-      label = "⚠️ *明日が期日です*";
-    } else {
-      label = "📅 *1週間後が期日です*";
-    }
-    const relatedDecision = (project.decisions || []).find((d) => d.source && task.title && d.source.includes(task.title))?.text || "—";
-    const text = [
-      mention,
-      label,
-      `プロジェクト: ${project.name}`,
-      `決定事項　　: ${relatedDecision}`,
-      `タスク名　　: ${task.title}`,
-      `期日　　　　: ${task.dueDate}`,
-      `担当者　　　: ${assigneeNames}`,
-    ].join("\n");
+  let totalTasks = 0;
+  for (const { project, tasks } of Object.values(projectNotifications)) {
+    totalTasks += tasks.length;
+
+    // プロジェクト内の全メンションを収集（重複除去）
+    const allMentions = [...new Set(tasks.flatMap(t => t.mentionParts))];
+    const mentionLine = allMentions.length > 0 ? allMentions.join(" ") + "\n" : "";
+
+    const taskLines = tasks.map(({ task, diffDays, assigneeNames }) => {
+      let label;
+      if (diffDays < 0) {
+        label = `🚨 期限切れ（${Math.abs(diffDays)}日経過）`;
+      } else if (diffDays === 0) {
+        label = "⚠️ 本日が期日";
+      } else if (diffDays === 1) {
+        label = "⚠️ 明日が期日";
+      } else {
+        label = "📅 1週間後が期日";
+      }
+      return `${label}　${task.title}　（${task.dueDate}　${assigneeNames}）`;
+    }).join("\n");
+
+    const text = `${mentionLine}*【${project.name}】タスク期日通知*\n${taskLines}`;
 
     try {
       await fetch("https://slack.com/api/chat.postMessage", {
@@ -167,5 +170,5 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  res.json({ ok: true, checked: notifications.length, sent });
+  res.json({ ok: true, checked: totalTasks, sent });
 };
