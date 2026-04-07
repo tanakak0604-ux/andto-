@@ -1351,10 +1351,7 @@ function CalendarPage({ projects, onUpdate }) {
             <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 420, width: "100%", boxShadow: "0 16px 48px rgba(0,0,0,0.18)" }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
                 <div style={{ fontSize: 15, fontWeight: 900, color: C.text, flex: 1, paddingRight: 12 }}>{selectedTask.title}</div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  {!editMode && <button onClick={() => { setEditMode(true); setEditForm({ title: selectedTask.title, dueDate: selectedTask.dueDate, status: selectedTask.status, priority: selectedTask.priority, assigneeIds: selectedTask.assigneeIds || [] }); }} style={BTN.ghost}>✏️ 編集</button>}
-                  <button onClick={() => setSelectedTask(null)} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
-                </div>
+                <button onClick={() => setSelectedTask(null)} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
               </div>
               {editMode ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1393,20 +1390,26 @@ function CalendarPage({ projects, onUpdate }) {
                   </div>
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {[
-                    ["📁 プロジェクト", <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: selectedTask.pColor, flexShrink: 0 }} />{selectedTask.pName}</span>],
-                    ["📅 期日", selectedTask.dueDate || "—"],
-                    ["👤 担当者", (() => { const names = (selectedTask.assigneeIds || []).map(id => (proj?.members || []).find(m => m.id === id)?.name).filter(Boolean); return names.length ? names.join("・") : "（未割当）"; })()],
-                    ["📊 ステータス", statusLabel(selectedTask.status)],
-                    ["🔺 優先度", <span style={{ color: priorityColor(selectedTask.priority), fontWeight: 700 }}>{priorityLabel(selectedTask.priority)}</span>],
-                  ].map(([label, val]) => (
-                    <div key={label} style={{ display: "flex", gap: 12, fontSize: 13 }}>
-                      <span style={{ color: C.muted, fontWeight: 700, whiteSpace: "nowrap", minWidth: 90 }}>{label}</span>
-                      <span style={{ color: C.text }}>{val}</span>
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                    {[
+                      ["📁 プロジェクト", <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: selectedTask.pColor, flexShrink: 0 }} />{selectedTask.pName}</span>],
+                      ["📅 期日", selectedTask.dueDate || "—"],
+                      ["👤 担当者", (() => { const names = (selectedTask.assigneeIds || []).map(id => (proj?.members || []).find(m => m.id === id)?.name).filter(Boolean); return names.length ? names.join("・") : "（未割当）"; })()],
+                      ["📊 ステータス", statusLabel(selectedTask.status)],
+                      ["🔺 優先度", <span style={{ color: priorityColor(selectedTask.priority), fontWeight: 700 }}>{priorityLabel(selectedTask.priority)}</span>],
+                    ].map(([label, val]) => (
+                      <div key={label} style={{ display: "flex", gap: 12, fontSize: 13 }}>
+                        <span style={{ color: C.muted, fontWeight: 700, whiteSpace: "nowrap", minWidth: 90 }}>{label}</span>
+                        <span style={{ color: C.text }}>{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button onClick={() => { setEditMode(true); setEditForm({ title: selectedTask.title, dueDate: selectedTask.dueDate, status: selectedTask.status, priority: selectedTask.priority, assigneeIds: selectedTask.assigneeIds || [] }); }} style={BTN.ghost}>✏️ 編集</button>
+                    <button onClick={() => { if (!proj) return; onUpdate({ ...proj, tasks: proj.tasks.filter(t => t.id !== selectedTask.id) }); setSelectedTask(null); }} style={BTN.danger}>🗑 削除</button>
+                  </div>
+                </>
               )}
             </div>
           </div>
