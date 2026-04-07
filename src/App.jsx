@@ -1301,11 +1301,12 @@ function CalendarPage({ projects, onUpdate }) {
               onDragOver={ds ? e => handleDragOver(e, ds) : undefined}
               onDrop={ds ? e => handleDrop(e, ds) : undefined}
               onDragLeave={() => setHoverDate(null)}
-              style={{ background: isHover ? C.sageLight : C.surface, minHeight: 90, padding: "7px 5px", boxSizing: "border-box", outline: isHover ? `2px solid ${C.sage}` : "none", outlineOffset: "-2px" }}>
+              onClick={ds ? () => { setAddEventModal({ date: ds }); setAddEventForm({ title: "", date: ds, projectId: projects[0]?.id || "" }); } : undefined}
+              style={{ background: isHover ? C.sageLight : C.surface, minHeight: 90, padding: "7px 5px", boxSizing: "border-box", outline: isHover ? `2px solid ${C.sage}` : "none", outlineOffset: "-2px", cursor: ds ? "pointer" : "default" }}>
               {day && <>
-                <div onClick={() => { setAddEventModal({ date: ds }); setAddEventForm({ title: "", date: ds, projectId: projects[0]?.id || "" }); }} style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: isToday ? C.accent : "transparent", color: isToday ? "#fff" : col === 5 ? C.done : col === 6 ? C.accent : C.text, fontSize: 13, fontWeight: isToday ? 800 : 400, marginBottom: 3, cursor: "pointer" }}>{day}</div>
+                <div style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: isToday ? C.accent : "transparent", color: isToday ? "#fff" : col === 5 ? C.done : col === 6 ? C.accent : C.text, fontSize: 13, fontWeight: isToday ? 800 : 400, marginBottom: 3 }}>{day}</div>
                 {(eventsByDate[ds] || []).map(ev => (
-                  <div key={ev.id} onClick={() => setSelectedEvent(ev)}
+                  <div key={ev.id} onClick={e => { e.stopPropagation(); setSelectedEvent(ev); }}
                     style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, marginBottom: 2, background: C.surface, border: `1px solid ${ev.pColor}`, color: C.text, fontWeight: 600, lineHeight: 1.4, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     📅 {ev.title}
                   </div>
@@ -1315,7 +1316,7 @@ function CalendarPage({ projects, onUpdate }) {
                     draggable
                     onDragStart={e => handleDragStart(e, t)}
                     onDragEnd={handleDragEnd}
-                    onClick={() => { setSelectedTask(t); setEditMode(false); setEditForm({}); }}
+                    onClick={e => { e.stopPropagation(); setSelectedTask(t); setEditMode(false); setEditForm({}); }}
                     style={{ fontSize: 12, padding: "3px 6px", borderRadius: 4, marginBottom: 2, background: t.pColor + "22", color: t.pColor, fontWeight: 700, lineHeight: 1.4, cursor: "grab", opacity: dragTask?.taskId === t.id ? 0.35 : 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", userSelect: "none" }}>
                     {t.status === "done" ? "✅ " : ""}{t.title}
                   </div>
