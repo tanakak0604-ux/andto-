@@ -1189,6 +1189,7 @@ function CalendarPage({ projects, onUpdate }) {
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [dragTask, setDragTask] = useState(null);
+  const [dragEvent, setDragEvent] = useState(null);
   const [hoverDate, setHoverDate] = useState(null);
   const [expandedDates, setExpandedDates] = useState({});
   const [addEventModal, setAddEventModal] = useState(null); // { date }
@@ -1241,16 +1242,26 @@ function CalendarPage({ projects, onUpdate }) {
     setDragTask({ taskId: t.id, pId: t.pId });
     e.dataTransfer.effectAllowed = "move";
   };
+  const handleEventDragStart = (e, ev) => {
+    setDragEvent({ eventId: ev.id, pId: ev.pId });
+    e.dataTransfer.effectAllowed = "move";
+  };
   const handleDragOver = (e, ds) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setHoverDate(ds); };
   const handleDrop = (e, ds) => {
     e.preventDefault(); setHoverDate(null);
+    if (dragEvent && ds && onUpdate) {
+      const proj = projects.find(p => p.id === dragEvent.pId);
+      if (proj) onUpdate({ ...proj, events: (proj.events || []).map(ev => ev.id === dragEvent.eventId ? { ...ev, date: ds } : ev) });
+      setDragEvent(null);
+      return;
+    }
     if (!dragTask || !ds || !onUpdate) return;
     const proj = projects.find(p => p.id === dragTask.pId);
     if (!proj) return;
     onUpdate({ ...proj, tasks: proj.tasks.map(t => t.id === dragTask.taskId ? { ...t, dueDate: ds } : t) });
     setDragTask(null);
   };
-  const handleDragEnd = () => { setDragTask(null); setHoverDate(null); };
+  const handleDragEnd = () => { setDragTask(null); setDragEvent(null); setHoverDate(null); };
 
   const filterBtn = (active, color, label, onClick) => (
     <button onClick={onClick} style={btn({ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: active ? color : "transparent", color: active ? "#fff" : C.muted, border: `1.5px solid ${active ? color : C.border}` })}>{label}</button>
@@ -1293,7 +1304,7 @@ function CalendarPage({ projects, onUpdate }) {
           const tasks = ds ? (byDate[ds] || []) : [];
           const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
           const col = i % 7;
-          const isHover = !!ds && hoverDate === ds && !!dragTask;
+          const isHover = !!ds && hoverDate === ds && !!(dragTask || dragEvent);
           const LIMIT = 5;
           const isExpanded = !!expandedDates[ds];
           const shown = tasks.length > LIMIT && !isExpanded ? tasks.slice(0, LIMIT) : tasks;
@@ -1308,8 +1319,12 @@ function CalendarPage({ projects, onUpdate }) {
               {day && <>
                 <div style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: isToday ? C.accent : "transparent", color: isToday ? "#fff" : col === 5 ? C.done : col === 6 ? C.accent : C.text, fontSize: 13, fontWeight: isToday ? 800 : 400, marginBottom: 3 }}>{day}</div>
                 {(eventsByDate[ds] || []).map(ev => (
-                  <div key={ev.id} onClick={e => { e.stopPropagation(); setSelectedEvent(ev); }}
-                    style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, marginBottom: 2, background: C.surface, border: `1px solid ${ev.pColor}`, color: C.text, fontWeight: 600, lineHeight: 1.4, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div key={ev.id}
+                    draggable
+                    onDragStart={e => { e.stopPropagation(); handleEventDragStart(e, ev); }}
+                    onDragEnd={handleDragEnd}
+                    onClick={e => { e.stopPropagation(); setSelectedEvent(ev); }}
+                    style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, marginBottom: 2, background: C.surface, border: `1px solid ${ev.pColor}`, color: C.text, fontWeight: 600, lineHeight: 1.4, cursor: "grab", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: dragEvent?.eventId === ev.id ? 0.35 : 1, userSelect: "none" }}>
                     📅 {ev.title}
                   </div>
                 ))}
