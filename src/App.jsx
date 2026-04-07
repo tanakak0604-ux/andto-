@@ -1191,6 +1191,9 @@ function CalendarPage({ projects, onUpdate }) {
   const [dragTask, setDragTask] = useState(null);
   const [hoverDate, setHoverDate] = useState(null);
   const [expandedDates, setExpandedDates] = useState({});
+  const [addEventModal, setAddEventModal] = useState(null); // { date }
+  const [addEventForm, setAddEventForm] = useState({ title: "", date: "", projectId: "" });
+  const [selectedEvent, setSelectedEvent] = useState(null); // { event, projectId }
 
   useEffect(() => { localStorage.setItem('taskflow-calendar-members', JSON.stringify(selectedMembers)); }, [selectedMembers]);
   useEffect(() => { localStorage.setItem('taskflow-calendar-projects', JSON.stringify(selectedProjects)); }, [selectedProjects]);
@@ -1209,6 +1212,12 @@ function CalendarPage({ projects, onUpdate }) {
   const filteredTasks = selectedMembers.length === 0
     ? projFiltered
     : projFiltered.filter(t => (t.assigneeIds || []).some(id => selectedMembers.includes(id)));
+
+  // イベント収集（プロジェクトフィルター連動）
+  const allEvents = projects.flatMap(p => (p.events || []).map(e => ({ ...e, pId: p.id, pColor: p.color, pName: p.name })));
+  const filteredEvents = selectedProjects.length === 0 ? allEvents : allEvents.filter(e => selectedProjects.includes(e.pId));
+  const eventsByDate = {};
+  filteredEvents.forEach(e => { if (e.date) { if (!eventsByDate[e.date]) eventsByDate[e.date] = []; eventsByDate[e.date].push(e); } });
 
   const firstDayRaw = new Date(year, month, 1).getDay();
   const firstDay = firstDayRaw === 0 ? 6 : firstDayRaw - 1;
@@ -1294,7 +1303,13 @@ function CalendarPage({ projects, onUpdate }) {
               onDragLeave={() => setHoverDate(null)}
               style={{ background: isHover ? C.sageLight : C.surface, minHeight: 90, padding: "7px 5px", boxSizing: "border-box", outline: isHover ? `2px solid ${C.sage}` : "none", outlineOffset: "-2px" }}>
               {day && <>
-                <div style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: isToday ? C.accent : "transparent", color: isToday ? "#fff" : col === 5 ? C.done : col === 6 ? C.accent : C.text, fontSize: 13, fontWeight: isToday ? 800 : 400, marginBottom: 3 }}>{day}</div>
+                <div onClick={() => { setAddEventModal({ date: ds }); setAddEventForm({ title: "", date: ds, projectId: projects[0]?.id || "" }); }} style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: isToday ? C.accent : "transparent", color: isToday ? "#fff" : col === 5 ? C.done : col === 6 ? C.accent : C.text, fontSize: 13, fontWeight: isToday ? 800 : 400, marginBottom: 3, cursor: "pointer" }}>{day}</div>
+                {(eventsByDate[ds] || []).map(ev => (
+                  <div key={ev.id} onClick={() => setSelectedEvent(ev)}
+                    style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, marginBottom: 2, background: C.surface, border: `1px solid ${ev.pColor}`, color: C.text, fontWeight: 600, lineHeight: 1.4, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    📅 {ev.title}
+                  </div>
+                ))}
                 {shown.map(t => (
                   <div key={t.id}
                     draggable
@@ -1394,6 +1409,72 @@ function CalendarPage({ projects, onUpdate }) {
           </div>
         );
       })()}
+
+      {/* 予定追加モーダル */}
+      {addEventModal && (
+        <div onClick={() => setAddEventModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 360, width: "100%", boxShadow: "0 16px 48px rgba(0,0,0,0.18)" }}>
+            <div style={{ fontSize: 15, fontWeight: 900, color: C.text, marginBottom: 18 }}>📅 予定を追加</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>タイトル *</label>
+                <input autoFocus value={addEventForm.title} onChange={e => setAddEventForm(f => ({ ...f, title: e.target.value }))} style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>日付</label>
+                <input type="date" value={addEventForm.date} onChange={e => setAddEventForm(f => ({ ...f, date: e.target.value }))} style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>プロジェクト</label>
+                <select value={addEventForm.projectId} onChange={e => setAddEventForm(f => ({ ...f, projectId: e.target.value }))} style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                <button onClick={() => setAddEventModal(null)} style={BTN.ghost}>キャンセル</button>
+                <button onClick={() => {
+                  if (!addEventForm.title.trim() || !addEventForm.projectId) return;
+                  const proj = projects.find(p => p.id === addEventForm.projectId);
+                  if (!proj) return;
+                  const newEvent = { id: uid(), title: addEventForm.title.trim(), date: addEventForm.date };
+                  onUpdate({ ...proj, events: [...(proj.events || []), newEvent] });
+                  setAddEventModal(null);
+                }} style={BTN.primary}>追加</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 予定詳細/削除モーダル */}
+      {selectedEvent && (
+        <div onClick={() => setSelectedEvent(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 360, width: "100%", boxShadow: "0 16px 48px rgba(0,0,0,0.18)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 900, color: C.text }}>📅 {selectedEvent.title}</div>
+              <button onClick={() => setSelectedEvent(null)} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+              <div style={{ display: "flex", gap: 12, fontSize: 13 }}>
+                <span style={{ color: C.muted, fontWeight: 700, minWidth: 80 }}>📁 プロジェクト</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: selectedEvent.pColor, flexShrink: 0 }} />{selectedEvent.pName}</span>
+              </div>
+              <div style={{ display: "flex", gap: 12, fontSize: 13 }}>
+                <span style={{ color: C.muted, fontWeight: 700, minWidth: 80 }}>📅 日付</span>
+                <span>{selectedEvent.date}</span>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button onClick={() => {
+                const proj = projects.find(p => p.id === selectedEvent.pId);
+                if (!proj) return;
+                onUpdate({ ...proj, events: (proj.events || []).filter(e => e.id !== selectedEvent.id) });
+                setSelectedEvent(null);
+              }} style={BTN.danger}>🗑 削除</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
