@@ -879,7 +879,20 @@ function KanbanPage({ project, onUpdate }) {
   );
 }
 
-const COLOR_PALETTE = ["#6B8F71","#C8A84B","#7B9EC0","#C8694A","#9B8EC0","#4A9B8E","#C8697A","#8E9B4A"];
+const COLOR_PALETTE = [
+  // グリーン系
+  "#6B8F71","#4A9B8E","#3D8B6E","#8EC07C",
+  // ブルー系
+  "#7B9EC0","#4A7FB5","#5B8DB8","#7BAFD4",
+  // パープル系
+  "#9B8EC0","#7B6BAF","#A87BC0","#C0A0C8",
+  // レッド・ピンク系
+  "#C8694A","#C8697A","#B85C6E","#D4826E",
+  // イエロー・オレンジ系
+  "#C8A84B","#D4956A","#C8873A","#B8A042",
+  // グレー系
+  "#8E9B4A","#7A8A6E","#9A9A9A","#6E8080",
+];
 const PHASE_LABELS = ["調査企画", "基本計画", "基本設計", "実施設計", "監理", "竣工"];
 
 function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes, onViewDecisions, onReorder }) {
