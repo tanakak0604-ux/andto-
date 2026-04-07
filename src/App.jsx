@@ -1194,6 +1194,8 @@ function CalendarPage({ projects, onUpdate }) {
   const [addEventModal, setAddEventModal] = useState(null); // { date }
   const [addEventForm, setAddEventForm] = useState({ title: "", date: "", projectId: "" });
   const [selectedEvent, setSelectedEvent] = useState(null); // { event, projectId }
+  const [editEventMode, setEditEventMode] = useState(false);
+  const [editEventForm, setEditEventForm] = useState({ title: "", date: "", projectId: "" });
 
   useEffect(() => { localStorage.setItem('taskflow-calendar-members', JSON.stringify(selectedMembers)); }, [selectedMembers]);
   useEffect(() => { localStorage.setItem('taskflow-calendar-projects', JSON.stringify(selectedProjects)); }, [selectedProjects]);
@@ -1447,32 +1449,71 @@ function CalendarPage({ projects, onUpdate }) {
         </div>
       )}
 
-      {/* 予定詳細/削除モーダル */}
+      {/* 予定詳細/編集/削除モーダル */}
       {selectedEvent && (
-        <div onClick={() => setSelectedEvent(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div onClick={() => { setSelectedEvent(null); setEditEventMode(false); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 360, width: "100%", boxShadow: "0 16px 48px rgba(0,0,0,0.18)" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ fontSize: 15, fontWeight: 900, color: C.text }}>📅 {selectedEvent.title}</div>
-              <button onClick={() => setSelectedEvent(null)} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
+              <div style={{ fontSize: 15, fontWeight: 900, color: C.text }}>📅 {editEventMode ? "予定を編集" : selectedEvent.title}</div>
+              <button onClick={() => { setSelectedEvent(null); setEditEventMode(false); }} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-              <div style={{ display: "flex", gap: 12, fontSize: 13 }}>
-                <span style={{ color: C.muted, fontWeight: 700, minWidth: 80 }}>📁 プロジェクト</span>
-                <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: selectedEvent.pColor, flexShrink: 0 }} />{selectedEvent.pName}</span>
+            {editEventMode ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>タイトル</label>
+                  <input value={editEventForm.title} onChange={e => setEditEventForm(f => ({ ...f, title: e.target.value }))} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 14, outline: "none" }} autoFocus />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>日付</label>
+                  <input type="date" value={editEventForm.date} onChange={e => setEditEventForm(f => ({ ...f, date: e.target.value }))} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 14, outline: "none" }} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>プロジェクト</label>
+                  <select value={editEventForm.projectId} onChange={e => setEditEventForm(f => ({ ...f, projectId: e.target.value }))} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 14, outline: "none" }}>
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                  <button onClick={() => setEditEventMode(false)} style={BTN.ghost}>キャンセル</button>
+                  <button onClick={() => {
+                    if (!editEventForm.title.trim() || !editEventForm.projectId) return;
+                    const oldProj = projects.find(p => p.id === selectedEvent.pId);
+                    const newProj = projects.find(p => p.id === editEventForm.projectId);
+                    if (!oldProj || !newProj) return;
+                    const updatedEvent = { id: selectedEvent.id, title: editEventForm.title.trim(), date: editEventForm.date };
+                    if (oldProj.id === newProj.id) {
+                      onUpdate({ ...oldProj, events: (oldProj.events || []).map(e => e.id === selectedEvent.id ? updatedEvent : e) });
+                    } else {
+                      onUpdate({ ...oldProj, events: (oldProj.events || []).filter(e => e.id !== selectedEvent.id) });
+                      onUpdate({ ...newProj, events: [...(newProj.events || []), updatedEvent] });
+                    }
+                    setSelectedEvent(null); setEditEventMode(false);
+                  }} style={BTN.primary}>保存</button>
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 12, fontSize: 13 }}>
-                <span style={{ color: C.muted, fontWeight: 700, minWidth: 80 }}>📅 日付</span>
-                <span>{selectedEvent.date}</span>
-              </div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={() => {
-                const proj = projects.find(p => p.id === selectedEvent.pId);
-                if (!proj) return;
-                onUpdate({ ...proj, events: (proj.events || []).filter(e => e.id !== selectedEvent.id) });
-                setSelectedEvent(null);
-              }} style={BTN.danger}>🗑 削除</button>
-            </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+                  <div style={{ display: "flex", gap: 12, fontSize: 13 }}>
+                    <span style={{ color: C.muted, fontWeight: 700, minWidth: 80 }}>📁 プロジェクト</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: selectedEvent.pColor, flexShrink: 0 }} />{selectedEvent.pName}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 12, fontSize: 13 }}>
+                    <span style={{ color: C.muted, fontWeight: 700, minWidth: 80 }}>📅 日付</span>
+                    <span>{selectedEvent.date}</span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <button onClick={() => { setEditEventMode(true); setEditEventForm({ title: selectedEvent.title, date: selectedEvent.date, projectId: selectedEvent.pId }); }} style={BTN.ghost}>編集</button>
+                  <button onClick={() => {
+                    const proj = projects.find(p => p.id === selectedEvent.pId);
+                    if (!proj) return;
+                    onUpdate({ ...proj, events: (proj.events || []).filter(e => e.id !== selectedEvent.id) });
+                    setSelectedEvent(null);
+                  }} style={BTN.danger}>🗑 削除</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
