@@ -1186,6 +1186,8 @@ function CalendarPage({ projects, onUpdate }) {
   const [selectedProjects, setSelectedProjects] = useState(() => { try { return JSON.parse(localStorage.getItem('taskflow-calendar-projects') || '[]'); } catch { return []; } });
   const [selectedMembers, setSelectedMembers] = useState(() => { try { return JSON.parse(localStorage.getItem('taskflow-calendar-members') || '[]'); } catch { return []; } });
   const [selectedTask, setSelectedTask] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({});
   const [dragTask, setDragTask] = useState(null);
   const [hoverDate, setHoverDate] = useState(null);
   const [expandedDates, setExpandedDates] = useState({});
@@ -1298,7 +1300,7 @@ function CalendarPage({ projects, onUpdate }) {
                     draggable
                     onDragStart={e => handleDragStart(e, t)}
                     onDragEnd={handleDragEnd}
-                    onClick={() => setSelectedTask(t)}
+                    onClick={() => { setSelectedTask(t); setEditMode(false); setEditForm({}); }}
                     style={{ fontSize: 12, padding: "3px 6px", borderRadius: 4, marginBottom: 2, background: t.pColor + "22", color: t.pColor, fontWeight: 700, lineHeight: 1.4, cursor: "grab", opacity: dragTask?.taskId === t.id ? 0.35 : 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", userSelect: "none" }}>
                     {t.status === "done" ? "✅ " : ""}{t.title}
                   </div>
@@ -1317,35 +1319,81 @@ function CalendarPage({ projects, onUpdate }) {
         })}
       </div>
 
-      {/* タスク詳細モーダル */}
-      {selectedTask && (
-        <div onClick={() => setSelectedTask(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 400, width: "100%", boxShadow: "0 16px 48px rgba(0,0,0,0.18)" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ fontSize: 15, fontWeight: 900, color: C.text, flex: 1, paddingRight: 12 }}>{selectedTask.title}</div>
-              <button onClick={() => setSelectedTask(null)} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[
-                ["📁 プロジェクト", <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: selectedTask.pColor, flexShrink: 0 }} />{selectedTask.pName}</span>],
-                ["📅 期日", selectedTask.dueDate || "—"],
-                ["👤 担当者", (() => {
-                  const proj = projects.find(p => p.id === selectedTask.pId);
-                  const names = (selectedTask.assigneeIds || []).map(id => (proj?.members || []).find(m => m.id === id)?.name).filter(Boolean);
-                  return names.length ? names.join("・") : "（未割当）";
-                })()],
-                ["📊 ステータス", statusLabel(selectedTask.status)],
-                ["🔺 優先度", <span style={{ color: priorityColor(selectedTask.priority), fontWeight: 700 }}>{priorityLabel(selectedTask.priority)}</span>],
-              ].map(([label, val]) => (
-                <div key={label} style={{ display: "flex", gap: 12, fontSize: 13 }}>
-                  <span style={{ color: C.muted, fontWeight: 700, whiteSpace: "nowrap", minWidth: 90 }}>{label}</span>
-                  <span style={{ color: C.text }}>{val}</span>
+      {/* タスク詳細/編集モーダル */}
+      {selectedTask && (() => {
+        const proj = projects.find(p => p.id === selectedTask.pId);
+        const saveEdit = () => {
+          if (!proj) return;
+          onUpdate({ ...proj, tasks: proj.tasks.map(t => t.id === selectedTask.id ? { ...t, ...editForm } : t) });
+          setSelectedTask(t => ({ ...t, ...editForm }));
+          setEditMode(false);
+        };
+        return (
+          <div onClick={() => setSelectedTask(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 420, width: "100%", boxShadow: "0 16px 48px rgba(0,0,0,0.18)" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+                <div style={{ fontSize: 15, fontWeight: 900, color: C.text, flex: 1, paddingRight: 12 }}>{selectedTask.title}</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {!editMode && <button onClick={() => { setEditMode(true); setEditForm({ title: selectedTask.title, dueDate: selectedTask.dueDate, status: selectedTask.status, priority: selectedTask.priority, assigneeIds: selectedTask.assigneeIds || [] }); }} style={BTN.ghost}>✏️ 編集</button>}
+                  <button onClick={() => setSelectedTask(null)} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
                 </div>
-              ))}
+              </div>
+              {editMode ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>タイトル</label>
+                    <input value={editForm.title || ""} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>期日</label>
+                    <input type="date" value={editForm.dueDate || ""} onChange={e => setEditForm(f => ({ ...f, dueDate: e.target.value }))} style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>ステータス</label>
+                    <select value={editForm.status || "todo"} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))} style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}>
+                      <option value="todo">未着手</option><option value="doing">進行中</option><option value="done">完了</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>優先度</label>
+                    <select value={editForm.priority || "medium"} onChange={e => setEditForm(f => ({ ...f, priority: e.target.value }))} style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}>
+                      <option value="high">高</option><option value="medium">中</option><option value="low">低</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 6 }}>担当者</label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {(proj?.members || []).map(m => {
+                        const sel = (editForm.assigneeIds || []).includes(m.id);
+                        return <button key={m.id} type="button" onClick={() => setEditForm(f => ({ ...f, assigneeIds: sel ? (f.assigneeIds||[]).filter(id=>id!==m.id) : [...(f.assigneeIds||[]), m.id] }))} style={btn({ padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: sel ? C.sage : "transparent", color: sel ? "#fff" : C.muted, border: `1.5px solid ${sel ? C.sage : C.border}` })}>{sel ? "✓ " : ""}{m.name}</button>;
+                      })}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                    <button onClick={() => setEditMode(false)} style={BTN.ghost}>キャンセル</button>
+                    <button onClick={saveEdit} style={BTN.primary}>保存</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {[
+                    ["📁 プロジェクト", <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: "50%", background: selectedTask.pColor, flexShrink: 0 }} />{selectedTask.pName}</span>],
+                    ["📅 期日", selectedTask.dueDate || "—"],
+                    ["👤 担当者", (() => { const names = (selectedTask.assigneeIds || []).map(id => (proj?.members || []).find(m => m.id === id)?.name).filter(Boolean); return names.length ? names.join("・") : "（未割当）"; })()],
+                    ["📊 ステータス", statusLabel(selectedTask.status)],
+                    ["🔺 優先度", <span style={{ color: priorityColor(selectedTask.priority), fontWeight: 700 }}>{priorityLabel(selectedTask.priority)}</span>],
+                  ].map(([label, val]) => (
+                    <div key={label} style={{ display: "flex", gap: 12, fontSize: 13 }}>
+                      <span style={{ color: C.muted, fontWeight: 700, whiteSpace: "nowrap", minWidth: 90 }}>{label}</span>
+                      <span style={{ color: C.text }}>{val}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
