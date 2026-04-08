@@ -3837,11 +3837,8 @@ export default function App() {
 
   if (!storageReady) return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif" }}>
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
-        <div style={{ width:36, height:36, borderRadius:"50%", border:`3px solid ${C.border}`, borderTopColor:C.sage, animation:"spin 0.8s linear infinite" }} />
-        <span style={{ fontSize:13, color:C.muted, fontWeight:600 }}>読み込み中...</span>
-      </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <img src={logo} alt="andto" style={{ height:36, objectFit:"contain", animation:"pulse 1.6s ease-in-out infinite" }} />
+      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
     </div>
   );
 
