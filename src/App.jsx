@@ -3844,6 +3844,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif", color:C.text }}>
+      <style>{`.nav-scroll::-webkit-scrollbar { display: none; }`}</style>
       {saveError && (
         <div style={{ background:"#DC2626", color:"#fff", padding:"10px 20px", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"space-between", zIndex:9999 }}>
           <span>⚠️ {saveError}</span>
@@ -3883,7 +3884,7 @@ export default function App() {
           </div>
         </div>
       )}
-      <div style={{ background:C.surface, borderBottom:`1.5px solid ${C.border}`, display:"flex", alignItems:"stretch", overflowX:"auto", paddingLeft:20 }}>
+      <div className="nav-scroll" style={{ background:C.surface, borderBottom:`1.5px solid ${C.border}`, display:"flex", alignItems:"stretch", overflowX:"auto", paddingLeft:20, scrollbarWidth:"none", msOverflowStyle:"none" }}>
         <div style={{ paddingRight:20, display:"flex", alignItems:"center", borderRight:`1px solid ${C.border}`, marginRight:4, flexShrink:0 }}>
   <img src={logo} alt="logo" style={{ height:20, objectFit:"contain" }} />
 </div>
