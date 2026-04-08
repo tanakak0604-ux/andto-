@@ -3885,7 +3885,7 @@ export default function App() {
       )}
       <div style={{ background:C.surface, borderBottom:`1.5px solid ${C.border}`, display:"flex", alignItems:"stretch", overflowX:"auto", paddingLeft:20 }}>
         <div style={{ paddingRight:20, display:"flex", alignItems:"center", borderRight:`1px solid ${C.border}`, marginRight:4, flexShrink:0 }}>
-  <img src={logo} alt="logo" style={{ height:32, objectFit:"contain" }} />
+  <img src={logo} alt="logo" style={{ height:20, objectFit:"contain" }} />
 </div>
         {[["projects","📁 Projects"],["calendar","📅 カレンダー"],["minutes","✨ 議事録作成"],["members","👥 メンバー"]].map(([id,lbl])=>(
           <button key={id} onClick={()=>setTab(id)} style={btn({padding:"0 16px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===id?C.accent:C.muted,borderBottom:tab===id?`2.5px solid ${C.accent}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap"})}>{lbl}</button>
