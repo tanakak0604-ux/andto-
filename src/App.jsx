@@ -933,7 +933,7 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
           const todo = p.tasks.filter(t => t.status==="todo").length;
           const pct = p.tasks.length ? Math.round(done/p.tasks.length*100) : 0;
           return (
-            <div key={p.id} draggable
+            <div key={p.id} draggable className="card-anim"
               onDragStart={()=>setDragId(p.id)}
               onDragOver={e=>e.preventDefault()}
               onDrop={()=>{ if(!dragId||dragId===p.id)return; const ids=projects.map(x=>x.id); const from=ids.indexOf(dragId); const to=ids.indexOf(p.id); const next=[...ids]; next.splice(from,1); next.splice(to,0,dragId); onReorder(next); setDragId(null); }}
@@ -3843,7 +3843,14 @@ export default function App() {
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif", color:C.text }}>
-      <style>{`.nav-scroll::-webkit-scrollbar { display: none; } .nav-tab:hover { background: rgba(0,0,0,0.04) !important; }`}</style>
+      <style>{`
+        .nav-scroll::-webkit-scrollbar { display: none; }
+        .nav-tab:hover { background: rgba(0,0,0,0.04) !important; }
+        @keyframes fadeInLeft { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .nav-tab-anim { animation: fadeInLeft 0.4s ease both; }
+        .card-anim { animation: fadeIn 0.4s ease both; }
+      `}</style>
       {saveError && (
         <div style={{ background:"#DC2626", color:"#fff", padding:"10px 20px", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"space-between", zIndex:9999 }}>
           <span>⚠️ {saveError}</span>
@@ -3887,17 +3894,17 @@ export default function App() {
         <div style={{ paddingRight:20, display:"flex", alignItems:"center", borderRight:`1px solid ${C.border}`, marginRight:4, flexShrink:0 }}>
   <img src={logo} alt="logo" style={{ height:20, objectFit:"contain" }} />
 </div>
-        {[["projects","📁 Projects"],["calendar","📅 カレンダー"],["minutes","✨ 議事録作成"],["members","👥 メンバー"]].map(([id,lbl])=>(
-          <button key={id} onClick={()=>setTab(id)} className="nav-tab" style={btn({padding:"0 16px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===id?C.accent:C.muted,borderBottom:tab===id?`2.5px solid ${C.accent}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap"})}>{lbl}</button>
+        {[["projects","📁 Projects"],["calendar","📅 カレンダー"],["minutes","✨ 議事録作成"],["members","👥 メンバー"]].map(([id,lbl],i)=>(
+          <button key={id} onClick={()=>setTab(id)} className="nav-tab nav-tab-anim" style={{...btn({padding:"0 16px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===id?C.accent:C.muted,borderBottom:tab===id?`2.5px solid ${C.accent}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap"}), animationDelay:`${i*40}ms`}}>{lbl}</button>
         ))}
         <div style={{ width:1, background:C.border, margin:"10px 8px", flexShrink:0 }} />
-        {sortedProjects.map(p=>(
-          <button key={p.id} draggable onClick={()=>setTab(p.id)} className="nav-tab"
+        {sortedProjects.map((p,i)=>(
+          <button key={p.id} draggable onClick={()=>setTab(p.id)} className="nav-tab nav-tab-anim"
             onDragStart={()=>setDragTabId(p.id)}
             onDragOver={e=>e.preventDefault()}
             onDrop={()=>{ if(!dragTabId||dragTabId===p.id)return; const ids=sortedProjects.map(x=>x.id); const from=ids.indexOf(dragTabId); const to=ids.indexOf(p.id); const next=[...ids]; next.splice(from,1); next.splice(to,0,dragTabId); reorderProjects(next); setDragTabId(null); }}
             onDragEnd={()=>setDragTabId(null)}
-            style={btn({padding:"0 14px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===p.id?p.color:C.muted,borderBottom:tab===p.id?`2.5px solid ${p.color}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,opacity:dragTabId===p.id?0.5:1,cursor:"grab"})}>
+            style={{...btn({padding:"0 14px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===p.id?p.color:C.muted,borderBottom:tab===p.id?`2.5px solid ${p.color}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,opacity:dragTabId===p.id?0.5:1,cursor:"grab"}), animationDelay:`${(4+i)*40}ms`}}>
             <span style={{ width:7, height:7, borderRadius:"50%", background:p.color }} />{p.name}
           </button>
         ))}
