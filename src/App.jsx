@@ -926,7 +926,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
 
   return (
     <div style={{ padding: 24 }}>
-      <h2 style={{ fontSize: 18, fontWeight: 900, color: C.text, marginBottom: 20 }}>Projects</h2>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 18 }}>
         {projects.map(p => {
           const done = p.tasks.filter(t => t.status==="done").length;
