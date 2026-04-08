@@ -3590,7 +3590,7 @@ function Toast({ message, onClose }) {
 }
 
 export default function App() {
-  const [projects, setProjects] = useState(INIT_PROJECTS);
+  const [projects, setProjects] = useState([]);
   const [projectOrder, setProjectOrder] = useState(() => { try { return JSON.parse(localStorage.getItem('taskflow-project-order') || '[]'); } catch { return []; } });
   const [tab, setTab] = useState("projects");
   const [showAdd, setShowAdd] = useState(false);
@@ -3834,6 +3834,16 @@ export default function App() {
   };
 
   const importRef = useRef(null);
+
+  if (!storageReady) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif" }}>
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
+        <div style={{ width:36, height:36, borderRadius:"50%", border:`3px solid ${C.border}`, borderTopColor:C.sage, animation:"spin 0.8s linear infinite" }} />
+        <span style={{ fontSize:13, color:C.muted, fontWeight:600 }}>読み込み中...</span>
+      </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif", color:C.text }}>
