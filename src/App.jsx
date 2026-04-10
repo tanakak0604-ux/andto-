@@ -503,7 +503,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
     if (!b.dueDate) return -1;
     return new Date(a.dueDate) - new Date(b.dueDate);
   });
-  const [openFolders, setOpenFolders] = useState(() => Object.fromEntries(folders.map(f => [f.id, true])));
+  const [openFolders, setOpenFolders] = useState(() => Object.fromEntries(folders.map(f => [f.id, status !== "done"])));
   const [addingFolder, setAddingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [over, setOver] = useState(null);
