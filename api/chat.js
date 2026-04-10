@@ -1,13 +1,5 @@
 const TWENTY_MB = 20 * 1024 * 1024;
 
-module.exports.config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "50mb",
-    },
-  },
-};
-
 async function uploadToFileApi(audioBase64, mimeType, apiKey) {
   const buffer = Buffer.from(audioBase64, "base64");
   const numBytes = buffer.length;
@@ -46,7 +38,7 @@ async function uploadToFileApi(audioBase64, mimeType, apiKey) {
   return fileUri;
 }
 
-module.exports = async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -98,4 +90,14 @@ module.exports = async function handler(req, res) {
   } catch (e) {
     res.status(500).json({ error: { message: e.message } });
   }
+}
+
+handler.config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "50mb",
+    },
+  },
 };
+
+module.exports = handler;
