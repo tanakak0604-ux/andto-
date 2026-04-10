@@ -1624,16 +1624,8 @@ function MinutesPage({ projects, onUpdateProject }) {
         r.onload = ev => setAttachedFiles(prev => [...prev, { name: f.name, content: ev.target.result, isAudio: false }]);
         r.readAsText(f);
       } else if (f.name.endsWith(".mp3") || f.type === "audio/mpeg") {
-        if (f.size > 35 * 1024 * 1024) {
-          alert(`「${f.name}」は35MBを超えています。より短い録音か圧縮したファイルを使用してください。`);
-          return;
-        }
-        const r = new FileReader();
-        r.onload = ev => {
-          const base64 = ev.target.result.split(",")[1];
-          setAttachedFiles(prev => [...prev, { name: f.name, isAudio: true, audioBase64: base64, mimeType: "audio/mp3" }]);
-        };
-        r.readAsDataURL(f);
+        // File objectをそのまま保持（直接Geminiにアップロード）
+        setAttachedFiles(prev => [...prev, { name: f.name, isAudio: true, file: f, mimeType: "audio/mp3" }]);
       } else {
         setAttachedFiles(prev => [...prev, { name: f.name, content: `[ファイル: ${f.name}]\n（.txt / .md / .mp3 のみ対応）`, isAudio: false }]);
       }
@@ -1715,15 +1707,50 @@ function MinutesPage({ projects, onUpdateProject }) {
     const learningNote = learningPatterns.length > 0
       ? `\n\n【過去の修正パターン（参考にして議事録の質を向上させてください）】\n${learningPatterns.map((l, i) => `${i+1}. ${l.instruction}`).join("\n")}`
       : "";
-    const audioFile = attachedFiles.find(f => f.isAudio);
+    const audioAttachment = attachedFiles.find(f => f.isAudio);
     const combinedText = [
       ...attachedFiles.filter(f => !f.isAudio).map((f, i) => `【ファイル${i + 1}：${f.name}】\n${f.content}`),
       text.trim() ? text : null,
     ].filter(Boolean).join("\n\n");
-    const audioNote = audioFile ? `\n\n【音声ファイル】「${audioFile.name}」が添付されています。音声を文字起こしし、議事録に反映してください。` : "";
+
+    // 音声ファイルをGemini File APIに直接アップロード
+    let audioFileUri = undefined;
+    if (audioAttachment) {
+      try {
+        // 1. セッションURL取得
+        const sessionRes = await fetch("/api/gemini-upload-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileSize: audioAttachment.file.size, mimeType: audioAttachment.mimeType }),
+          signal: abortControllerRef.current?.signal,
+        });
+        const sessionData = await sessionRes.json();
+        if (sessionData.error) throw new Error(sessionData.error);
+
+        // 2. Geminiに直接アップロード
+        const uploadRes = await fetch(sessionData.uploadUrl, {
+          method: "POST",
+          headers: {
+            "X-Goog-Upload-Command": "upload, finalize",
+            "X-Goog-Upload-Offset": "0",
+            "Content-Type": audioAttachment.mimeType,
+          },
+          body: audioAttachment.file,
+        });
+        const uploadData = await uploadRes.json();
+        audioFileUri = uploadData?.file?.uri;
+        if (!audioFileUri) throw new Error("音声アップロード失敗");
+      } catch (e) {
+        setLoading(false);
+        setGenError("音声アップロードエラー: " + e.message);
+        return;
+      }
+    }
+
+    const audioNote = audioAttachment ? `\n\n【音声ファイル】「${audioAttachment.name}」が添付されています。音声を文字起こしし、議事録に反映してください。` : "";
     const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}${learningNote}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${combinedText}${audioNote}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
     try {
-      const result = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: userContent }], signal: abortControllerRef.current?.signal, audioFile: audioFile ? { data: audioFile.audioBase64, mimeType: audioFile.mimeType } : undefined });
+      const result = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: userContent }], signal: abortControllerRef.current?.signal, audioFileUri });
       let hasAiComp = false;
       if (result.includes("※AI補完") || result.includes("※AI要約")) {
         setPendingMinutes(result);
@@ -2096,7 +2123,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                   <button onClick={()=>generateMinutes(false)} disabled={(!text.trim()&&attachedFiles.length===0)||!selProj||loading}
                     onMouseEnter={()=>setHoveredGenBtn(true)} onMouseLeave={()=>setHoveredGenBtn(false)}
                     style={{ background: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "#B0B0B0" : hoveredGenBtn ? "#3D8579" : "#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"10px 24px", fontSize:14, fontWeight:600, cursor: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}>
-                    {loading?"⏳ 生成中...":"✨ 議事録を生成する"}
+                    {loading ? (attachedFiles.some(f=>f.isAudio) ? "🎙 音声処理中..." : "⏳ 生成中...") : "✨ 議事録を生成する"}
                   </button>
                   {loading && <button onClick={cancelGenerate} style={{ background:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"10px 18px", fontSize:13, fontWeight:600, cursor:"pointer" }}>キャンセル</button>}
                 </div>
