@@ -1713,28 +1713,49 @@ function MinutesPage({ projects, onUpdateProject }) {
       text.trim() ? text : null,
     ].filter(Boolean).join("\n\n");
 
-    // 音声ファイルをEdge Function経由でGemini File APIにアップロード（バイナリ直送、8MB単位）
+    // 音声ファイルをブラウザから Gemini File API に直接アップロード（multipart, CORS対応エンドポイント使用）
     let audioFileUri = undefined;
     if (audioAttachment) {
       try {
-        const uploadRes = await fetch("/api/audio-upload", {
-          method: "POST",
-          headers: {
-            "X-Mime-Type": audioAttachment.mimeType,
-            "X-File-Size": String(audioAttachment.file.size),
-            "Content-Type": audioAttachment.mimeType,
-          },
-          body: audioAttachment.file,
-          signal: abortControllerRef.current?.signal,
-        });
+        // API キーをサーバーから取得
+        const keyRes = await fetch("/api/gemini-key", { signal: abortControllerRef.current?.signal });
+        const { key: geminiKey } = await keyRes.json();
+        if (!geminiKey) throw new Error("APIキーが取得できませんでした");
+
+        // multipart/related ボディを手動構築（base64不要・バイナリそのまま）
+        const boundary = "gem_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+        const meta = JSON.stringify({ file: { display_name: audioAttachment.name } });
+        const encoder = new TextEncoder();
+        const header = encoder.encode(
+          `--${boundary}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${audioAttachment.mimeType}\r\n\r\n`
+        );
+        const footer = encoder.encode(`\r\n--${boundary}--`);
+        const fileBytes = new Uint8Array(await audioAttachment.file.arrayBuffer());
+        const body = new Uint8Array(header.length + fileBytes.length + footer.length);
+        body.set(header, 0);
+        body.set(fileBytes, header.length);
+        body.set(footer, header.length + fileBytes.length);
+
+        const uploadRes = await fetch(
+          `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: {
+              "X-Goog-Upload-Protocol": "multipart",
+              "Content-Type": `multipart/related; boundary=${boundary}`,
+            },
+            body,
+            signal: abortControllerRef.current?.signal,
+          }
+        );
         const uploadRawText = await uploadRes.text();
         let uploadData;
         try { uploadData = JSON.parse(uploadRawText); } catch {
-          throw new Error(`upload応答がJSONではありません (${uploadRes.status}): ${uploadRawText.slice(0, 120)}`);
+          throw new Error(`Gemini応答がJSONではありません (${uploadRes.status}): ${uploadRawText.slice(0, 150)}`);
         }
-        if (uploadData.error) throw new Error(uploadData.error);
-        audioFileUri = uploadData.fileUri;
-        if (!audioFileUri) throw new Error("音声アップロード失敗");
+        if (!uploadRes.ok) throw new Error(`Gemini upload error (${uploadRes.status}): ${uploadData?.error?.message || uploadRawText.slice(0, 150)}`);
+        audioFileUri = uploadData?.file?.uri;
+        if (!audioFileUri) throw new Error("File URI が返されませんでした: " + JSON.stringify(uploadData).slice(0, 150));
       } catch (e) {
         setLoading(false);
         setGenError("音声アップロードエラー: " + e.message);
