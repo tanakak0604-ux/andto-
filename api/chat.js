@@ -1,5 +1,13 @@
 const TWENTY_MB = 20 * 1024 * 1024;
 
+module.exports.config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "50mb",
+    },
+  },
+};
+
 async function uploadToFileApi(audioBase64, mimeType, apiKey) {
   const buffer = Buffer.from(audioBase64, "base64");
   const numBytes = buffer.length;

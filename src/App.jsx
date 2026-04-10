@@ -9,7 +9,12 @@ async function callClaude({ system, messages, max_tokens = 8000, signal, audioFi
     body: JSON.stringify({ system, messages, max_tokens, audioFile }),
     signal,
   });
-  const data = await response.json();
+  const rawText = await response.text();
+  let data;
+  try { data = JSON.parse(rawText); } catch {
+    if (response.status === 413) throw new Error("ファイルが大きすぎます。音声ファイルは35MB以下にしてください。");
+    throw new Error("サーバーエラー: " + rawText.slice(0, 100));
+  }
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
   return data.content?.[0]?.text || "";
 }
@@ -1619,6 +1624,10 @@ function MinutesPage({ projects, onUpdateProject }) {
         r.onload = ev => setAttachedFiles(prev => [...prev, { name: f.name, content: ev.target.result, isAudio: false }]);
         r.readAsText(f);
       } else if (f.name.endsWith(".mp3") || f.type === "audio/mpeg") {
+        if (f.size > 35 * 1024 * 1024) {
+          alert(`「${f.name}」は35MBを超えています。より短い録音か圧縮したファイルを使用してください。`);
+          return;
+        }
         const r = new FileReader();
         r.onload = ev => {
           const base64 = ev.target.result.split(",")[1];
