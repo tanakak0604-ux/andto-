@@ -2,11 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import logo from "./logo.png";
 import { createClient } from "@supabase/supabase-js";
 
-async function callClaude({ system, messages, max_tokens = 8000, signal, audioFile }) {
+async function callClaude({ system, messages, max_tokens = 8000, signal, audioFile, audioFileUri }) {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, messages, max_tokens, audioFile }),
+    body: JSON.stringify({ system, messages, max_tokens, audioFile, audioFileUri }),
     signal,
   });
   const rawText = await response.text();
@@ -1713,7 +1713,8 @@ function MinutesPage({ projects, onUpdateProject }) {
       text.trim() ? text : null,
     ].filter(Boolean).join("\n\n");
 
-    // 音声ファイルをGemini File APIに直接アップロード
+    // 音声ファイルをチャンク分割してサーバー経由でGemini File APIにアップロード
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB
     let audioFileUri = undefined;
     if (audioAttachment) {
       try {
@@ -1726,20 +1727,38 @@ function MinutesPage({ projects, onUpdateProject }) {
         });
         const sessionData = await sessionRes.json();
         if (sessionData.error) throw new Error(sessionData.error);
+        const uploadUrl = sessionData.uploadUrl;
 
-        // 2. Geminiに直接アップロード
-        const uploadRes = await fetch(sessionData.uploadUrl, {
-          method: "POST",
-          headers: {
-            "X-Goog-Upload-Command": "upload, finalize",
-            "X-Goog-Upload-Offset": "0",
-            "Content-Type": audioAttachment.mimeType,
-          },
-          body: audioAttachment.file,
-        });
-        const uploadData = await uploadRes.json();
-        audioFileUri = uploadData?.file?.uri;
-        if (!audioFileUri) throw new Error("音声アップロード失敗");
+        // 2. チャンク分割してサーバー経由でアップロード
+        const fileBuffer = await audioAttachment.file.arrayBuffer();
+        const totalSize = fileBuffer.byteLength;
+        let offset = 0;
+        while (offset < totalSize) {
+          const end = Math.min(offset + CHUNK_SIZE, totalSize);
+          const chunk = fileBuffer.slice(offset, end);
+          const isLast = end >= totalSize;
+          // バイナリ→base64変換
+          const chunkArray = new Uint8Array(chunk);
+          let binary = "";
+          for (let i = 0; i < chunkArray.length; i++) binary += String.fromCharCode(chunkArray[i]);
+          const chunkData = btoa(binary);
+
+          const chunkRes = await fetch("/api/audio-chunk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uploadUrl, chunkData, offset, isLast, mimeType: audioAttachment.mimeType }),
+            signal: abortControllerRef.current?.signal,
+          });
+          const chunkJson = await chunkRes.json();
+          if (chunkJson.error) throw new Error(chunkJson.error);
+          if (isLast) {
+            audioFileUri = chunkJson.fileUri;
+            if (!audioFileUri) throw new Error("音声アップロード失敗");
+          } else {
+            offset = chunkJson.nextOffset;
+          }
+          if (isLast) break;
+        }
       } catch (e) {
         setLoading(false);
         setGenError("音声アップロードエラー: " + e.message);
