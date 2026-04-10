@@ -2,11 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import logo from "./logo.png";
 import { createClient } from "@supabase/supabase-js";
 
-async function callClaude({ system, messages, max_tokens = 8000, signal }) {
+async function callClaude({ system, messages, max_tokens = 8000, signal, audioFile }) {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, messages, max_tokens }),
+    body: JSON.stringify({ system, messages, max_tokens, audioFile }),
     signal,
   });
   const data = await response.json();
@@ -1616,10 +1616,17 @@ function MinutesPage({ projects, onUpdateProject }) {
     files.forEach(f => {
       if (f.type.startsWith("text/") || f.name.endsWith(".txt") || f.name.endsWith(".md")) {
         const r = new FileReader();
-        r.onload = ev => setAttachedFiles(prev => [...prev, { name: f.name, content: ev.target.result }]);
+        r.onload = ev => setAttachedFiles(prev => [...prev, { name: f.name, content: ev.target.result, isAudio: false }]);
         r.readAsText(f);
+      } else if (f.name.endsWith(".mp3") || f.type === "audio/mpeg") {
+        const r = new FileReader();
+        r.onload = ev => {
+          const base64 = ev.target.result.split(",")[1];
+          setAttachedFiles(prev => [...prev, { name: f.name, isAudio: true, audioBase64: base64, mimeType: "audio/mp3" }]);
+        };
+        r.readAsDataURL(f);
       } else {
-        setAttachedFiles(prev => [...prev, { name: f.name, content: `[ファイル: ${f.name}]\n（テキストファイルのみ対応しています）` }]);
+        setAttachedFiles(prev => [...prev, { name: f.name, content: `[ファイル: ${f.name}]\n（.txt / .md / .mp3 のみ対応）`, isAudio: false }]);
       }
     });
     if (fileRef.current) fileRef.current.value = "";
@@ -1699,13 +1706,15 @@ function MinutesPage({ projects, onUpdateProject }) {
     const learningNote = learningPatterns.length > 0
       ? `\n\n【過去の修正パターン（参考にして議事録の質を向上させてください）】\n${learningPatterns.map((l, i) => `${i+1}. ${l.instruction}`).join("\n")}`
       : "";
+    const audioFile = attachedFiles.find(f => f.isAudio);
     const combinedText = [
-      ...attachedFiles.map((f, i) => `【ファイル${i + 1}：${f.name}】\n${f.content}`),
+      ...attachedFiles.filter(f => !f.isAudio).map((f, i) => `【ファイル${i + 1}：${f.name}】\n${f.content}`),
       text.trim() ? text : null,
     ].filter(Boolean).join("\n\n");
-    const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}${learningNote}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${combinedText}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
+    const audioNote = audioFile ? `\n\n【音声ファイル】「${audioFile.name}」が添付されています。音声を文字起こしし、議事録に反映してください。` : "";
+    const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}${learningNote}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${combinedText}${audioNote}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
     try {
-      const result = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: userContent }], signal: abortControllerRef.current?.signal });
+      const result = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: userContent }], signal: abortControllerRef.current?.signal, audioFile: audioFile ? { data: audioFile.audioBase64, mimeType: audioFile.mimeType } : undefined });
       let hasAiComp = false;
       if (result.includes("※AI補完") || result.includes("※AI要約")) {
         setPendingMinutes(result);
@@ -2056,14 +2065,14 @@ function MinutesPage({ projects, onUpdateProject }) {
                     style={{ border:`2px dashed ${isDragging?C.sage:C.border}`, borderRadius:12, padding:"20px 24px", textAlign:"center", cursor:"pointer", marginBottom:8, background:isDragging?C.sageLight:C.bg }}>
                     <div style={{ fontSize:28, marginBottom:6 }}>{isDragging?"📂":"📎"}</div>
                     <div style={{ fontSize:13, fontWeight:700, color:isDragging?C.sage:C.text }}>{isDragging?"ここにドロップ":"クリックまたはドラッグ＆ドロップ（複数可）"}</div>
-                    <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>.txt / .md 対応</div>
-                    <input ref={fileRef} type="file" style={{ display:"none" }} accept=".txt,.md" multiple onChange={handleFile} />
+                    <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>.txt / .md / .mp3 対応</div>
+                    <input ref={fileRef} type="file" style={{ display:"none" }} accept=".txt,.md,.mp3,audio/mpeg" multiple onChange={handleFile} />
                   </div>
                   {attachedFiles.length > 0 && (
                     <div style={{ marginBottom:10, display:"flex", flexDirection:"column", gap:5 }}>
                       {attachedFiles.map((f, i) => (
                         <div key={i} style={{ display:"flex", alignItems:"center", gap:8, background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:8, padding:"6px 10px" }}>
-                          <span style={{ fontSize:11, color:C.accent, flexShrink:0 }}>📄</span>
+                          <span style={{ fontSize:11, color:C.accent, flexShrink:0 }}>{f.isAudio ? "🎙" : "📄"}</span>
                           <span style={{ flex:1, fontSize:12, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</span>
                           <button onClick={()=>setAttachedFiles(prev=>prev.filter((_,j)=>j!==i))}
                             style={btn({padding:"2px 8px",borderRadius:6,fontSize:11,color:C.muted,background:"transparent",border:`1px solid ${C.border}`})}>×</button>
