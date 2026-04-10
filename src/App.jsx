@@ -1725,7 +1725,11 @@ function MinutesPage({ projects, onUpdateProject }) {
           body: JSON.stringify({ fileSize: audioAttachment.file.size, mimeType: audioAttachment.mimeType }),
           signal: abortControllerRef.current?.signal,
         });
-        const sessionData = await sessionRes.json();
+        const sessionRawText = await sessionRes.text();
+        let sessionData;
+        try { sessionData = JSON.parse(sessionRawText); } catch {
+          throw new Error(`session応答がJSONではありません (${sessionRes.status}): ${sessionRawText.slice(0, 120)}`);
+        }
         if (sessionData.error) throw new Error(sessionData.error);
         const uploadUrl = sessionData.uploadUrl;
 
@@ -1749,7 +1753,11 @@ function MinutesPage({ projects, onUpdateProject }) {
             body: JSON.stringify({ uploadUrl, chunkData, offset, isLast, mimeType: audioAttachment.mimeType }),
             signal: abortControllerRef.current?.signal,
           });
-          const chunkJson = await chunkRes.json();
+          const chunkRawText = await chunkRes.text();
+          let chunkJson;
+          try { chunkJson = JSON.parse(chunkRawText); } catch {
+            throw new Error(`chunk応答がJSONではありません (${chunkRes.status}): ${chunkRawText.slice(0, 120)}`);
+          }
           if (chunkJson.error) throw new Error(chunkJson.error);
           if (isLast) {
             audioFileUri = chunkJson.fileUri;
