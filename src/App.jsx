@@ -287,6 +287,13 @@ function escapeHtml(str = "") {
 }
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
+function extractJsonArray(raw) {
+  const s = raw.replace(/```json|```/g, "").trim();
+  try { return JSON.parse(s); } catch {}
+  const m = s.match(/\[[\s\S]*\]/);
+  if (m) { try { return JSON.parse(m[0]); } catch {} }
+  throw new Error("JSON配列が見つかりません");
+}
 function btn(extra = {}) { return { border: "none", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", ...extra }; }
 
 function buildMinutesBody(content) {
@@ -1820,12 +1827,12 @@ function MinutesPage({ projects, onUpdateProject }) {
       const todayStr = `${_td.getFullYear()}年${_td.getMonth()+1}月${_td.getDate()}日（${'日月火水木金土'[_td.getDay()]}）`;
       const sig = abortControllerRef.current?.signal;
       const [rawTasks, rawDecs] = await Promise.all([
-        callClaude({ max_tokens: 2000, signal: sig, messages: [{ role: "user", content: `今日の日付：${todayStr}\n\n以下の議事録からアクションアイテムをJSON配列で抽出してください。\n\n【期限抽出ルール】\n・「〇月〇日」「〇日まで」→ YYYY-MM-DD形式に変換\n・「来週」→ 今日から7〜13日後の該当曜日\n・「月末」→ 今月末日\n・「次回まで」「次回会議まで」→ null\n・「至急」「できるだけ早く」→ dueDate: null、priority: "high"\n・期限が明示されていない場合 → null\n\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたはnull","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${minutes}` }] }),
-        callClaude({ max_tokens: 2000, signal: sig, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n形式: [{"text":"決定事項の内容"}]\nJSONのみ出力。\n\n${minutes}` }] })
+        callClaude({ max_tokens: 8000, signal: sig, messages: [{ role: "user", content: `今日の日付：${todayStr}\n\n以下の議事録からアクションアイテムをJSON配列で抽出してください。\n\n【期限抽出ルール】\n・「〇月〇日」「〇日まで」→ YYYY-MM-DD形式に変換\n・「来週」→ 今日から7〜13日後の該当曜日\n・「月末」→ 今月末日\n・「次回まで」「次回会議まで」→ null\n・「至急」「できるだけ早く」→ dueDate: null、priority: "high"\n・期限が明示されていない場合 → null\n\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたはnull","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${minutes}` }] }),
+        callClaude({ max_tokens: 4000, signal: sig, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n形式: [{"text":"決定事項の内容"}]\nJSONのみ出力。\n\n${minutes}` }] })
       ]);
-      try { const tasks = JSON.parse(rawTasks.replace(/```json|```/g,"").trim()); setExtracted(tasks.map(t=>({...t,id:uid(),status:"todo",desc:"",selected:true}))); }
+      try { setExtracted(extractJsonArray(rawTasks).map(t=>({...t,id:uid(),status:"todo",desc:"",selected:true}))); }
       catch { setGenError("タスクのJSON解析に失敗しました。再度お試しください。"); setExtracted([]); }
-      try { const decs = JSON.parse(rawDecs.replace(/```json|```/g,"").trim()); setExtractedDecisions(decs.map(d=>({...d,id:uid(),selected:true,addAsTask:false}))); }
+      try { setExtractedDecisions(extractJsonArray(rawDecs).map(d=>({...d,id:uid(),selected:true,addAsTask:false}))); }
       catch { setExtractedDecisions([]); }
     } catch(e) {
       setGenError("抽出に失敗しました：" + e.message);
@@ -2440,20 +2447,19 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
       const _td = new Date();
       const todayStr = `${_td.getFullYear()}年${_td.getMonth()+1}月${_td.getDate()}日（${'日月火水木金土'[_td.getDay()]}）`;
       const [rawTasks, rawDecs] = await Promise.all([
-        callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `今日の日付：${todayStr}\n\n以下の議事録からアクションアイテムをJSON配列で抽出してください。\n\n【期限抽出ルール】\n・「〇月〇日」「〇日まで」→ YYYY-MM-DD形式に変換\n・「来週」→ 今日から7〜13日後の該当曜日\n・「月末」→ 今月末日\n・「次回まで」「次回会議まで」→ null\n・「至急」「できるだけ早く」→ dueDate: null、priority: "high"\n・期限が明示されていない場合 → null\n\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたはnull","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${selectedMinute.content}` }] }),
-        callClaude({ max_tokens: 2000, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n既存フォルダ一覧: ${folderList}\n各決定事項について上記フォルダから最も適切なものを選んでください。該当しない場合はsuggestedFolderをnullにしてください。\n形式: [{"text":"決定事項の内容","suggestedFolder":"フォルダ名またはnull"}]\nJSONのみ出力。\n\n${selectedMinute.content}` }] })
+        callClaude({ max_tokens: 8000, messages: [{ role: "user", content: `今日の日付：${todayStr}\n\n以下の議事録からアクションアイテムをJSON配列で抽出してください。\n\n【期限抽出ルール】\n・「〇月〇日」「〇日まで」→ YYYY-MM-DD形式に変換\n・「来週」→ 今日から7〜13日後の該当曜日\n・「月末」→ 今月末日\n・「次回まで」「次回会議まで」→ null\n・「至急」「できるだけ早く」→ dueDate: null、priority: "high"\n・期限が明示されていない場合 → null\n\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたはnull","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${selectedMinute.content}` }] }),
+        callClaude({ max_tokens: 4000, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n既存フォルダ一覧: ${folderList}\n各決定事項について上記フォルダから最も適切なものを選んでください。該当しない場合はsuggestedFolderをnullにしてください。\n形式: [{"text":"決定事項の内容","suggestedFolder":"フォルダ名またはnull"}]\nJSONのみ出力。\n\n${selectedMinute.content}` }] })
       ]);
       let parsedTasks = [];
       try {
-        const t = JSON.parse(rawTasks.replace(/```json|```/g,"").trim());
-        parsedTasks = t.map(x=>({...x,id:uid(),status:"todo",desc:"",selected:true,subtasks:[]}));
+        parsedTasks = extractJsonArray(rawTasks).map(x=>({...x,id:uid(),status:"todo",desc:"",selected:true,subtasks:[]}));
         setDetailExtracted(parsedTasks);
       } catch {
         parsedTasks = [{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false,subtasks:[]}];
         setDetailExtracted(parsedTasks);
       }
       try {
-        const d = JSON.parse(rawDecs.replace(/```json|```/g,"").trim());
+        const d = extractJsonArray(rawDecs);
         setDetailExtractedDecisions(d.map(x=>{
           const matchedFolder = existingFolders.find(f => f.name === x.suggestedFolder);
           const folderId = matchedFolder?.id || null;
@@ -2470,7 +2476,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
         );
         setDetailExtracted(prev => prev.map((t, i) => {
           try {
-            const subs = JSON.parse(subtaskResults[i].replace(/```json|```/g,"").trim());
+            const subs = extractJsonArray(subtaskResults[i]);
             return { ...t, subtasks: subs.map(s => ({ id: uid(), title: `（AI自動生成）${s}`, done: false })) };
           } catch { return t; }
         }));
