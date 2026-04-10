@@ -14,15 +14,28 @@ async function handler(req, res) {
       headers: {
         "X-Goog-Upload-Command": command,
         "X-Goog-Upload-Offset": String(offset),
+        "Content-Length": String(buffer.length),
         "Content-Type": mimeType,
       },
       body: buffer,
     });
 
+    // Google が非JSONエラーを返す場合に対応
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text();
+      return res.status(500).json({
+        error: `Google upload error (${uploadRes.status}): ${errText.slice(0, 300)}`,
+      });
+    }
+
     if (isLast) {
-      const data = await uploadRes.json();
+      const text = await uploadRes.text();
+      let data;
+      try { data = JSON.parse(text); } catch {
+        return res.status(500).json({ error: `Googleの最終応答がJSONではありません: ${text.slice(0, 300)}` });
+      }
       const fileUri = data?.file?.uri;
-      if (!fileUri) return res.status(500).json({ error: "File URI not returned" });
+      if (!fileUri) return res.status(500).json({ error: `File URI なし。応答: ${text.slice(0, 200)}` });
       return res.json({ fileUri });
     } else {
       const sizeReceived = uploadRes.headers.get("x-goog-upload-size-received");
