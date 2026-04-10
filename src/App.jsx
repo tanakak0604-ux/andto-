@@ -2021,8 +2021,9 @@ function MinutesPage({ projects, onUpdateProject }) {
                     <div>
                       <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:4 }}>フェーズ</label>
                       <input value={phase} onChange={e=>setPhase(e.target.value)} list="phase-list" placeholder="空欄時はAIが推測"
-                        style={{ ...inputStyle, fontSize:12, padding:"7px 10px" }} />
+                        style={{ ...inputStyle, fontSize:12, padding:"7px 10px", backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`, backgroundRepeat:"no-repeat", backgroundPosition:"right 10px center", paddingRight:28 }} />
                       <datalist id="phase-list">
+                        <option value="" />
                         {PHASE_LABELS.map(pl => <option key={pl} value={pl} />)}
                       </datalist>
                     </div>
