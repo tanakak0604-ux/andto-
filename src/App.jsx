@@ -2011,7 +2011,6 @@ function MinutesPage({ projects, onUpdateProject }) {
                       ["日時（時間帯）", "例：16:00-17:00", timeRange, setTimeRange],
                       ["提出資料", "こちらが提出・画面共有した資料名（空欄時はAIが推測）", teishutsushiryo, setTeishutsushiryo],
                       ["受領資料", "先方から受領・先方が画面共有した資料名（空欄時はAIが推測）", juryoshiryo, setJuryoshiryo],
-                      ["フェーズ", "調査企画・基本計画・基本設計・実施設計・監理・竣工（空欄時はAIが推測）", phase, setPhase]
                     ].map(([lbl, ph, val, setter]) => (
                       <div key={lbl}>
                         <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:4 }}>{lbl}</label>
@@ -2019,6 +2018,14 @@ function MinutesPage({ projects, onUpdateProject }) {
                           style={{ ...inputStyle, fontSize:12, padding:"7px 10px" }} />
                       </div>
                     ))}
+                    <div>
+                      <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:4 }}>フェーズ</label>
+                      <input value={phase} onChange={e=>setPhase(e.target.value)} list="phase-list" placeholder="空欄時はAIが推測"
+                        style={{ ...inputStyle, fontSize:12, padding:"7px 10px" }} />
+                      <datalist id="phase-list">
+                        {PHASE_LABELS.map(pl => <option key={pl} value={pl} />)}
+                      </datalist>
+                    </div>
                   </div>
                   <label style={{ fontSize:12, fontWeight:700, color:C.muted, display:"block", marginBottom:8 }}>📎 ファイル添付またはテキスト入力</label>
                   <div onClick={()=>fileRef.current?.click()}
