@@ -1713,60 +1713,28 @@ function MinutesPage({ projects, onUpdateProject }) {
       text.trim() ? text : null,
     ].filter(Boolean).join("\n\n");
 
-    // 音声ファイルをチャンク分割してサーバー経由でGemini File APIにアップロード
-    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB
+    // 音声ファイルをEdge Function経由でGemini File APIにアップロード（バイナリ直送、8MB単位）
     let audioFileUri = undefined;
     if (audioAttachment) {
       try {
-        // 1. セッションURL取得
-        const sessionRes = await fetch("/api/gemini-upload-session", {
+        const uploadRes = await fetch("/api/audio-upload", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileSize: audioAttachment.file.size, mimeType: audioAttachment.mimeType }),
+          headers: {
+            "X-Mime-Type": audioAttachment.mimeType,
+            "X-File-Size": String(audioAttachment.file.size),
+            "Content-Type": audioAttachment.mimeType,
+          },
+          body: audioAttachment.file,
           signal: abortControllerRef.current?.signal,
         });
-        const sessionRawText = await sessionRes.text();
-        let sessionData;
-        try { sessionData = JSON.parse(sessionRawText); } catch {
-          throw new Error(`session応答がJSONではありません (${sessionRes.status}): ${sessionRawText.slice(0, 120)}`);
+        const uploadRawText = await uploadRes.text();
+        let uploadData;
+        try { uploadData = JSON.parse(uploadRawText); } catch {
+          throw new Error(`upload応答がJSONではありません (${uploadRes.status}): ${uploadRawText.slice(0, 120)}`);
         }
-        if (sessionData.error) throw new Error(sessionData.error);
-        const uploadUrl = sessionData.uploadUrl;
-
-        // 2. チャンク分割してサーバー経由でアップロード
-        const fileBuffer = await audioAttachment.file.arrayBuffer();
-        const totalSize = fileBuffer.byteLength;
-        let offset = 0;
-        while (offset < totalSize) {
-          const end = Math.min(offset + CHUNK_SIZE, totalSize);
-          const chunk = fileBuffer.slice(offset, end);
-          const isLast = end >= totalSize;
-          // バイナリ→base64変換
-          const chunkArray = new Uint8Array(chunk);
-          let binary = "";
-          for (let i = 0; i < chunkArray.length; i++) binary += String.fromCharCode(chunkArray[i]);
-          const chunkData = btoa(binary);
-
-          const chunkRes = await fetch("/api/audio-chunk", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ uploadUrl, chunkData, offset, isLast, mimeType: audioAttachment.mimeType }),
-            signal: abortControllerRef.current?.signal,
-          });
-          const chunkRawText = await chunkRes.text();
-          let chunkJson;
-          try { chunkJson = JSON.parse(chunkRawText); } catch {
-            throw new Error(`chunk応答がJSONではありません (${chunkRes.status}): ${chunkRawText.slice(0, 120)}`);
-          }
-          if (chunkJson.error) throw new Error(chunkJson.error);
-          if (isLast) {
-            audioFileUri = chunkJson.fileUri;
-            if (!audioFileUri) throw new Error("音声アップロード失敗");
-          } else {
-            offset = chunkJson.nextOffset;
-          }
-          if (isLast) break;
-        }
+        if (uploadData.error) throw new Error(uploadData.error);
+        audioFileUri = uploadData.fileUri;
+        if (!audioFileUri) throw new Error("音声アップロード失敗");
       } catch (e) {
         setLoading(false);
         setGenError("音声アップロードエラー: " + e.message);
