@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import logo from "./logo.png";
 import { createClient } from "@supabase/supabase-js";
 
-async function callClaude({ system, messages, max_tokens = 8000, signal, audioFile, audioFileUri }) {
+async function callClaude({ system, messages, max_tokens = 65536, signal, audioFile, audioFileUri }) {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

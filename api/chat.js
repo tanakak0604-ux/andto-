@@ -74,7 +74,7 @@ async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
-        generationConfig: { maxOutputTokens: 16000 },
+        generationConfig: { maxOutputTokens: max_tokens || 65536 },
       }),
     });
 
