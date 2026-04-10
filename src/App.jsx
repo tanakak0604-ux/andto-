@@ -1569,7 +1569,9 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [teishutsushiryo, setTeishutsushiryo] = useState("");
   const [juryoshiryo, setJuryoshiryo] = useState("");
   const [phase, setPhase] = useState("");
+  const [phaseCustom, setPhaseCustom] = useState("");
   const [gaiyou, setGaiyou] = useState("");
+  const [meetingDate, setMeetingDate] = useState("");
   const [timeRange, setTimeRange] = useState("");
   const [extractedDecisions, setExtractedDecisions] = useState([]);
   const [savedType, setSavedType] = useState("tasks");
@@ -1673,7 +1675,9 @@ function MinutesPage({ projects, onUpdateProject }) {
     const attendeesValue = members.length === 0
       ? "（出席者情報なし）"
       : orgLines.map((line, i) => i === 0 ? line : "　　　　" + line).join("\n");
-    const dateTimeStr = timeRange ? `${date} ${timeRange}` : date;
+    const displayDate = meetingDate ? meetingDate.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1/$2/$3") : date;
+    const dateTimeStr = timeRange ? `${displayDate} ${timeRange}` : displayDate;
+    const phaseValue = phase === "その他" ? phaseCustom : phase;
     const filledTemplate = TEMPLATE
       .replace("{projName}", latestProj?.name || "会議名")
       .replace("{gaiyou}", gaiyou || "（入力テキストから推測。不明な場合は空欄）")
@@ -1684,7 +1688,7 @@ function MinutesPage({ projects, onUpdateProject }) {
       .replace("{created}", date)
       .replace("{teishutsushiryo}", teishutsushiryo ? teishutsushiryo : infer(teishutsushiryo))
       .replace("{juryoshiryo}", juryoshiryo ? juryoshiryo : infer(juryoshiryo))
-      .replace("{phase}", phase ? phase : infer(phase));
+      .replace("{phase}", phaseValue ? phaseValue : infer(phaseValue));
     const headerNote = [
       gaiyou ? `名称は「${gaiyou}」で確定` : null,
       teishutsushiryo ? `提出資料は「${teishutsushiryo}」で確定` : null,
@@ -1833,7 +1837,7 @@ function MinutesPage({ projects, onUpdateProject }) {
     win.document.close(); win.focus(); win.print();
   };
 
-  const reset = () => { setStep("input");setText("");setAttachedFiles([]);setMinutes("");setMinutesTitle("");setExtracted([]);setExtractedDecisions([]);setSavedType("tasks");setSaveMsg("");setAttendees([]);setBunseki("");setGaiyou("");setTimeRange("");setTeishutsushiryo("");setJuryoshiryo("");setPhase("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false});setMinutesSaved(false); };
+  const reset = () => { setStep("input");setText("");setAttachedFiles([]);setMinutes("");setMinutesTitle("");setExtracted([]);setExtractedDecisions([]);setSavedType("tasks");setSaveMsg("");setAttendees([]);setBunseki("");setGaiyou("");setMeetingDate("");setTimeRange("");setTeishutsushiryo("");setJuryoshiryo("");setPhase("");setPhaseCustom("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false});setMinutesSaved(false); };
 
   const stepIdx = STEPS.indexOf(step);
   const inputStyle = { width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"8px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" };
@@ -2007,9 +2011,21 @@ function MinutesPage({ projects, onUpdateProject }) {
                     </div>
                   )}
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
-                    {[["名称", "会議の名称（空欄時はAIが推測）", gaiyou, setGaiyou],
-                      ["日時（時間帯）", "例：16:00-17:00", timeRange, setTimeRange],
-                      ["提出資料", "こちらが提出・画面共有した資料名（空欄時はAIが推測）", teishutsushiryo, setTeishutsushiryo],
+                    <div>
+                      <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:4 }}>名称</label>
+                      <input value={gaiyou} onChange={e=>setGaiyou(e.target.value)} placeholder="会議の名称（空欄時はAIが推測）"
+                        style={{ ...inputStyle, fontSize:12, padding:"7px 10px" }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:4 }}>日時</label>
+                      <div style={{ display:"flex", gap:6 }}>
+                        <input type="date" value={meetingDate} onChange={e=>setMeetingDate(e.target.value)}
+                          style={{ ...inputStyle, fontSize:12, padding:"7px 8px", flex:"0 0 auto", width:130 }} />
+                        <input value={timeRange} onChange={e=>setTimeRange(e.target.value)} placeholder="16:00-17:00"
+                          style={{ ...inputStyle, fontSize:12, padding:"7px 8px", flex:1, minWidth:0 }} />
+                      </div>
+                    </div>
+                    {[["提出資料", "こちらが提出・画面共有した資料名（空欄時はAIが推測）", teishutsushiryo, setTeishutsushiryo],
                       ["受領資料", "先方から受領・先方が画面共有した資料名（空欄時はAIが推測）", juryoshiryo, setJuryoshiryo],
                     ].map(([lbl, ph, val, setter]) => (
                       <div key={lbl}>
@@ -2020,12 +2036,16 @@ function MinutesPage({ projects, onUpdateProject }) {
                     ))}
                     <div>
                       <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:4 }}>フェーズ</label>
-                      <input value={phase} onChange={e=>setPhase(e.target.value)} list="phase-list" placeholder="空欄時はAIが推測"
-                        style={{ ...inputStyle, fontSize:12, padding:"7px 10px", backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`, backgroundRepeat:"no-repeat", backgroundPosition:"right 10px center", paddingRight:28 }} />
-                      <datalist id="phase-list">
-                        <option value="" />
-                        {PHASE_LABELS.map(pl => <option key={pl} value={pl} />)}
-                      </datalist>
+                      <select value={phase} onChange={e=>{ setPhase(e.target.value); if(e.target.value !== "その他") setPhaseCustom(""); }}
+                        style={{ ...inputStyle, fontSize:12, padding:"7px 10px" }}>
+                        <option value="">（空欄時はAIが推測）</option>
+                        {PHASE_LABELS.map(pl => <option key={pl} value={pl}>{pl}</option>)}
+                        <option value="その他">その他（自由入力）</option>
+                      </select>
+                      {phase === "その他" && (
+                        <input value={phaseCustom} onChange={e=>setPhaseCustom(e.target.value)} placeholder="フェーズ名を入力"
+                          style={{ ...inputStyle, fontSize:12, padding:"7px 10px", marginTop:6 }} />
+                      )}
                     </div>
                   </div>
                   <label style={{ fontSize:12, fontWeight:700, color:C.muted, display:"block", marginBottom:8 }}>📎 ファイル添付またはテキスト入力</label>
