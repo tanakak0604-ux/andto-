@@ -2020,6 +2020,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                       <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:4 }}>日時</label>
                       <div style={{ display:"flex", gap:6 }}>
                         <input type="date" value={meetingDate} onChange={e=>setMeetingDate(e.target.value)}
+                          className={`date-muted${meetingDate ? " has-value" : ""}`}
                           style={{ ...inputStyle, fontSize:12, padding:"7px 8px", flex:"0 0 auto", width:130 }} />
                         <input value={timeRange} onChange={e=>setTimeRange(e.target.value)} placeholder="16:00-17:00"
                           style={{ ...inputStyle, fontSize:12, padding:"7px 8px", flex:1, minWidth:0 }} />
@@ -2037,7 +2038,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                     <div>
                       <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:4 }}>フェーズ</label>
                       <select value={phase} onChange={e=>{ setPhase(e.target.value); if(e.target.value !== "その他") setPhaseCustom(""); }}
-                        style={{ ...inputStyle, fontSize:12, padding:"7px 10px" }}>
+                        style={{ ...inputStyle, fontSize:12, padding:"7px 10px", color: phase ? C.text : C.muted }}>
                         <option value="">（空欄時はAIが推測）</option>
                         {PHASE_LABELS.map(pl => <option key={pl} value={pl}>{pl}</option>)}
                         <option value="その他">その他（自由入力）</option>
@@ -3878,6 +3879,14 @@ export default function App() {
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .nav-tab-anim { animation: fadeInLeft 0.4s ease both; }
         .card-anim { animation: fadeIn 0.4s ease both; }
+        .date-muted::-webkit-datetime-edit { color: #8C8880; }
+        .date-muted::-webkit-datetime-edit-year-field,
+        .date-muted::-webkit-datetime-edit-month-field,
+        .date-muted::-webkit-datetime-edit-day-field { color: #8C8880; }
+        .date-muted.has-value::-webkit-datetime-edit,
+        .date-muted.has-value::-webkit-datetime-edit-year-field,
+        .date-muted.has-value::-webkit-datetime-edit-month-field,
+        .date-muted.has-value::-webkit-datetime-edit-day-field { color: #2D2A24; }
       `}</style>
       {saveError && (
         <div style={{ background:"#DC2626", color:"#fff", padding:"10px 20px", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"space-between", zIndex:9999 }}>
