@@ -2860,12 +2860,9 @@ ${pastMinutesTitles}
       {/* 左カラム：議事録一覧 */}
       <div style={{ width:160, borderRight:`1.5px solid ${C.border}`, display:"flex", flexDirection:"column", background:C.surface, flexShrink:0 }}>
         <div style={{ padding:"14px 16px 12px", borderBottom:`1px solid ${C.border}` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-            <button onClick={onBack} style={{...BTN.ghost, fontSize:12, padding:"4px 10px"}}>← 戻る</button>
-            <div style={{ display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:project.color, flexShrink:0 }} />
-              <span style={{ fontSize:13, fontWeight:800, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{project.name}</span>
-            </div>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, minWidth:0 }}>
+            <div style={{ width:8, height:8, borderRadius:"50%", background:project.color, flexShrink:0 }} />
+            <span style={{ fontSize:13, fontWeight:800, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{project.name}</span>
           </div>
           <div style={{ fontSize:11, color:C.muted, marginBottom:10 }}>{minutes.length}件の議事録</div>
           <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}
@@ -3457,7 +3454,6 @@ function DecisionsPage({ project, onBack, onUpdate }) {
       <div style={{ padding:24, maxWidth:1000, margin:"0 auto" }}>
         {/* ヘッダー */}
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
-          <button onClick={onBack} style={btn({ fontSize:13, color:C.muted, background:"transparent", padding:"4px 8px", border:`1px solid ${C.border}`, borderRadius:8 })}>← 戻る</button>
           <h2 style={{ fontSize:18, fontWeight:900, color:C.text, margin:0, display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ width:10, height:10, borderRadius:"50%", background:project.color, display:"inline-block" }} />
             {project.name}　決定事項
