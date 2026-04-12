@@ -2083,10 +2083,22 @@ function MinutesPage({ projects, onUpdateProject }) {
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:400 }} onClick={()=>{}}>
           <div style={{ background:C.surface, borderRadius:20, padding:26, width:380, maxWidth:"90vw", boxShadow:"0 24px 70px rgba(0,0,0,0.2)" }} onClick={e=>e.stopPropagation()}>
             <h3 style={{ margin:"0 0 12px", fontSize:15, fontWeight:900, color:C.text }}>⚠️ AI補完・要約が発生しました</h3>
-            <p style={{ fontSize:12, color:C.muted, marginBottom:18, lineHeight:1.7 }}>
+            <p style={{ fontSize:12, color:C.muted, marginBottom:12, lineHeight:1.7 }}>
               以下の箇所でAIが補完または要約を行いました。このまま反映しますか？<br />
               「いいえ」を選ぶと該当箇所を<strong>※要確認（原文を参照してください）</strong>に置き換えます。
             </p>
+            {(() => {
+              const affected = (pendingMinutes || "").split("\n").filter(l => l.includes("※AI補完") || l.includes("※AI要約"));
+              return affected.length > 0 && (
+                <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px", marginBottom:16, maxHeight:160, overflowY:"auto" }}>
+                  {affected.map((l, i) => (
+                    <div key={i} style={{ fontSize:11, color:C.text, lineHeight:1.7, padding:"2px 0", borderBottom: i < affected.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                      <span style={{ color:"#D97706", fontWeight:700 }}>⚠ </span>{l.trim()}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
               <button onClick={()=>{
                 const replaced = pendingMinutes.replace(/※AI補完/g,"※要確認（原文を参照してください）").replace(/※AI要約/g,"※要確認（原文を参照してください）");
