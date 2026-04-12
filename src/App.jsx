@@ -3278,7 +3278,7 @@ ${pastMinutesTitles}
   </>);
 }
 
-function DecisionsPage({ project, onBack, onUpdate }) {
+function DecisionsPage({ project, onUpdate }) {
   const [currentFolderId, setCurrentFolderId] = useState(null);
   const [confirmDeleteDecisionFolderId, setConfirmDeleteDecisionFolderId] = useState(null);
   const [editingDecisionId, setEditingDecisionId] = useState(null);
@@ -3454,10 +3454,7 @@ function DecisionsPage({ project, onBack, onUpdate }) {
       <div style={{ padding:24, maxWidth:1000, margin:"0 auto" }}>
         {/* ヘッダー */}
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
-          <h2 style={{ fontSize:18, fontWeight:900, color:C.text, margin:0, display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ width:10, height:10, borderRadius:"50%", background:project.color, display:"inline-block" }} />
-            {project.name}　決定事項
-          </h2>
+          <h2 style={{ fontSize:18, fontWeight:900, color:C.text, margin:0 }}>決定事項</h2>
           <span style={{ fontSize:12, color:C.muted, background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:"2px 10px", fontWeight:700 }}>{allDecisions.length}件</span>
           <div style={{ display:"flex", gap:8, marginLeft:"auto" }}>
             <button onClick={()=>{ setShowAddDecision(v=>!v); setNewDecisionText(""); setNewDecisionSource(""); setNewDecisionDate(""); setShowCreateFolder(false); }}
@@ -3700,7 +3697,7 @@ function ProjectDetailPage({ project, onUpdate, onMinutesUpdate }) {
       </div>
       {subTab === "tasks" && <KanbanPage key={project.id} project={project} onUpdate={onUpdate} />}
       {subTab === "minutes" && <MinutesDetailPage project={project} onBack={() => setSubTab("tasks")} onUpdate={onMinutesUpdate} />}
-      {subTab === "decisions" && <DecisionsPage project={project} onBack={() => setSubTab("tasks")} onUpdate={onUpdate} />}
+      {subTab === "decisions" && <DecisionsPage project={project} onUpdate={onUpdate} />}
     </div>
   );
 }
