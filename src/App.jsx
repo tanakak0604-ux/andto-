@@ -4250,7 +4250,7 @@ export default function App() {
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#fff", borderRadius:16, padding:"48px 40px", maxWidth:480, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", textAlign:"center" }}>
             <div style={{ fontSize:36, marginBottom:12 }}>✦</div>
-            <div style={{ fontSize:22, fontWeight:900, color:C.text, marginBottom:10 }}>TaskFlowへようこそ</div>
+            <div style={{ fontSize:22, fontWeight:900, color:C.text, marginBottom:10 }}>andtoへようこそ</div>
             <div style={{ fontSize:13, color:C.muted, lineHeight:2, marginBottom:28 }}>
               プロジェクト・タスク・議事録を一元管理できるチームツールです。<br />
               データは自動保存され、チーム全員とリアルタイムで共有されます。
