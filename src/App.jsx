@@ -1794,13 +1794,22 @@ function MinutesPage({ projects, onUpdateProject }) {
       const memberInfo = members.length > 0
         ? members.map(m => `${m.name}（${m.isAndto ? "andto" : m.org || "参加者"}）`).join("、")
         : "不明";
-      const result = await callClaude({
-        system: TRANSCRIPTION_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: `以下の音声を文字起こしてください。\n\n【参加者情報】\n${memberInfo}\n\n参加者情報から話者を推定し、各発言を「話者名：内容」の形式で書き起こしてください。` }],
-        max_tokens: 65536,
+      const prompt = TRANSCRIPTION_SYSTEM_PROMPT + "\n\n以下の音声を文字起こしてください。\n\n【参加者情報】\n" + memberInfo + "\n\n参加者情報から話者を推定し、各発言を「話者名：内容」の形式で書き起こしてください。";
+      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [
+            { file_data: { file_uri: audioFileUri, mime_type: audioAttachment.mimeType } },
+            { text: prompt },
+          ]}],
+          generationConfig: { maxOutputTokens: 65536 },
+        }),
         signal: abortControllerRef.current?.signal,
-        audioFileUri,
       });
+      const geminiData = await geminiRes.json();
+      if (geminiData.error) throw new Error(geminiData.error.message);
+      const result = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
       setTranscript(result);
       setStep("transcript");
     } catch (e) {
