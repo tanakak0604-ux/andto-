@@ -907,7 +907,7 @@ const COLOR_PALETTE = [
 ];
 const PHASE_LABELS = ["調査企画", "基本計画", "基本設計", "実施設計", "監理", "竣工"];
 
-function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes, onViewDecisions, onReorder }) {
+function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onReorder }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [dragId, setDragId] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -1014,10 +1014,8 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onViewMinutes,
                   {(p.minutes||[]).length > 0 && <span style={{ fontSize: 11, color: C.muted, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: "3px 10px", fontWeight: 700 }}>📝 議事録 {p.minutes.length}件</span>}
                   {(p.decisions||[]).length > 0 && <span style={{ fontSize: 11, color: C.decision, background: C.decisionLight, border: `1px solid #B8CAED`, borderRadius: 20, padding: "3px 10px", fontWeight: 700 }}>📋 決定事項 {p.decisions.length}件</span>}
                 </div>
-                <div style={{ marginTop:"auto", display:"flex", flexDirection:"column", gap:6 }}>
-                  <button onClick={() => onNavigate(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: p.color+"18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>タスクを開く →</button>
-                  <button onClick={() => onViewMinutes(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: p.color+"18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>議事録を開く →</button>
-                  <button onClick={() => onViewDecisions(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: p.color+"18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>決定事項を開く →</button>
+                <div style={{ marginTop:"auto" }}>
+                  <button onClick={() => onNavigate(p.id)} style={btn({ width:"100%", padding: "9px 0", borderRadius: 10, background: p.color+"18", color: p.color, fontSize: 13, fontWeight: 700, border: `1.5px solid ${p.color}40` })}>開く →</button>
                 </div>
               </div>
             </div>
@@ -3495,6 +3493,25 @@ function DecisionsPage({ project, onBack, onUpdate }) {
   );
 }
 
+function ProjectDetailPage({ project, onUpdate, onMinutesUpdate }) {
+  const [subTab, setSubTab] = useState("tasks");
+  return (
+    <div>
+      <div style={{ background: C.surface, borderBottom: `1.5px solid ${C.border}`, display: "flex", paddingLeft: 24 }}>
+        {[["tasks","📋 タスク"],["minutes","📝 議事録"],["decisions","📌 決定事項"]].map(([id, lbl]) => (
+          <button key={id} onClick={() => setSubTab(id)}
+            style={btn({ padding: "10px 18px", fontSize: 13, fontWeight: 700, background: "transparent", color: subTab === id ? project.color : C.muted, borderBottom: subTab === id ? `2.5px solid ${project.color}` : "2.5px solid transparent", borderRadius: 0 })}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+      {subTab === "tasks" && <KanbanPage key={project.id} project={project} onUpdate={onUpdate} />}
+      {subTab === "minutes" && <MinutesDetailPage project={project} onBack={() => setSubTab("tasks")} onUpdate={onMinutesUpdate} />}
+      {subTab === "decisions" && <DecisionsPage project={project} onBack={() => setSubTab("tasks")} onUpdate={onUpdate} />}
+    </div>
+  );
+}
+
 function MemberTasksPage({ projects }) {
   const [filterStatus, setFilterStatus] = useState("active");
 
@@ -3691,8 +3708,6 @@ export default function App() {
   const [showAdd, setShowAdd] = useState(false);
   const [dragTabId, setDragTabId] = useState(null);
   const [newName, setNewName] = useState("");
-  const [minutesProjectId, setMinutesProjectId] = useState(null);
-  const [decisionsProjectId, setDecisionsProjectId] = useState(null);
   const [storageReady, setStorageReady] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [slackSettings, setSlackSettings] = useState({ summaryChannel: "", notifyChannel: "", sourceChannels: [] });
@@ -4030,20 +4045,14 @@ export default function App() {
         </div>
       </div>
 
-      {decisionsProjectId ? (
-        <DecisionsPage project={projects.find(p=>p.id===decisionsProjectId)} onBack={()=>setDecisionsProjectId(null)} onUpdate={updateProject} />
-      ) : minutesProjectId ? (
-        <MinutesDetailPage project={projects.find(p=>p.id===minutesProjectId)} onBack={()=>setMinutesProjectId(null)} onUpdate={p => { lastBroadcastAt.current = new Date().toISOString(); updateProject(p); }} />
-      ) : (
-        <>
-          <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={sortedProjects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onViewMinutes={id=>setMinutesProjectId(id)} onViewDecisions={id=>setDecisionsProjectId(id)} onReorder={reorderProjects} /></div>
-          <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} onUpdate={updateProject} /></div>
-          <div style={{ display:tab==="minutes"?"block":"none" }}><MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} /></div>
-          <div style={{ display:tab==="members"?"block":"none" }}><MemberTasksPage projects={projects} /></div>
-          <div style={{ display:tab==="slack-settings"?"block":"none" }}><SlackSettingsPage slackSettings={slackSettings} onChange={updateSlackSettings} /></div>
-          {active&&tab===active.id&&<KanbanPage key={active.id} project={active} onUpdate={updateProject} />}
-        </>
-      )}
+      <>
+        <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={sortedProjects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onReorder={reorderProjects} /></div>
+        <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} onUpdate={updateProject} /></div>
+        <div style={{ display:tab==="minutes"?"block":"none" }}><MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} /></div>
+        <div style={{ display:tab==="members"?"block":"none" }}><MemberTasksPage projects={projects} /></div>
+        <div style={{ display:tab==="slack-settings"?"block":"none" }}><SlackSettingsPage slackSettings={slackSettings} onChange={updateSlackSettings} /></div>
+        {active&&tab===active.id&&<ProjectDetailPage key={active.id} project={active} onUpdate={updateProject} onMinutesUpdate={p => { lastBroadcastAt.current = new Date().toISOString(); updateProject(p); }} />}
+      </>
 
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
 
