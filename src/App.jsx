@@ -84,9 +84,6 @@ async function loadSlackSettings() {
 }
 
 async function saveSlackSettings(slackSettings) {
-  console.log("保存開始", slackSettings);
-  console.log("SUPABASE_URL", SUPABASE_URL);
-  console.log("SUPABASE_KEY", SUPABASE_KEY ? SUPABASE_KEY.slice(0, 20) + "..." : "未設定");
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.shared`, {
       method: "PATCH",
