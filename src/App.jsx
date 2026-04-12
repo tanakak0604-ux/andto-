@@ -1216,12 +1216,22 @@ function CalendarPage({ projects, onUpdate }) {
   const [expandedDates, setExpandedDates] = useState({});
   const [addEventModal, setAddEventModal] = useState(null); // { date }
   const [addEventForm, setAddEventForm] = useState({ title: "", date: "", projectId: "" });
+  const [hoveredCell, setHoveredCell] = useState(null);
+  const [cellMenu, setCellMenu] = useState(null); // { date, x, y }
+  const [addTaskModal, setAddTaskModal] = useState(null);
+  const [addTaskForm, setAddTaskForm] = useState({ title: "", dueDate: "", projectId: "", priority: "medium" });
   const [selectedEvent, setSelectedEvent] = useState(null); // { event, projectId }
   const [editEventMode, setEditEventMode] = useState(false);
   const [editEventForm, setEditEventForm] = useState({ title: "", date: "", projectId: "" });
 
   useEffect(() => { localStorage.setItem('taskflow-calendar-members', JSON.stringify(selectedMembers)); }, [selectedMembers]);
   useEffect(() => { localStorage.setItem('taskflow-calendar-projects', JSON.stringify(selectedProjects)); }, [selectedProjects]);
+  useEffect(() => {
+    if (!cellMenu) return;
+    const close = () => setCellMenu(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [cellMenu]);
 
   // andtoメンバーを全プロジェクトから収集（id・name両方で重複排除）
   const allAndtoMembers = projects.flatMap(p => (p.members || []).filter(m => m.isAndto));
@@ -1336,10 +1346,17 @@ function CalendarPage({ projects, onUpdate }) {
               onDragOver={ds ? e => handleDragOver(e, ds) : undefined}
               onDrop={ds ? e => handleDrop(e, ds) : undefined}
               onDragLeave={() => setHoverDate(null)}
-              onClick={ds ? () => { setAddEventModal({ date: ds }); setAddEventForm({ title: "", date: ds, projectId: projects[0]?.id || "" }); } : undefined}
-              style={{ background: isHover ? C.sageLight : C.surface, minHeight: 90, padding: "7px 5px", boxSizing: "border-box", outline: isHover ? `2px solid ${C.sage}` : "none", outlineOffset: "-2px", cursor: ds ? "pointer" : "default" }}>
+              onMouseEnter={ds ? () => setHoveredCell(ds) : undefined}
+              onMouseLeave={ds ? () => { setHoveredCell(null); } : undefined}
+              style={{ background: isHover ? C.sageLight : C.surface, minHeight: 90, padding: "7px 5px", boxSizing: "border-box", outline: isHover ? `2px solid ${C.sage}` : "none", outlineOffset: "-2px" }}>
               {day && <>
-                <div style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: isToday ? C.accent : "transparent", color: isToday ? "#fff" : col === 5 ? C.done : col === 6 ? C.accent : C.text, fontSize: 13, fontWeight: isToday ? 800 : 400, marginBottom: 3 }}>{day}</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: isToday ? C.accent : "transparent", color: isToday ? "#fff" : col === 5 ? C.done : col === 6 ? C.accent : C.text, fontSize: 13, fontWeight: isToday ? 800 : 400 }}>{day}</div>
+                  {hoveredCell === ds && !dragTask && !dragEvent && (
+                    <button onClick={e => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); setCellMenu(c => c?.date === ds ? null : { date: ds, x: Math.max(0, rect.right - 130), y: rect.bottom + 4 }); }}
+                      style={btn({ width: 18, height: 18, borderRadius: "50%", background: C.sage, color: "#fff", fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 })}>+</button>
+                  )}
+                </div>
                 {(eventsByDate[ds] || []).map(ev => (
                   <div key={ev.id}
                     draggable
@@ -1373,6 +1390,60 @@ function CalendarPage({ projects, onUpdate }) {
           );
         })}
       </div>
+
+      {cellMenu && (
+        <div style={{ position: "fixed", top: cellMenu.y, left: cellMenu.x, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", zIndex: 200, overflow: "hidden", minWidth: 130 }}>
+          <button onClick={e => { e.stopPropagation(); setAddTaskModal({ date: cellMenu.date }); setAddTaskForm({ title: "", dueDate: cellMenu.date, projectId: projects[0]?.id || "", priority: "medium" }); setCellMenu(null); }}
+            style={btn({ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 12, fontWeight: 700, background: "transparent", color: C.text, borderBottom: `1px solid ${C.border}` })}>📋 タスク作成</button>
+          <button onClick={e => { e.stopPropagation(); setAddEventModal({ date: cellMenu.date }); setAddEventForm({ title: "", date: cellMenu.date, projectId: projects[0]?.id || "" }); setCellMenu(null); }}
+            style={btn({ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 12, fontWeight: 700, background: "transparent", color: C.text })}>📅 予定作成</button>
+        </div>
+      )}
+
+      {addTaskModal && (
+        <div onClick={() => setAddTaskModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: C.surface, borderRadius: 16, padding: "24px 28px", maxWidth: 360, width: "100%", boxShadow: "0 16px 48px rgba(0,0,0,0.18)" }}>
+            <div style={{ fontSize: 15, fontWeight: 900, color: C.text, marginBottom: 18 }}>📋 タスクを作成</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>タイトル *</label>
+                <input autoFocus value={addTaskForm.title} onChange={e => setAddTaskForm(f => ({ ...f, title: e.target.value }))}
+                  onKeyDown={e => { if (e.key === "Enter" && addTaskForm.title.trim() && addTaskForm.projectId) { const proj = projects.find(p => p.id === addTaskForm.projectId); if (proj) { onUpdate({ ...proj, tasks: [...proj.tasks, { id: uid(), title: addTaskForm.title.trim(), status: "todo", dueDate: addTaskForm.dueDate, priority: addTaskForm.priority, desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }] }); setAddTaskModal(null); } } }}
+                  style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box", background: C.bg, color: C.text }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>期日</label>
+                <input type="date" value={addTaskForm.dueDate} onChange={e => setAddTaskForm(f => ({ ...f, dueDate: e.target.value }))}
+                  style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box", background: C.bg, color: C.text }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>プロジェクト</label>
+                <select value={addTaskForm.projectId} onChange={e => setAddTaskForm(f => ({ ...f, projectId: e.target.value }))}
+                  style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box", background: C.bg, color: C.text }}>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>優先度</label>
+                <select value={addTaskForm.priority} onChange={e => setAddTaskForm(f => ({ ...f, priority: e.target.value }))}
+                  style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box", background: C.bg, color: C.text }}>
+                  <option value="high">高</option><option value="medium">中</option><option value="low">低</option>
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                <button onClick={() => setAddTaskModal(null)} style={BTN.ghost}>キャンセル</button>
+                <button onClick={() => {
+                  if (!addTaskForm.title.trim() || !addTaskForm.projectId) return;
+                  const proj = projects.find(p => p.id === addTaskForm.projectId);
+                  if (!proj) return;
+                  onUpdate({ ...proj, tasks: [...proj.tasks, { id: uid(), title: addTaskForm.title.trim(), status: "todo", dueDate: addTaskForm.dueDate, priority: addTaskForm.priority, desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }] });
+                  setAddTaskModal(null);
+                }} style={BTN.primary}>作成</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* タスク詳細/編集モーダル */}
       {selectedTask && (() => {
