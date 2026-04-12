@@ -1634,6 +1634,27 @@ function CalendarPage({ projects, onUpdate }) {
 
 const STEPS = ["input","minutes","tasks","save"];
 const STEP_LABELS = ["① 入力","② 議事録確認","③ 決定事項・タスク承認","④ 保存"];
+const STEPS_WITH_TRANSCRIPT = ["input","transcript","minutes","tasks","save"];
+const STEP_LABELS_WITH_TRANSCRIPT = ["① 入力","② 文字起こし確認","③ 議事録確認","④ 決定事項・タスク承認","⑤ 保存"];
+
+const TRANSCRIPTION_SYSTEM_PROMPT = `あなたは建築・ホテル開発プロジェクトの音声文字起こし専門家です。以下のルールで音声を正確に文字起こしてください。
+
+【文字起こしルール】
+1. 発言内容を逐語的に書き起こす（要約・省略は禁止）
+2. 話者を識別し「話者名：発言内容」の形式で1行ずつ記載する
+   - 参加者情報から話者を推定する
+   - 判明しない場合は「話者A：」「話者B：」などでラベリング
+3. 聞き取れない箇所は「（聞き取り不明）」と記載
+4. 相槌・フィラー（「えー」「あの」「うん」等）は省略可
+5. 発言の区切りは改行で表現
+
+【建築・設計の専門用語（正しい表記）】
+確認申請・建築確認・消防申請・開発許可・完了検査
+平面図・立面図・断面図・矩計図・詳細図・施工図・竣工図
+意匠設計・外装・内装・仕上げ材・マテリアル・サイン
+構造設計・設備設計・MEP・躯体・鉄骨・RC造・SRC造
+施工者・ゼネコン・サブコン・工程表・工期・現場監理
+FF&E（家具・備品・什器）・OS&E・プログラム・ゾーニング・動線・スキーム`;
 
 function MinutesPage({ projects, onUpdateProject }) {
   const [selProj, setSelProj] = useState(projects[0]?.id||"");
@@ -1675,6 +1696,11 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [prevStep, setPrevStep] = useState("tasks");
   const [minutesSaved, setMinutesSaved] = useState(false);
   const [savedMinutesId, setSavedMinutesId] = useState(null);
+  const [transcript, setTranscript] = useState("");
+  const [showTranscriptAiEdit, setShowTranscriptAiEdit] = useState(false);
+  const [transcriptAiInstruction, setTranscriptAiInstruction] = useState("");
+  const [transcriptAiEditLoading, setTranscriptAiEditLoading] = useState(false);
+  const [transcriptAiEditError, setTranscriptAiEditError] = useState("");
   const fileRef = useRef();
   const abortControllerRef = useRef(null);
   const selProjObj = projects.find(p => p.id === selProj);
@@ -1737,7 +1763,69 @@ function MinutesPage({ projects, onUpdateProject }) {
     setLoading(false);
   };
 
-  const generateMinutes = async (isRegen = false) => {
+  const generateTranscript = async () => {
+    const audioAttachment = attachedFiles.find(f => f.isAudio);
+    if (!audioAttachment) return;
+    abortControllerRef.current = new AbortController();
+    setLoading(true); setGenError("");
+    try {
+      const keyRes = await fetch("/api/gemini-key", { signal: abortControllerRef.current?.signal });
+      const { key: geminiKey } = await keyRes.json();
+      if (!geminiKey) throw new Error("APIキーが取得できませんでした");
+      const boundary = "gem_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+      const meta = JSON.stringify({ file: { display_name: audioAttachment.name } });
+      const encoder = new TextEncoder();
+      const header = encoder.encode(`--${boundary}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${audioAttachment.mimeType}\r\n\r\n`);
+      const footer = encoder.encode(`\r\n--${boundary}--`);
+      const fileBytes = new Uint8Array(await audioAttachment.file.arrayBuffer());
+      const body = new Uint8Array(header.length + fileBytes.length + footer.length);
+      body.set(header, 0); body.set(fileBytes, header.length); body.set(footer, header.length + fileBytes.length);
+      const uploadRes = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiKey}`, {
+        method: "POST",
+        headers: { "X-Goog-Upload-Protocol": "multipart", "Content-Type": `multipart/related; boundary=${boundary}` },
+        body, signal: abortControllerRef.current?.signal,
+      });
+      const uploadRawText = await uploadRes.text();
+      let uploadData;
+      try { uploadData = JSON.parse(uploadRawText); } catch { throw new Error(`Gemini応答がJSONではありません: ${uploadRawText.slice(0, 150)}`); }
+      if (!uploadRes.ok) throw new Error(`アップロードエラー (${uploadRes.status}): ${uploadData?.error?.message || uploadRawText.slice(0, 150)}`);
+      const audioFileUri = uploadData?.file?.uri;
+      if (!audioFileUri) throw new Error("File URI が返されませんでした");
+
+      const latestProj = projects.find(p => p.id === selProj);
+      const members = latestProj?.members || [];
+      const memberInfo = members.length > 0
+        ? members.map(m => `${m.name}（${m.isAndto ? "andto" : m.org || "参加者"}）`).join("、")
+        : "不明";
+      const result = await callClaude({
+        system: TRANSCRIPTION_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: `以下の音声を文字起こしてください。\n\n【参加者情報】\n${memberInfo}\n\n参加者情報から話者を推定し、各発言を「話者名：内容」の形式で書き起こしてください。` }],
+        max_tokens: 65536,
+        signal: abortControllerRef.current?.signal,
+        audioFileUri,
+      });
+      setTranscript(result);
+      setStep("transcript");
+    } catch (e) {
+      if (e.name !== "AbortError") setGenError("文字起こしエラー：" + e.message);
+    }
+    setLoading(false);
+  };
+
+  const runTranscriptAiEdit = async () => {
+    if (!transcriptAiInstruction.trim()) return;
+    setTranscriptAiEditLoading(true); setTranscriptAiEditError("");
+    try {
+      const revised = await callClaude({
+        system: "あなたは文字起こし編集の専門家です。ユーザーの指示に従って文字起こし内容を修正してください。修正後の文字起こし全文のみを出力してください。",
+        messages: [{ role: "user", content: `以下の文字起こしを指示に従って修正してください。\n\n【修正指示】\n${transcriptAiInstruction}\n\n【文字起こし】\n${transcript}` }],
+      });
+      if (revised) { setTranscript(revised); setShowTranscriptAiEdit(false); setTranscriptAiInstruction(""); }
+    } catch (e) { setTranscriptAiEditError(e.message); }
+    setTranscriptAiEditLoading(false);
+  };
+
+  const generateMinutes = async (isRegen = false, transcriptText = null) => {
     abortControllerRef.current = new AbortController();
     setLoading(true); setGenError("");
     const date = new Date().toLocaleDateString("ja-JP");
@@ -1783,8 +1871,8 @@ function MinutesPage({ projects, onUpdateProject }) {
     const learningNote = learningPatterns.length > 0
       ? `\n\n【過去の修正パターン（参考にして議事録の質を向上させてください）】\n${learningPatterns.map((l, i) => `${i+1}. ${l.instruction}`).join("\n")}`
       : "";
-    const audioAttachment = attachedFiles.find(f => f.isAudio);
-    const combinedText = [
+    const audioAttachment = transcriptText ? null : attachedFiles.find(f => f.isAudio);
+    const combinedText = transcriptText || [
       ...attachedFiles.filter(f => !f.isAudio).map((f, i) => `【ファイル${i + 1}：${f.name}】\n${f.content}`),
       text.trim() ? text : null,
     ].filter(Boolean).join("\n\n");
@@ -1974,10 +2062,13 @@ function MinutesPage({ projects, onUpdateProject }) {
     win.document.close(); win.focus(); win.print();
   };
 
-  const reset = () => { setStep("input");setText("");setAttachedFiles([]);setMinutes("");setMinutesTitle("");setExtracted([]);setExtractedDecisions([]);setSavedType("tasks");setSaveMsg("");setAttendees([]);setBunseki("");setGaiyou("");setMeetingDate("");setTimeRange("");setTeishutsushiryo("");setJuryoshiryo("");setPhase("");setPhaseCustom("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false});setMinutesSaved(false); };
+  const reset = () => { setStep("input");setText("");setAttachedFiles([]);setMinutes("");setMinutesTitle("");setExtracted([]);setExtractedDecisions([]);setSavedType("tasks");setSaveMsg("");setAttendees([]);setBunseki("");setGaiyou("");setMeetingDate("");setTimeRange("");setTeishutsushiryo("");setJuryoshiryo("");setPhase("");setPhaseCustom("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false});setMinutesSaved(false);setTranscript("");setShowTranscriptAiEdit(false);setTranscriptAiInstruction("");setTranscriptAiEditError(""); };
 
-  const stepIdx = STEPS.indexOf(step);
-  const inputStyle = { width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"8px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" };
+  const hasAudio = attachedFiles.some(f => f.isAudio);
+  const activeSteps = hasAudio ? STEPS_WITH_TRANSCRIPT : STEPS;
+  const activeStepLabels = hasAudio ? STEP_LABELS_WITH_TRANSCRIPT : STEP_LABELS;
+  const stepIdx = activeSteps.indexOf(step);
+  const inputStyle ={ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"8px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" };
 
   return (
     <div style={{ overflowY:"auto", height:"calc(100vh - 52px)", background:C.bg }}>
@@ -2062,13 +2153,13 @@ function MinutesPage({ projects, onUpdateProject }) {
 
       <div style={{ padding:24, maxWidth:760, margin:"0 auto" }}>
             <div style={{ display:"flex", alignItems:"center", marginBottom:20 }}>
-              {STEP_LABELS.map((lbl,i)=>(
-                <div key={i} style={{ display:"flex", alignItems:"center", flex:i<STEP_LABELS.length-1?1:"none" }}>
+              {activeStepLabels.map((lbl,i)=>(
+                <div key={i} style={{ display:"flex", alignItems:"center", flex:i<activeStepLabels.length-1?1:"none" }}>
                   <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
                     <div style={{ width:26, height:26, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, background:i<stepIdx?C.sage:i===stepIdx?C.accent:C.border, color:i<=stepIdx?"#fff":C.muted }}>{i<stepIdx?"✓":i+1}</div>
                     <span style={{ fontSize:10, fontWeight:700, color:i===stepIdx?C.accent:i<stepIdx?C.sage:C.muted, whiteSpace:"nowrap" }}>{lbl}</span>
                   </div>
-                  {i<STEP_LABELS.length-1&&<div style={{ flex:1, height:2, background:i<stepIdx?C.sage:C.border, margin:"0 6px", marginBottom:18 }} />}
+                  {i<activeStepLabels.length-1&&<div style={{ flex:1, height:2, background:i<stepIdx?C.sage:C.border, margin:"0 6px", marginBottom:18 }} />}
                 </div>
               ))}
             </div>
@@ -2212,12 +2303,47 @@ function MinutesPage({ projects, onUpdateProject }) {
                     style={{ ...inputStyle, resize:"vertical", lineHeight:1.7, fontFamily:"inherit" }} />
                 </div>
                 <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                  <button onClick={()=>generateMinutes(false)} disabled={(!text.trim()&&attachedFiles.length===0)||!selProj||loading}
+                  <button onClick={() => hasAudio ? generateTranscript() : generateMinutes(false)} disabled={(!text.trim()&&attachedFiles.length===0)||!selProj||loading}
                     onMouseEnter={()=>setHoveredGenBtn(true)} onMouseLeave={()=>setHoveredGenBtn(false)}
                     style={{ background: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "#B0B0B0" : hoveredGenBtn ? "#3D8579" : "#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"10px 24px", fontSize:14, fontWeight:600, cursor: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}>
-                    {loading ? (attachedFiles.some(f=>f.isAudio) ? "🎙 音声処理中..." : "⏳ 生成中...") : "✨ 議事録を生成する"}
+                    {loading ? (hasAudio ? "🎙 文字起こし中..." : "⏳ 生成中...") : hasAudio ? "🎙 文字起こしを開始する" : "✨ 議事録を生成する"}
                   </button>
                   {loading && <button onClick={cancelGenerate} style={{ background:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"10px 18px", fontSize:13, fontWeight:600, cursor:"pointer" }}>キャンセル</button>}
+                </div>
+                {genError&&<div style={{ marginTop:14, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#DC2626", fontWeight:600 }}>⚠️ {genError}</div>}
+              </div>
+            )}
+
+            {step==="transcript"&&(
+              <div style={{ background:C.surface, borderRadius:16, padding:24, border:`1.5px solid ${C.border}` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                  <span style={{ fontWeight:800, color:C.text, fontSize:15 }}>🎙 文字起こし確認</span>
+                  <button onClick={()=>setStep("input")} style={btn({fontSize:12,color:C.muted,background:"transparent"})}>← 戻る</button>
+                </div>
+                <p style={{ fontSize:12, color:C.muted, marginBottom:14, lineHeight:1.7 }}>内容を確認・修正してから議事録を生成してください。話者名の修正などはAI修正をご利用ください。</p>
+                <textarea value={transcript} onChange={e=>setTranscript(e.target.value)} rows={18}
+                  style={{ ...inputStyle, resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace", fontSize:12, marginBottom:16 }} />
+                {showTranscriptAiEdit && (
+                  <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:C.accent, marginBottom:8 }}>✨ AI修正指示</div>
+                    <textarea value={transcriptAiInstruction} onChange={e=>setTranscriptAiInstruction(e.target.value)} rows={3}
+                      placeholder="例：話者Aを「田中様」に修正してください"
+                      style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit" }} />
+                    {transcriptAiEditError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>⚠️ {transcriptAiEditError}</div>}
+                    <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
+                      <button onClick={()=>{setShowTranscriptAiEdit(false);setTranscriptAiInstruction("");setTranscriptAiEditError("");}} style={BTN.ghost}>キャンセル</button>
+                      <button onClick={runTranscriptAiEdit} disabled={transcriptAiEditLoading||!transcriptAiInstruction.trim()} style={{...BTN.primary, opacity:transcriptAiEditLoading||!transcriptAiInstruction.trim()?0.5:1, cursor:transcriptAiEditLoading||!transcriptAiInstruction.trim()?"default":"pointer"}}>{transcriptAiEditLoading?"修正中...":"修正する"}</button>
+                    </div>
+                  </div>
+                )}
+                <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+                  <button onClick={()=>{setShowTranscriptAiEdit(v=>!v);setTranscriptAiInstruction("");setTranscriptAiEditError("");}}
+                    style={btn({padding:"10px 18px",borderRadius:12,background:showTranscriptAiEdit?C.accent:C.accentLight,color:showTranscriptAiEdit?"#fff":C.accent,fontSize:13,fontWeight:800,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
+                  <button onClick={()=>generateMinutes(false, transcript)} disabled={loading||!transcript}
+                    style={btn({padding:"10px 18px",borderRadius:12,background:loading||!transcript?C.border:C.sage,color:"#fff",fontSize:13,fontWeight:800})}>
+                    {loading?"⏳ 生成中...":"✨ 議事録を生成する →"}
+                  </button>
+                  {loading && <button onClick={cancelGenerate} style={{ padding:"10px 18px", borderRadius:12, background:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", fontSize:13, fontWeight:600, cursor:"pointer" }}>キャンセル</button>}
                 </div>
                 {genError&&<div style={{ marginTop:14, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#DC2626", fontWeight:600 }}>⚠️ {genError}</div>}
               </div>
