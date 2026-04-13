@@ -997,16 +997,6 @@ function ProjectsPage({ projects, onUpdate, onDelete, onNavigate, onReorder }) {
                     </div>
                   );
                 })()}
-                <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 14 }}>
-                  {p.tasks.filter(t => t.status !== "done").slice(0,3).map(t => (
-                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: C.bg, borderRadius: 8, fontSize: 12 }}>
-                      <PriorityDot p={t.priority} />
-                      <span style={{ flex: 1, color: C.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
-                      <StatusBadge s={t.status} />
-                    </div>
-                  ))}
-                  {p.tasks.filter(t => t.status!=="done").length===0 && <div style={{ fontSize: 12, color: C.muted, textAlign: "center", padding: "8px 0" }}>進行中のタスクなし</div>}
-                </div>
                 <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
                   {(p.minutes||[]).length > 0 && <span style={{ fontSize: 11, color: C.muted, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: "3px 10px", fontWeight: 700 }}>📝 議事録 {p.minutes.length}件</span>}
                   {(p.decisions||[]).length > 0 && <span style={{ fontSize: 11, color: C.decision, background: C.decisionLight, border: `1px solid #B8CAED`, borderRadius: 20, padding: "3px 10px", fontWeight: 700 }}>📋 決定事項 {p.decisions.length}件</span>}
