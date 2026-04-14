@@ -1988,9 +1988,11 @@ function MinutesPage({ projects, onUpdateProject }) {
           const geminiData = await geminiRes.json();
           if (geminiData.error) throw new Error(`チャンク${i + 1}: ${geminiData.error.message}`);
           const chunkText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          fullTranscript += (fullTranscript ? "\n" : "") + chunkText;
+          // チャンクごとに個別クリーニング（チャンク間の誤検知防止）
+          const cleanedChunk = removeTimestampRegression(removeLoopedLines(chunkText));
+          fullTranscript += (fullTranscript ? "\n" : "") + cleanedChunk;
         }
-        setTranscript(removeTimestampRegression(removeLoopedLines(fullTranscript)));
+        setTranscript(removeLoopedLines(fullTranscript));
       }
       setStep("transcript");
     } catch (e) {
