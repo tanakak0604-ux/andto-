@@ -1,5 +1,5 @@
 /**
- * Slack → TaskFlow タスク自動登録 Webhook
+ * Slack → andto タスク自動登録 Webhook
  *
  * 【概要】
  * Slack のメッセージに ✅ (white_check_mark) リアクションをつけると、
@@ -34,14 +34,13 @@
 
 const crypto = require("crypto");
 
-// 処理済み event_id を記録（重複イベント処理防止）
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+// 処理済み event_id を記録（重複イベント処理防止・メモリ上）
 const processedEventIds = new Set();
 
-// Vercel のボディパーサーを無効化（署名検証のために生の body が必要）
 async function handler(req, res) {
-  // GET は無視
-  if (req.method === "GET") return res.status(200).json({ ok: true, service: "TaskFlow Slack Webhook" });
-
+  if (req.method === "GET") return res.status(200).json({ ok: true, service: "andto Slack Webhook" });
   if (req.method !== "POST") return res.status(405).end();
 
   // ── 1. 生の body を取得 ────────────────────────────────────
@@ -71,7 +70,7 @@ async function handler(req, res) {
     }
   }
 
-  // ── 3.5. 重複イベント処理防止 ─────────────────────────────
+  // ── 4. event_id による重複防止（メモリ上、再起動でリセット） ─
   const eventId = payload.event_id;
   if (eventId) {
     if (processedEventIds.has(eventId)) {
@@ -80,7 +79,7 @@ async function handler(req, res) {
     processedEventIds.add(eventId);
   }
 
-  // ── 4. reaction_added イベントのみ処理 ────────────────────
+  // ── 5. reaction_added (✅) のみ処理 ─────────────────────────
   const event = payload.event;
   if (!event || event.type !== "reaction_added" || event.reaction !== "white_check_mark") {
     return res.status(200).json({ ok: true, skipped: true });
@@ -90,53 +89,52 @@ async function handler(req, res) {
   const messageTs = event.item?.ts;
   if (!channelId || !messageTs) return res.status(200).json({ ok: true });
 
+  // ── 6. Slackの3秒タイムアウト対策：先に200を返す ──────────
+  res.status(200).json({ ok: true });
+
+  // ── 7. 以降は非同期で処理 ────────────────────────────────
   try {
-    // ── 5. 元のメッセージを取得 ────────────────────────────
     const messageText = await fetchSlackMessage(channelId, messageTs);
-    if (!messageText) return res.status(200).json({ ok: true, skipped: "no message text" });
+    if (!messageText) return;
 
-    // ── 6. Supabase からプロジェクトデータを取得 ──────────
     const projects = await loadProjects();
-    if (!projects) return res.status(200).json({ ok: true, skipped: "no projects" });
+    if (!projects) return;
 
-    // ── 7. チャンネルに紐づくプロジェクトを検索 ──────────
     const project = projects.find(p => p.slackChannelId === channelId);
     if (!project) {
       console.log(`No project linked to channel ${channelId}`);
-      return res.status(200).json({ ok: true, skipped: `channel ${channelId} not linked` });
+      return;
     }
 
-    // ── 8. Gemini でタスク情報を抽出 ──────────────────────
+    // slackRef による重複チェック（再起動後も有効）
+    const slackRef = `slack:${channelId}:${messageTs}`;
+    if ((project.tasks || []).some(t => t.slackRef === slackRef)) return;
+
     const taskInfo = await extractTaskFromMessage(messageText, project.members || []);
 
-    // ── 9. タスクをプロジェクトに追加して Supabase に保存 ──
     const newTask = {
-      id: "t" + Date.now() + Math.random().toString(36).slice(2, 6),
+      id: uid(),
       title: taskInfo.title || messageText.slice(0, 60),
       status: "todo",
       priority: taskInfo.priority || "medium",
       dueDate: taskInfo.dueDate || "",
       assigneeIds: resolveAssigneeIds(taskInfo.assignee, project.members || []),
       desc: `Slackから自動登録\n元メッセージ: ${messageText.slice(0, 200)}`,
-      subtasks: [],
+      subtasks: (taskInfo.subtasks || []).map(s => ({ id: uid(), title: s, done: false })),
       relatedDecisionIds: [],
       source: "slack",
-      needsReview: true,
+      slackRef,
       slackChannel: channelId,
       slackTs: messageTs,
+      needsReview: true,
     };
 
     const updatedProject = { ...project, tasks: [...(project.tasks || []), newTask] };
     const updatedProjects = projects.map(p => p.id === project.id ? updatedProject : p);
     await saveProjects(updatedProjects);
-
-    // ── 10. Slack に登録完了を通知（スレッドに返信） ───────
     await postSlackReply(channelId, messageTs, project, newTask);
-
-    return res.status(200).json({ ok: true, taskId: newTask.id, projectId: project.id });
   } catch (e) {
     console.error("slack-webhook error:", e);
-    return res.status(200).json({ ok: true, error: e.message }); // Slack には常に200を返す
   }
 }
 
@@ -203,11 +201,14 @@ async function extractTaskFromMessage(messageText, members) {
 
 出力形式:
 {
-  "title": "タスク名（具体的なアクションを表す簡潔な日本語、最大40文字）",
+  "title": "タスク名（具体的なアクション、最大40文字）",
   "assignee": "担当者名（メンバーリストから一致する名前、なければnull）",
   "dueDate": "YYYY-MM-DD形式の期日（言及があれば、なければnull）",
-  "priority": "high/medium/low（緊急・至急ならhigh、デフォルトはmedium）"
-}`;
+  "priority": "high/medium/low（緊急・至急ならhigh、デフォルトはmedium）",
+  "subtasks": ["サブタスク1", "サブタスク2"]
+}
+
+subtasksは作業を細分化できる場合のみ記載。不要な場合は空配列。`;
 
   const apiKey = process.env.GEMINI_API_KEY;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
@@ -223,11 +224,10 @@ async function extractTaskFromMessage(messageText, members) {
     });
     const data = await res.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    // JSON部分だけを抽出（```json ... ``` も考慮）
     const match = text.match(/\{[\s\S]*\}/);
     return match ? JSON.parse(match[0]) : {};
   } catch {
-    return { title: messageText.slice(0, 40), priority: "medium" };
+    return { title: messageText.slice(0, 40), priority: "medium", subtasks: [] };
   }
 }
 
@@ -240,10 +240,12 @@ function resolveAssigneeIds(assigneeName, members) {
 async function postSlackReply(channelId, ts, project, task) {
   const token = process.env.SLACK_BOT_TOKEN;
   if (!token) return;
+  const subtaskLines = (task.subtasks || []).map(s => `　・${s.title}`).join("\n");
   const text = [
-    `✅ *TaskFlow にタスクを登録しました*`,
+    `✅ *andto にタスクを登録しました*`,
     `プロジェクト: *${project.name}*`,
     `タスク名: ${task.title}`,
+    subtaskLines ? `サブタスク:\n${subtaskLines}` : null,
     task.dueDate ? `期日: ${task.dueDate}` : null,
   ].filter(Boolean).join("\n");
 
