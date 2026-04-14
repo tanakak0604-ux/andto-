@@ -665,7 +665,7 @@ function KanbanPage({ project, onUpdate }) {
   const [assigneeFilter, setAssigneeFilter] = useState("all"); // all | andto | other
   const [confirmDeleteTaskId, setConfirmDeleteTaskId] = useState(null);
 
-  const openNew = (status) => { setForm({ id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }); setModal({ isNew: true }); };
+  const openNew = (status) => { setForm({ id: uid(), title: "", status, dueDate: "", priority: "medium", desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [], createdAt: new Date().toISOString() }); setModal({ isNew: true }); };
   const openEdit = (t) => { setForm({ ...t }); setModal({ isNew: false }); };
   const openReviewEdit = (t) => { setForm({ ...t, needsReview: false }); setModal({ isNew: false }); };
   const closeModal = () => { setModal(null); };
@@ -866,6 +866,11 @@ function KanbanPage({ project, onUpdate }) {
                 + サブタスクを追加
               </button>
             </div>
+            {form.createdAt && (
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>
+                🕐 作成日時：{new Date(form.createdAt).toLocaleString("ja-JP", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}
+              </div>
+            )}
             {(project.decisions || []).length > 0 && (
               <div style={{ marginBottom: 18 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 6 }}>📋 関連する決定事項</label>
@@ -1415,7 +1420,7 @@ function CalendarPage({ projects, onUpdate }) {
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>タイトル *</label>
                 <input autoFocus value={addTaskForm.title} onChange={e => setAddTaskForm(f => ({ ...f, title: e.target.value }))}
-                  onKeyDown={e => { if (e.key === "Enter" && addTaskForm.title.trim() && addTaskForm.projectId) { const proj = projects.find(p => p.id === addTaskForm.projectId); if (proj) { onUpdate({ ...proj, tasks: [...proj.tasks, { id: uid(), title: addTaskForm.title.trim(), status: "todo", dueDate: addTaskForm.dueDate, priority: addTaskForm.priority, desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }] }); setAddTaskModal(null); } } }}
+                  onKeyDown={e => { if (e.key === "Enter" && addTaskForm.title.trim() && addTaskForm.projectId) { const proj = projects.find(p => p.id === addTaskForm.projectId); if (proj) { onUpdate({ ...proj, tasks: [...proj.tasks, { id: uid(), title: addTaskForm.title.trim(), status: "todo", dueDate: addTaskForm.dueDate, priority: addTaskForm.priority, desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [], createdAt: new Date().toISOString() }] }); setAddTaskModal(null); } } }}
                   style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box", background: C.bg, color: C.text }} />
               </div>
               <div>
@@ -1443,7 +1448,7 @@ function CalendarPage({ projects, onUpdate }) {
                   if (!addTaskForm.title.trim() || !addTaskForm.projectId) return;
                   const proj = projects.find(p => p.id === addTaskForm.projectId);
                   if (!proj) return;
-                  onUpdate({ ...proj, tasks: [...proj.tasks, { id: uid(), title: addTaskForm.title.trim(), status: "todo", dueDate: addTaskForm.dueDate, priority: addTaskForm.priority, desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [] }] });
+                  onUpdate({ ...proj, tasks: [...proj.tasks, { id: uid(), title: addTaskForm.title.trim(), status: "todo", dueDate: addTaskForm.dueDate, priority: addTaskForm.priority, desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [], createdAt: new Date().toISOString() }] });
                   setAddTaskModal(null);
                 }} style={BTN.primary}>作成</button>
               </div>
