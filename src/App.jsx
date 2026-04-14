@@ -1715,8 +1715,10 @@ function MinutesPage({ projects, onUpdateProject }) {
       } else if (f.name.endsWith(".mp3") || f.type === "audio/mpeg") {
         // File objectをそのまま保持（直接Geminiにアップロード）
         setAttachedFiles(prev => [...prev, { name: f.name, isAudio: true, file: f, mimeType: "audio/mp3" }]);
+      } else if (f.name.endsWith(".m4a") || f.type === "audio/mp4" || f.type === "audio/x-m4a") {
+        setAttachedFiles(prev => [...prev, { name: f.name, isAudio: true, file: f, mimeType: "audio/mp4" }]);
       } else {
-        setAttachedFiles(prev => [...prev, { name: f.name, content: `[ファイル: ${f.name}]\n（.txt / .md / .mp3 のみ対応）`, isAudio: false }]);
+        setAttachedFiles(prev => [...prev, { name: f.name, content: `[ファイル: ${f.name}]\n（.txt / .md / .mp3 / .m4a のみ対応）`, isAudio: false }]);
       }
     });
     if (fileRef.current) fileRef.current.value = "";
@@ -2292,8 +2294,8 @@ function MinutesPage({ projects, onUpdateProject }) {
                     style={{ border:`2px dashed ${isDragging?C.sage:C.border}`, borderRadius:12, padding:"20px 24px", textAlign:"center", cursor:"pointer", marginBottom:8, background:isDragging?C.sageLight:C.bg }}>
                     <div style={{ fontSize:28, marginBottom:6 }}>{isDragging?"📂":"📎"}</div>
                     <div style={{ fontSize:13, fontWeight:700, color:isDragging?C.sage:C.text }}>{isDragging?"ここにドロップ":"クリックまたはドラッグ＆ドロップ（複数可）"}</div>
-                    <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>.txt / .md / .mp3 対応</div>
-                    <input ref={fileRef} type="file" style={{ display:"none" }} accept=".txt,.md,.mp3,audio/mpeg" multiple onChange={handleFile} />
+                    <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>.txt / .md / .mp3 / .m4a 対応</div>
+                    <input ref={fileRef} type="file" style={{ display:"none" }} accept=".txt,.md,.mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a" multiple onChange={handleFile} />
                   </div>
                   {attachedFiles.length > 0 && (
                     <div style={{ marginBottom:10, display:"flex", flexDirection:"column", gap:5 }}>
