@@ -2927,10 +2927,10 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
     try {
       const revised = await callClaude({
         system: "あなたは議事録編集の専門家です。ユーザーの指示に従って議事録を修正してください。元の構成・フォーマットを極力維持し、指示された箇所のみ修正してください。修正後の議事録全文のみを出力してください。",
-        messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。\n\n【修正指示】\n${aiInstruction}\n\n【議事録】\n${selectedMinute.content}` }]
+        messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。\n\n【修正指示】\n${aiInstruction}\n\n【議事録】\n${editContent}` }]
       });
       if (revised) {
-        onUpdate({ ...project, minutes: project.minutes.map(x => x.id===selectedId ? {...x,content:revised} : x) });
+        setEditContent(revised); // テキストエリアに反映（保存は「💾 保存」ボタンで）
         setAiEditOpen(false); setAiInstruction("");
       }
     } catch(e) { setAiError("エラー："+e.message); }
@@ -3236,7 +3236,9 @@ ${pastMinutesTitles}
                   {isEditing ? (
                     <>
                       <button onClick={saveEdit} style={BTN.primary}>💾 保存</button>
-                      <button onClick={()=>setIsEditing(false)} style={BTN.ghost}>キャンセル</button>
+                      <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
+                        style={{ background:aiEditOpen?C.accent:C.accentLight, color:aiEditOpen?"#fff":C.accent, border:`1.5px solid ${C.accent}`, borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✨ AI修正</button>
+                      <button onClick={()=>{ setIsEditing(false); setAiEditOpen(false); }} style={BTN.ghost}>キャンセル</button>
                     </>
                   ) : extractMode ? (
                     <button onClick={()=>setExtractMode(false)} style={BTN.ghost}>← プレビューに戻る</button>
@@ -3245,9 +3247,6 @@ ${pastMinutesTitles}
                       <button onClick={()=>{ setIsEditing(true); setEditContent(selectedMinute.content); setAiEditOpen(false); }}
                         onMouseEnter={()=>setHoveredBtn('edit')} onMouseLeave={()=>setHoveredBtn(null)}
                         style={{ background:hoveredBtn==='edit'?C.hover:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer", transition:"all 0.15s" }}>✏️ 編集</button>
-                      <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
-                        onMouseEnter={()=>setHoveredBtn('ai')} onMouseLeave={()=>setHoveredBtn(null)}
-                        style={{ background:hoveredBtn==='ai'?C.hover:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer", transition:"all 0.15s" }}>✨ AI修正</button>
                       <button onClick={extractBothFromSaved} disabled={extracting}
                         onMouseEnter={()=>setHoveredBtn('extract')} onMouseLeave={()=>setHoveredBtn(null)}
                         style={{ background:extracting?"#3D8579":hoveredBtn==='extract'?"#3D8579":"#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:extracting?"default":"pointer", opacity:extracting?0.7:1 }}>
@@ -3275,7 +3274,7 @@ ${pastMinutesTitles}
                     </>
                   )}
                 </div>
-                {aiEditOpen && !isEditing && (
+                {aiEditOpen && isEditing && (
                   <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
                     <div style={{ fontSize:12, fontWeight:700, color:C.accent, marginBottom:8 }}>✨ AI修正指示</div>
                     <textarea value={aiInstruction} onChange={e=>setAiInstruction(e.target.value)} rows={3}
