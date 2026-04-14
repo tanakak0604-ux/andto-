@@ -1747,8 +1747,8 @@ function MinutesPage({ projects, onUpdateProject }) {
       } else if (f.name.endsWith(".mp3") || f.type === "audio/mpeg") {
         // File objectをそのまま保持（直接Geminiにアップロード）
         setAttachedFiles(prev => [...prev, { name: f.name, isAudio: true, file: f, mimeType: "audio/mp3" }]);
-      } else if (f.name.endsWith(".m4a") || f.type === "audio/mp4" || f.type === "audio/x-m4a") {
-        setAttachedFiles(prev => [...prev, { name: f.name, isAudio: true, file: f, mimeType: "audio/mp4" }]);
+      } else if (f.name.endsWith(".m4a") || f.type === "audio/mp4" || f.type === "audio/x-m4a" || f.type === "audio/m4a") {
+        setAttachedFiles(prev => [...prev, { name: f.name, isAudio: true, file: f, mimeType: "audio/m4a" }]);
       } else {
         setAttachedFiles(prev => [...prev, { name: f.name, content: `[ファイル: ${f.name}]\n（.txt / .md / .mp3 / .m4a のみ対応）`, isAudio: false }]);
       }
@@ -1811,8 +1811,20 @@ function MinutesPage({ projects, onUpdateProject }) {
       try { uploadData = JSON.parse(uploadRawText); } catch { throw new Error(`Gemini応答がJSONではありません: ${uploadRawText.slice(0, 150)}`); }
       if (!uploadRes.ok) throw new Error(`アップロードエラー (${uploadRes.status}): ${uploadData?.error?.message || uploadRawText.slice(0, 150)}`);
       const audioFileUri = uploadData?.file?.uri;
+      const audioFileName = uploadData?.file?.name;
       if (!audioFileUri) throw new Error("File URI が返されませんでした");
       setUploadedAudioFileUri(audioFileUri);
+
+      // ファイルがACTIVEになるまでポーリング（最大30秒）
+      if (audioFileName) {
+        for (let i = 0; i < 15; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          const stateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/${audioFileName}?key=${geminiKey}`);
+          const stateData = await stateRes.json();
+          if (stateData?.state === "ACTIVE") break;
+          if (stateData?.state === "FAILED") throw new Error("音声ファイルの処理に失敗しました");
+        }
+      }
 
       const latestProj = projects.find(p => p.id === selProj);
       const members = latestProj?.members || [];
@@ -1883,8 +1895,20 @@ function MinutesPage({ projects, onUpdateProject }) {
         });
         const uploadData = await uploadRes.json();
         fileUri = uploadData?.file?.uri;
+        const fileName = uploadData?.file?.name;
         if (!fileUri) throw new Error("File URI が返されませんでした");
         setUploadedAudioFileUri(fileUri);
+
+        // ACTIVEになるまでポーリング
+        if (fileName) {
+          for (let i = 0; i < 15; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            const stateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${geminiKey}`);
+            const stateData = await stateRes.json();
+            if (stateData?.state === "ACTIVE") break;
+            if (stateData?.state === "FAILED") throw new Error("音声ファイルの処理に失敗しました");
+          }
+        }
       }
 
       const tail = transcript.slice(-800);
@@ -1894,7 +1918,7 @@ function MinutesPage({ projects, onUpdateProject }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [
-            { file_data: { file_uri: fileUri, mime_type: audioAttachment?.mimeType || "audio/mp4" } },
+            { file_data: { file_uri: fileUri, mime_type: audioAttachment?.mimeType || "audio/m4a" } },
             { text: continuePrompt },
           ]}],
           generationConfig: { maxOutputTokens: 65536, temperature: 0 },
