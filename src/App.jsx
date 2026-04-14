@@ -1813,6 +1813,7 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [transcriptContinueLoading, setTranscriptContinueLoading] = useState(false);
   const [chunkProgress, setChunkProgress] = useState("");
   const [isChunked, setIsChunked] = useState(false);
+  const [loadingOp, setLoadingOp] = useState(null); // "transcript" | "minutes" | null
   const fileRef = useRef();
   const abortControllerRef = useRef(null);
   const selProjObj = projects.find(p => p.id === selProj);
@@ -1881,7 +1882,7 @@ function MinutesPage({ projects, onUpdateProject }) {
     const audioAttachment = attachedFiles.find(f => f.isAudio);
     if (!audioAttachment) return;
     abortControllerRef.current = new AbortController();
-    setLoading(true); setGenError(""); setChunkProgress(""); setIsChunked(false);
+    setLoading(true); setGenError(""); setChunkProgress(""); setIsChunked(false); setLoadingOp("transcript");
     try {
       const keyRes = await fetch("/api/gemini-key", { signal: abortControllerRef.current?.signal });
       const { key: geminiKey } = await keyRes.json();
@@ -2000,6 +2001,7 @@ function MinutesPage({ projects, onUpdateProject }) {
     }
     setLoading(false);
     setChunkProgress("");
+    setLoadingOp(null);
   };
 
   const runTranscriptAiEdit = async () => {
@@ -2083,7 +2085,7 @@ function MinutesPage({ projects, onUpdateProject }) {
 
   const generateMinutes = async (isRegen = false, transcriptText = null) => {
     abortControllerRef.current = new AbortController();
-    setLoading(true); setGenError("");
+    setLoading(true); setGenError(""); setLoadingOp("minutes");
     const date = new Date().toLocaleDateString("ja-JP");
     const latestProj = projects.find(p => p.id === selProj);
     const members = latestProj?.members || [];
@@ -2213,6 +2215,7 @@ function MinutesPage({ projects, onUpdateProject }) {
       setStep("minutes");
     }
     setLoading(false);
+    setLoadingOp(null);
   };
 
 
@@ -2570,11 +2573,17 @@ function MinutesPage({ projects, onUpdateProject }) {
                   <textarea value={text} onChange={e=>setText(e.target.value)} rows={8} placeholder="または会議メモ・発言内容を直接ペースト..."
                     style={{ ...inputStyle, resize:"vertical", lineHeight:1.7, fontFamily:"inherit" }} />
                 </div>
-                <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                  <button onClick={() => hasAudio ? generateTranscript() : generateMinutes(false)} disabled={(!text.trim()&&attachedFiles.length===0)||!selProj||loading}
+                <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+                  {hasAudio && (
+                    <button onClick={generateTranscript} disabled={!selProj||loading}
+                      style={{ background: loading||!selProj ? "#B0B0B0" : "#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"10px 24px", fontSize:14, fontWeight:600, cursor: loading||!selProj ? "default" : "pointer", opacity: loading&&loadingOp==="transcript" ? 0.7 : 1 }}>
+                      {loadingOp==="transcript" ? (chunkProgress ? `🎙 ${chunkProgress}` : "🎙 文字起こし中...") : "🎙 文字起こしを開始する"}
+                    </button>
+                  )}
+                  <button onClick={() => generateMinutes(false)} disabled={(!text.trim()&&attachedFiles.length===0)||!selProj||loading}
                     onMouseEnter={()=>setHoveredGenBtn(true)} onMouseLeave={()=>setHoveredGenBtn(false)}
-                    style={{ background: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "#B0B0B0" : hoveredGenBtn ? "#3D8579" : "#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"10px 24px", fontSize:14, fontWeight:600, cursor: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}>
-                    {loading ? (hasAudio ? (chunkProgress ? `🎙 ${chunkProgress}` : "🎙 文字起こし中...") : "⏳ 生成中...") : hasAudio ? "🎙 文字起こしを開始する" : "✨ 議事録を生成する"}
+                    style={{ background: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "#B0B0B0" : hoveredGenBtn ? "#3D8579" : "#4A9B8E", border:"none", color:"#fff", borderRadius:6, padding:"10px 24px", fontSize:14, fontWeight:600, cursor: loading||(!text.trim()&&attachedFiles.length===0)||!selProj ? "default" : "pointer", opacity: loading&&loadingOp==="minutes" ? 0.7 : 1 }}>
+                    {loadingOp==="minutes" ? "⏳ 議事録生成中..." : "✨ 議事録を生成する"}
                   </button>
                   {loading && <button onClick={cancelGenerate} style={{ background:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"10px 18px", fontSize:13, fontWeight:600, cursor:"pointer" }}>キャンセル</button>}
                 </div>
