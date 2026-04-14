@@ -290,15 +290,17 @@ function removeLoopedLines(text) {
   const lines = text.split("\n");
   const result = [];
   let repeatCount = 0;
-  let lastLine = null;
+  let lastContent = null;
   for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed === lastLine && trimmed !== "") {
+    // タイムスタンプ [MM:SS] を除いた内容部分で重複を判定
+    const content = trimmed.replace(/^\[\d+:\d+\]\s*/, "");
+    if (content === lastContent && content !== "") {
       repeatCount++;
-      if (repeatCount >= 3) break; // 同じ行が3回以上続いたら打ち切り
+      if (repeatCount >= 3) break; // 同じ内容が3回以上続いたら打ち切り
     } else {
       repeatCount = 1;
-      lastLine = trimmed;
+      lastContent = content;
       result.push(line);
     }
   }
