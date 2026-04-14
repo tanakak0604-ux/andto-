@@ -44,7 +44,7 @@ async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  const { system, messages, max_tokens, audioFile, audioFileUri } = req.body;
+  const { system, messages, max_tokens, audioFile, audioFileUri, audioMimeType } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
 
@@ -53,7 +53,7 @@ async function handler(req, res) {
 
     if (audioFileUri) {
       // フロントエンドから直接アップロード済みのURI
-      parts.push({ file_data: { file_uri: audioFileUri, mime_type: "audio/mp3" } });
+      parts.push({ file_data: { file_uri: audioFileUri, mime_type: audioMimeType || "audio/mp4" } });
     } else if (audioFile) {
       const { data: audioBase64, mimeType } = audioFile;
       const audioBuffer = Buffer.from(audioBase64, "base64");
