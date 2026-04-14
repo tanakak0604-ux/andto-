@@ -1632,7 +1632,7 @@ const TRANSCRIPTION_SYSTEM_PROMPT = `あなたは建築・ホテル開発プロ�
    - 参加者情報から話者を推定する
    - 判明しない場合は「話者A：」「話者B：」などでラベリング
 3. 聞き取れない箇所は「（聞き取り不明）」と記載
-4. 相槌・フィラー（「えー」「あの」「うん」等）は省略可
+4. 相槌・フィラー（「えー」「あの」「うん」「えっと」「まあ」「なんか」「そう」「ちょっと」等）・単純な繰り返しは省略し、できるだけコンパクトに記述する
 5. 発言の区切りは改行で表現
 
 【建築・設計の専門用語（正しい表記）】
@@ -1688,6 +1688,8 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [transcriptAiInstruction, setTranscriptAiInstruction] = useState("");
   const [transcriptAiEditLoading, setTranscriptAiEditLoading] = useState(false);
   const [transcriptAiEditError, setTranscriptAiEditError] = useState("");
+  const [uploadedAudioFileUri, setUploadedAudioFileUri] = useState(null);
+  const [transcriptContinueLoading, setTranscriptContinueLoading] = useState(false);
   const fileRef = useRef();
   const abortControllerRef = useRef(null);
   const selProjObj = projects.find(p => p.id === selProj);
@@ -1780,6 +1782,7 @@ function MinutesPage({ projects, onUpdateProject }) {
       if (!uploadRes.ok) throw new Error(`アップロードエラー (${uploadRes.status}): ${uploadData?.error?.message || uploadRawText.slice(0, 150)}`);
       const audioFileUri = uploadData?.file?.uri;
       if (!audioFileUri) throw new Error("File URI が返されませんでした");
+      setUploadedAudioFileUri(audioFileUri);
 
       const latestProj = projects.find(p => p.id === selProj);
       const members = latestProj?.members || [];
@@ -1821,6 +1824,60 @@ function MinutesPage({ projects, onUpdateProject }) {
       if (revised) { setTranscript(revised); setShowTranscriptAiEdit(false); setTranscriptAiInstruction(""); }
     } catch (e) { setTranscriptAiEditError(e.message); }
     setTranscriptAiEditLoading(false);
+  };
+
+  const continueTranscript = async () => {
+    const audioAttachment = attachedFiles.find(f => f.isAudio);
+    if (!audioAttachment && !uploadedAudioFileUri) return;
+    setTranscriptContinueLoading(true);
+    try {
+      const keyRes = await fetch("/api/gemini-key");
+      const { key: geminiKey } = await keyRes.json();
+      if (!geminiKey) throw new Error("APIキーが取得できませんでした");
+
+      let fileUri = uploadedAudioFileUri;
+      if (!fileUri) {
+        // 再アップロード
+        const boundary = "gem_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+        const meta = JSON.stringify({ file: { display_name: audioAttachment.name } });
+        const encoder = new TextEncoder();
+        const header = encoder.encode(`--${boundary}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${audioAttachment.mimeType}\r\n\r\n`);
+        const footer = encoder.encode(`\r\n--${boundary}--`);
+        const fileBytes = new Uint8Array(await audioAttachment.file.arrayBuffer());
+        const body = new Uint8Array(header.length + fileBytes.length + footer.length);
+        body.set(header, 0); body.set(fileBytes, header.length); body.set(footer, header.length + fileBytes.length);
+        const uploadRes = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiKey}`, {
+          method: "POST",
+          headers: { "X-Goog-Upload-Protocol": "multipart", "Content-Type": `multipart/related; boundary=${boundary}` },
+          body,
+        });
+        const uploadData = await uploadRes.json();
+        fileUri = uploadData?.file?.uri;
+        if (!fileUri) throw new Error("File URI が返されませんでした");
+        setUploadedAudioFileUri(fileUri);
+      }
+
+      const tail = transcript.slice(-800);
+      const continuePrompt = `以下の音声の文字起こしを行っています。すでに書き起こされた末尾部分を参考に、その続きから文字起こしを続けてください。重複しないように、末尾の直後から続けてください。\n\n【ここまでの末尾】\n${tail}\n\n【続きの文字起こし（末尾の直後から）】`;
+      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [
+            { file_data: { file_uri: fileUri, mime_type: audioAttachment?.mimeType || "audio/mp4" } },
+            { text: continuePrompt },
+          ]}],
+          generationConfig: { maxOutputTokens: 65536 },
+        }),
+      });
+      const geminiData = await geminiRes.json();
+      if (geminiData.error) throw new Error(geminiData.error.message);
+      const continuation = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      if (continuation) setTranscript(prev => prev + "\n" + continuation);
+    } catch (e) {
+      alert("続き生成エラー：" + e.message);
+    }
+    setTranscriptContinueLoading(false);
   };
 
   const generateMinutes = async (isRegen = false, transcriptText = null) => {
@@ -2060,7 +2117,7 @@ function MinutesPage({ projects, onUpdateProject }) {
     win.document.close(); win.focus(); win.print();
   };
 
-  const reset = () => { setStep("input");setText("");setAttachedFiles([]);setMinutes("");setMinutesTitle("");setExtracted([]);setExtractedDecisions([]);setSavedType("tasks");setSaveMsg("");setAttendees([]);setBunseki("");setGaiyou("");setMeetingDate("");setTimeRange("");setTeishutsushiryo("");setJuryoshiryo("");setPhase("");setPhaseCustom("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false});setMinutesSaved(false);setTranscript("");setShowTranscriptAiEdit(false);setTranscriptAiInstruction("");setTranscriptAiEditError(""); };
+  const reset = () => { setStep("input");setText("");setAttachedFiles([]);setMinutes("");setMinutesTitle("");setExtracted([]);setExtractedDecisions([]);setSavedType("tasks");setSaveMsg("");setAttendees([]);setBunseki("");setGaiyou("");setMeetingDate("");setTimeRange("");setTeishutsushiryo("");setJuryoshiryo("");setPhase("");setPhaseCustom("");setNewMemberCandidates([]);setShowMemberConfirm(false);setShowQuickAddMember(false);setQuickMember({name:"",org:"",isAndto:false});setMinutesSaved(false);setTranscript("");setShowTranscriptAiEdit(false);setTranscriptAiInstruction("");setTranscriptAiEditError("");setUploadedAudioFileUri(null);setTranscriptContinueLoading(false); };
 
   const hasAudio = attachedFiles.some(f => f.isAudio);
   const activeSteps = hasAudio ? STEPS_WITH_TRANSCRIPT : STEPS;
@@ -2349,6 +2406,10 @@ function MinutesPage({ projects, onUpdateProject }) {
                 <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
                   <button onClick={()=>{setShowTranscriptAiEdit(v=>!v);setTranscriptAiInstruction("");setTranscriptAiEditError("");}}
                     style={btn({padding:"10px 18px",borderRadius:12,background:showTranscriptAiEdit?C.accent:C.accentLight,color:showTranscriptAiEdit?"#fff":C.accent,fontSize:13,fontWeight:800,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
+                  <button onClick={continueTranscript} disabled={transcriptContinueLoading||loading}
+                    style={btn({padding:"10px 18px",borderRadius:12,background:transcriptContinueLoading||loading?C.border:C.doing+"cc",color:"#fff",fontSize:13,fontWeight:800})}>
+                    {transcriptContinueLoading?"⏳ 続き生成中...":"⏩ 続きを生成"}
+                  </button>
                   <button onClick={()=>generateMinutes(false, transcript)} disabled={loading||!transcript}
                     style={btn({padding:"10px 18px",borderRadius:12,background:loading||!transcript?C.border:C.sage,color:"#fff",fontSize:13,fontWeight:800})}>
                     {loading?"⏳ 生成中...":"✨ 議事録を生成する →"}
