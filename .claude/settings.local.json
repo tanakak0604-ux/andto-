@@ -7,7 +7,36 @@
       "Bash(python -c \":*)",
       "Bash(node -e \":*)",
       "mcp__claude_ai_Slack__slack_send_message",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(mkdir -p /c/Users/info/Documents/file-transfer/server/routes)",
+      "Bash(mkdir -p /c/Users/info/Documents/file-transfer/client/public)",
+      "Bash(mkdir -p /c/Users/info/Documents/file-transfer/client/src/pages)",
+      "Bash(mkdir -p /c/Users/info/Documents/file-transfer/client/src/components)",
+      "Bash(npm install:*)",
+      "Bash(gh repo:*)",
+      "Bash(where gh:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:andto.jp)",
+      "Bash(identify /c/Users/info/Documents/file-transfer/client/src/logo.png)",
+      "Bash(python3 -c \"from PIL import Image; img = Image.open\\('/c/Users/info/Documents/file-transfer/client/src/logo.png'\\); print\\(img.size\\)\")",
+      "Bash(python -c \"from PIL import Image; img = Image.open\\('C:/Users/info/Documents/file-transfer/client/src/logo.png'\\); print\\(img.size\\)\")",
+      "Bash(powershell -command 'Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile\\('\\\\''C:\\\\Users\\\\info\\\\Documents\\\\file-transfer\\\\client\\\\src\\\\logo.png'\\\\''\\); Write-Host $img.Width $img.Height')",
+      "Read(//c/Users/info/Documents/file-transfer/client/src/pages/**)",
+      "Read(//c/Users/info/Documents/file-transfer/client/**)",
+      "Read(//c/Users/info/Documents/file-transfer/api/**)",
+      "Read(//c/Users/info/Documents/file-transfer//**)",
+      "Bash(git add:*)",
+      "Read(//c/Users/info/Documents/sekkeiryou kanri-/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\info\\Documents\\file-transfer\\client\\src\\components",
+      "C:\\Users\\info\\Documents\\file-transfer\\client\\src\\pages",
+      "C:\\Users\\info\\Documents\\file-transfer\\api\\upload",
+      "C:\\Users\\info\\Documents\\file-transfer\\api\\files",
+      "C:\\Users\\info\\Documents\\file-transfer\\uploads",
+      "C:\\Users\\info\\Documents\\pdf-compressor",
+      "C:\\Users\\info\\Documents\\sekkeiryou kanri-"
     ]
   }
 }
