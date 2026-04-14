@@ -2086,6 +2086,15 @@ function MinutesPage({ projects, onUpdateProject }) {
   const generateMinutes = async (isRegen = false, transcriptText = null) => {
     abortControllerRef.current = new AbortController();
     setLoading(true); setGenError(""); setLoadingOp("minutes");
+
+    // Gemini キーを常に取得（ブラウザ直接呼び出しで Vercel タイムアウトを回避）
+    let geminiKey = null;
+    try {
+      const keyRes = await fetch("/api/gemini-key", { signal: abortControllerRef.current?.signal });
+      const keyData = await keyRes.json();
+      geminiKey = keyData.key || null;
+    } catch { /* キー取得失敗時は後段でエラーになる */ }
+
     const date = new Date().toLocaleDateString("ja-JP");
     const latestProj = projects.find(p => p.id === selProj);
     const members = latestProj?.members || [];
@@ -2137,14 +2146,9 @@ function MinutesPage({ projects, onUpdateProject }) {
 
     // 音声ファイルをブラウザから Gemini File API に直接アップロード（multipart, CORS対応エンドポイント使用）
     let audioFileUri = undefined;
-    let geminiKeyForMinutes = null;
     if (audioAttachment) {
       try {
-        // API キーをサーバーから取得
-        const keyRes = await fetch("/api/gemini-key", { signal: abortControllerRef.current?.signal });
-        const { key: geminiKey } = await keyRes.json();
         if (!geminiKey) throw new Error("APIキーが取得できませんでした");
-        geminiKeyForMinutes = geminiKey;
 
         // multipart/related ボディを手動構築（base64不要・バイナリそのまま）
         const boundary = "gem_" + Date.now() + "_" + Math.random().toString(36).slice(2);
@@ -2190,31 +2194,27 @@ function MinutesPage({ projects, onUpdateProject }) {
     const audioNote = audioAttachment ? `\n\n【音声ファイル】「${audioAttachment.name}」が添付されています。音声を文字起こしし、議事録に反映してください。` : "";
     const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}${learningNote}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${combinedText}${audioNote}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
     try {
-      let result;
-      if (audioFileUri && geminiKeyForMinutes) {
-        // 音声ありの場合はブラウザから Gemini に直接リクエスト（Vercel タイムアウト回避）
-        const prompt = SYSTEM_PROMPT + "\n\n" + userContent;
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKeyForMinutes}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [
-                { file_data: { file_uri: audioFileUri, mime_type: audioAttachment.mimeType } },
-                { text: prompt },
-              ]}],
-              generationConfig: { maxOutputTokens: 65536 },
-            }),
-            signal: abortControllerRef.current?.signal,
-          }
-        );
-        const geminiData = await geminiRes.json();
-        if (geminiData.error) throw new Error(geminiData.error.message);
-        result = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      } else {
-        result = await callClaude({ system: SYSTEM_PROMPT, messages: [{ role: "user", content: userContent }], signal: abortControllerRef.current?.signal });
-      }
+      // 常にブラウザから Gemini に直接リクエスト（Vercel タイムアウト回避）
+      if (!geminiKey) throw new Error("APIキーが取得できませんでした");
+      const prompt = SYSTEM_PROMPT + "\n\n" + userContent;
+      const parts = [];
+      if (audioFileUri) parts.push({ file_data: { file_uri: audioFileUri, mime_type: audioAttachment.mimeType } });
+      parts.push({ text: prompt });
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts }],
+            generationConfig: { maxOutputTokens: 65536 },
+          }),
+          signal: abortControllerRef.current?.signal,
+        }
+      );
+      const geminiData = await geminiRes.json();
+      if (geminiData.error) throw new Error(geminiData.error.message);
+      const result = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
       let hasAiComp = false;
       if (result.includes("※AI補完") || result.includes("※AI要約")) {
         setPendingMinutes(result);
