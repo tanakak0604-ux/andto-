@@ -2848,6 +2848,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [aiInstruction, setAiInstruction] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
+  const [diffResult, setDiffResult] = useState(null); // {original, revised, lines}
   const [deletingId, setDeletingId] = useState(null);
   const [extracting, setExtracting] = useState(false);
   const [extractMode, setExtractMode] = useState(false);
@@ -2921,6 +2922,24 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
     selectedMinute.agendas.length > 0
   );
 
+  const computeLineDiff = (oldText, newText) => {
+    const oldLines = oldText.split("\n");
+    const newLines = newText.split("\n");
+    const m = oldLines.length, n = newLines.length;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 1; i <= m; i++)
+      for (let j = 1; j <= n; j++)
+        dp[i][j] = oldLines[i-1] === newLines[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+    const result = [];
+    let i = m, j = n;
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && oldLines[i-1] === newLines[j-1]) { result.unshift({ type: "same", text: oldLines[i-1] }); i--; j--; }
+      else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) { result.unshift({ type: "add", text: newLines[j-1] }); j--; }
+      else { result.unshift({ type: "remove", text: oldLines[i-1] }); i--; }
+    }
+    return result;
+  };
+
   const runAiEdit = async () => {
     if (!aiInstruction.trim() || !selectedMinute) return;
     setAiLoading(true); setAiError("");
@@ -2930,7 +2949,8 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
         messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。\n\n【修正指示】\n${aiInstruction}\n\n【議事録】\n${editContent}` }]
       });
       if (revised) {
-        setEditContent(revised); // テキストエリアに反映（保存は「💾 保存」ボタンで）
+        const lines = computeLineDiff(editContent, revised);
+        setDiffResult({ original: editContent, revised, lines });
         setAiEditOpen(false); setAiInstruction("");
       }
     } catch(e) { setAiError("エラー："+e.message); }
@@ -3235,10 +3255,10 @@ ${pastMinutesTitles}
                 <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:8 }}>
                   {isEditing ? (
                     <>
-                      <button onClick={saveEdit} style={BTN.primary}>💾 保存</button>
-                      <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
-                        style={{ background:aiEditOpen?C.accent:C.accentLight, color:aiEditOpen?"#fff":C.accent, border:`1.5px solid ${C.accent}`, borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✨ AI修正</button>
-                      <button onClick={()=>{ setIsEditing(false); setAiEditOpen(false); }} style={BTN.ghost}>キャンセル</button>
+                      <button onClick={saveEdit} disabled={!!diffResult} style={{...BTN.primary, opacity:diffResult?0.5:1, cursor:diffResult?"default":"pointer"}}>💾 保存</button>
+                      {!diffResult && <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
+                        style={{ background:aiEditOpen?C.accent:C.accentLight, color:aiEditOpen?"#fff":C.accent, border:`1.5px solid ${C.accent}`, borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✨ AI修正</button>}
+                      <button onClick={()=>{ setIsEditing(false); setAiEditOpen(false); setDiffResult(null); }} style={BTN.ghost}>キャンセル</button>
                     </>
                   ) : extractMode ? (
                     <button onClick={()=>setExtractMode(false)} style={BTN.ghost}>← プレビューに戻る</button>
@@ -3472,8 +3492,34 @@ ${pastMinutesTitles}
                 </div>
               </div>
             ) : isEditing ? (
-              <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
-                style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
+              diffResult ? (
+                <div>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                    <span style={{ fontSize:12, fontWeight:700, color:C.text }}>AI修正の差分プレビュー</span>
+                    <span style={{ fontSize:11, color:"#D32F2F", background:"#FFEBEE", borderRadius:4, padding:"2px 7px", fontWeight:600 }}>― 削除</span>
+                    <span style={{ fontSize:11, color:"#2E7D32", background:"#E8F5E9", borderRadius:4, padding:"2px 7px", fontWeight:600 }}>＋ 追加</span>
+                    <div style={{ marginLeft:"auto", display:"flex", gap:8 }}>
+                      <button onClick={()=>setDiffResult(null)} style={BTN.ghost}>破棄</button>
+                      <button onClick={()=>{ setEditContent(diffResult.revised); setDiffResult(null); }} style={BTN.primary}>適用する</button>
+                    </div>
+                  </div>
+                  <div style={{ border:`1.5px solid ${C.border}`, borderRadius:10, overflow:"auto", maxHeight:600, fontFamily:"'Courier New',monospace", fontSize:12, lineHeight:1.8 }}>
+                    {diffResult.lines.map((line, idx) => (
+                      <div key={idx} style={{
+                        padding:"1px 14px",
+                        background: line.type==="add" ? "#E8F5E9" : line.type==="remove" ? "#FFEBEE" : "transparent",
+                        color: line.type==="add" ? "#2E7D32" : line.type==="remove" ? "#C62828" : C.text,
+                        whiteSpace:"pre-wrap", wordBreak:"break-all",
+                      }}>
+                        {line.type==="add" ? "＋ " : line.type==="remove" ? "― " : "　 "}{line.text || "\u00A0"}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
+                  style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
+              )
             ) : (<>
               <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}`, wordBreak:"break-word", overflowWrap:"break-word", overflow:"hidden" }}
                 dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
