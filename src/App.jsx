@@ -2272,7 +2272,15 @@ function MinutesPage({ projects, onUpdateProject }) {
         callClaude({ max_tokens: 8000, signal: sig, messages: [{ role: "user", content: `今日の日付：${todayStr}\n\n以下の議事録からアクションアイテムをJSON配列で抽出してください。\n\n【期限抽出ルール】\n・「〇月〇日」「〇日まで」→ YYYY-MM-DD形式に変換\n・「来週」→ 今日から7〜13日後の該当曜日\n・「月末」→ 今月末日\n・「次回まで」「次回会議まで」→ null\n・「至急」「できるだけ早く」→ dueDate: null、priority: "high"\n・期限が明示されていない場合 → null\n\n形式: [{"title":"タスク名","assignee":"担当者名または空文字","dueDate":"YYYY-MM-DDまたはnull","priority":"high|medium|low"}]\nJSONのみ出力。\n\n${minutes}` }] }),
         callClaude({ max_tokens: 4000, signal: sig, messages: [{ role: "user", content: `以下の議事録から【決定事項】の項目をJSON配列で抽出してください。各決定事項を1件ずつ配列に含めてください。\n形式: [{"text":"決定事項の内容"}]\nJSONのみ出力。\n\n${minutes}` }] })
       ]);
-      try { setExtracted(extractJsonArray(rawTasks).map(t=>({...t,id:uid(),status:"todo",desc:"",selected:true}))); }
+      try {
+        const members = projects.find(p=>p.id===selProj)?.members || [];
+        const resolveIds = (assignee) => {
+          if (!assignee) return [];
+          const m = members.find(m => m.name===assignee || assignee.includes(m.name) || m.name.includes(assignee));
+          return m ? [m.id] : [];
+        };
+        setExtracted(extractJsonArray(rawTasks).map(t=>({...t, id:uid(), status:"todo", desc:"", selected:true, assigneeIds: resolveIds(t.assignee), subtasks:[], relatedDecisionIds:[], createdAt:new Date().toISOString()})));
+      }
       catch { setGenError("タスクのJSON解析に失敗しました。再度お試しください。"); setExtracted([]); }
       try { setExtractedDecisions(extractJsonArray(rawDecs).map(d=>({...d,id:uid(),selected:true,addAsTask:false}))); }
       catch { setExtractedDecisions([]); }
@@ -2287,14 +2295,7 @@ function MinutesPage({ projects, onUpdateProject }) {
   const approveBoth = () => {
     const latestProj = projects.find(p=>p.id===selProj);
     if (!latestProj) return;
-    const tasksToAdd = extracted.filter(t=>t.selected).filter(t=>t.title !== "タスク抽出に失敗しました").map(({selected,assignee,...t}) => {
-      let assigneeIds = [];
-      if (assignee && latestProj.members) {
-        const member = latestProj.members.find(m => m.name===assignee || assignee.includes(m.name) || m.name.includes(assignee));
-        if (member) assigneeIds = [member.id];
-      }
-      return {...t, assigneeIds};
-    });
+    const tasksToAdd = extracted.filter(t=>t.selected).filter(t=>t.title !== "タスク抽出に失敗しました").map(({selected,assignee,...t}) => ({...t}));
     const _meetingDateMatch = minutes.match(/日時[　\s]*：[　\s]*(\d{4}[\/\-年]\d{1,2}[\/\-月]\d{1,2})/);
     const _meetingDateStr = _meetingDateMatch ? (() => { const d=new Date(_meetingDateMatch[1].replace(/[年月]/g,"/").replace(/-/g,"/")); return isNaN(d)?null:d.toISOString().slice(0,10); })() : null;
     const newDecisions = extractedDecisions.filter(d=>d.selected).map(d=>({
@@ -2778,8 +2779,18 @@ function MinutesPage({ projects, onUpdateProject }) {
                         <div onClick={e=>e.stopPropagation()} style={{ padding:"0 12px 10px 40px", display:"flex", gap:6, flexWrap:"wrap" }}>
                           <input value={t.title} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,title:e.target.value}:x))} placeholder="タスク名"
                             style={{ flex:"2 1 140px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
-                          <input value={t.assignee} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,assignee:e.target.value}:x))} placeholder="👤 担当者"
-                            style={{ flex:"1 1 80px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                          <div style={{ flex:"1 1 80px", minWidth:0, display:"flex", gap:4, flexWrap:"wrap", alignItems:"center" }}>
+                            {(selProjObj?.members||[]).length === 0 ? (
+                              <input value={t.assignee||""} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,assignee:e.target.value}:x))} placeholder="👤 担当者"
+                                style={{ flex:1, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                            ) : (selProjObj?.members||[]).map(m => {
+                              const sel = (t.assigneeIds||[]).includes(m.id);
+                              return <button key={m.id} type="button" onClick={()=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,assigneeIds:sel?(x.assigneeIds||[]).filter(id=>id!==m.id):[...(x.assigneeIds||[]),m.id]}:x))}
+                                style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:sel?C.sage:"transparent", color:sel?"#fff":C.muted, border:`1.5px solid ${sel?C.sage:C.border}`, cursor:"pointer", whiteSpace:"nowrap" }}>
+                                {sel?"✓ ":""}{m.name}
+                              </button>;
+                            })}
+                          </div>
                           <input type="date" value={t.dueDate} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,dueDate:e.target.value}:x))}
                             style={{ flex:"1 1 110px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
                           <select value={t.priority} onChange={e=>setExtracted(ex=>ex.map(x=>x.id===t.id?{...x,priority:e.target.value}:x))}
@@ -2976,7 +2987,12 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
       ]);
       let parsedTasks = [];
       try {
-        parsedTasks = extractJsonArray(rawTasks).map(x=>({...x,id:uid(),status:"todo",desc:"",selected:true,subtasks:[]}));
+        const resolveIds = (assignee) => {
+          if (!assignee) return [];
+          const m = (project.members||[]).find(m => m.name===assignee || assignee.includes(m.name) || m.name.includes(assignee));
+          return m ? [m.id] : [];
+        };
+        parsedTasks = extractJsonArray(rawTasks).map(x=>({...x, id:uid(), status:"todo", desc:"", selected:true, subtasks:[], assigneeIds: resolveIds(x.assignee), relatedDecisionIds:[], createdAt:new Date().toISOString()}));
         setDetailExtracted(parsedTasks);
       } catch {
         parsedTasks = [{id:uid(),title:"タスク抽出に失敗しました",status:"todo",dueDate:"",priority:"medium",desc:"",selected:false,subtasks:[]}];
@@ -3015,14 +3031,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   };
 
   const approveBothFromSaved = () => {
-    const tasksToAdd = detailExtracted.filter(t=>t.selected).map(({selected,assignee,...t}) => {
-      let assigneeIds = [];
-      if (assignee && project.members) {
-        const member = project.members.find(m => m.name===assignee || assignee.includes(m.name) || m.name.includes(assignee));
-        if (member) assigneeIds = [member.id];
-      }
-      return {...t, assigneeIds};
-    });
+    const tasksToAdd = detailExtracted.filter(t=>t.selected).map(({selected,assignee,...t}) => ({...t}));
     const source = extractGaiyou(selectedMinute.content) || selectedMinute.title.replace(/^\d{4}\/\d{1,2}\/\d{1,2}\s*/,"");
     // localFoldersのうち既存に存在しないものを新規フォルダとして追加
     const existingFolderIds = new Set((project.decisionFolders||[]).map(f => f.id));
@@ -3398,9 +3407,19 @@ ${pastMinutesTitles}
                             <input autoFocus value={t.title} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,title:e.target.value}:x))} placeholder="タスク名"
                               onKeyDown={e=>{if(e.key==="Enter")setEditingTaskId(null);}}
                               style={{ flex:"2 1 140px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
-                            <input value={t.assignee||""} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,assignee:e.target.value}:x))} placeholder="👤 担当者"
-                              onKeyDown={e=>{if(e.key==="Enter")setEditingTaskId(null);}}
-                              style={{ flex:"1 1 80px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                            <div style={{ display:"flex", gap:4, flexWrap:"wrap", alignItems:"center" }}>
+                              {(project.members||[]).length === 0 ? (
+                                <input value={t.assignee||""} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,assignee:e.target.value}:x))} placeholder="👤 担当者"
+                                  onKeyDown={e=>{if(e.key==="Enter")setEditingTaskId(null);}}
+                                  style={{ flex:1, minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
+                              ) : (project.members||[]).map(m => {
+                                const sel = (t.assigneeIds||[]).includes(m.id);
+                                return <button key={m.id} type="button" onClick={()=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,assigneeIds:sel?(x.assigneeIds||[]).filter(id=>id!==m.id):[...(x.assigneeIds||[]),m.id]}:x))}
+                                  style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:sel?C.sage:"transparent", color:sel?"#fff":C.muted, border:`1.5px solid ${sel?C.sage:C.border}`, cursor:"pointer", whiteSpace:"nowrap" }}>
+                                  {sel?"✓ ":""}{m.name}
+                                </button>;
+                              })}
+                            </div>
                             <input type="date" value={t.dueDate||""} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,dueDate:e.target.value}:x))}
                               style={{ flex:"1 1 110px", minWidth:0, border:`1px solid ${C.border}`, borderRadius:6, padding:"4px 8px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box" }} />
                             <select value={t.priority} onChange={e=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,priority:e.target.value}:x))}
