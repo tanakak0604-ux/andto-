@@ -3988,7 +3988,7 @@ function DecisionsPage({ project, onUpdate }) {
                       </div>
                     </div>
                     <p onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); setEditingDecisionSource(d.source||""); setEditingDecisionDate(d.date||""); }}
-                      style={{ fontSize:13, color:C.text, lineHeight:1.75, margin:"0 0 10px", fontWeight:500, cursor:"pointer" }}>{d.text}</p>
+                      style={{ fontSize:13, color:C.text, lineHeight:1.75, margin:"0 0 10px", fontWeight:500, cursor:"pointer", whiteSpace:"pre-wrap" }}>{d.text}</p>
                     {(() => {
                       const linked = (project.tasks || []).filter(t => (t.relatedDecisionIds || []).includes(d.id));
                       return linked.length > 0 && (
