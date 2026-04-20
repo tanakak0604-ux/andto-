@@ -3173,7 +3173,23 @@ ${pastMinutesTitles}
 3. 担当・期日は記載しない
 4. タイトル下の項目（名称・日時・場所・出席者・文責・フェーズ）は議事録の該当情報から自動引き継ぎ
 5. 議事録のヘッダースタイル（■ 議題）と完全に統一する`;
-      const result = await callClaude({ max_tokens: 3000, messages: [{ role: "user", content: prompt }] });
+      const keyRes = await fetch("/api/gemini-key");
+      const { key: geminiKey } = await keyRes.json();
+      if (!geminiKey) throw new Error("APIキーが取得できませんでした");
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: 3000 },
+          }),
+        }
+      );
+      const geminiData = await geminiRes.json();
+      if (geminiData.error) throw new Error(geminiData.error.message);
+      const result = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
       if (result) {
         const agendaEntry = {
           id: "a" + Date.now(),
