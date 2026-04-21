@@ -3187,6 +3187,10 @@ ${pastMinutesTitles}
           }),
         }
       );
+      if (!geminiRes.ok) {
+        const errText = await geminiRes.text();
+        throw new Error(`Gemini APIエラー (${geminiRes.status}): ${errText.slice(0, 300)}`);
+      }
       const geminiData = await geminiRes.json();
       if (geminiData.error) throw new Error(geminiData.error.message);
       const result = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
