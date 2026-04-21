@@ -3112,6 +3112,9 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
         .slice(-3)
         .map(m => `【${m.title}】\n${extractTopics(m.content)}`)
         .join('\n\n') || '（なし）';
+      const minuteContent = selectedMinute.content.length > 3000
+        ? selectedMinute.content.slice(0, 3000) + "\n…（以下省略）"
+        : selectedMinute.content;
       const prompt = `あなたは建築・ホテル開発プロジェクトの意匠設計者です。
 以下の情報から次回打合せのアジェンダを作成してください。
 
@@ -3119,7 +3122,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
 ${project.name}
 
 【今回の議事録】
-${selectedMinute.content}
+${minuteContent}
 
 【プロジェクトの未完了タスク一覧】
 ${incompleteTasks}
@@ -3183,7 +3186,7 @@ ${pastMinutesTitles}
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: { maxOutputTokens: 3000 },
+            generationConfig: { maxOutputTokens: 8000 },
           }),
         }
       );
