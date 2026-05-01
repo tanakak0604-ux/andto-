@@ -603,7 +603,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
   const folderKey = status + "folders";
   const folders = project[folderKey] || [];
   const colTasks = (viewTasks ?? project.tasks).filter(t => t.status === status).sort((a, b) => {
-    const pd = (PRIORITY_ORDER[a.priority]||1) - (PRIORITY_ORDER[b.priority]||1);
+    const pd = (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1);
     if (pd !== 0) return pd;
     if (!a.dueDate && !b.dueDate) return 0;
     if (!a.dueDate) return 1;
