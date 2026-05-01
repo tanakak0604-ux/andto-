@@ -656,7 +656,10 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
   const unfoldered = colTasks.filter(t => !t.folderId || !folders.find(f => f.id === t.folderId));
 
   return (
-    <div style={{ flex: 1, minWidth: 240, background: bg, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}` }}>
+    <div style={{ flex: 1, minWidth: 240, background: bg, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}` }}
+      onDragOver={e => e.preventDefault()}
+      onDrop={e => dropTask(e, null)}
+    >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontWeight: 800, color: col, fontSize: 12, letterSpacing: 1 }}>{label}</span>
@@ -684,7 +687,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
             <div key={folder.id}
               onDragOver={e => { e.preventDefault(); setOver(folder.id); }}
               onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(null); }}
-              onDrop={e => dropTask(e, folder.id)}
+              onDrop={e => { e.stopPropagation(); dropTask(e, folder.id); }}
               style={{ background: dragFolderId === folder.id ? "transparent" : over === folder.id ? hoverBg : "#fff", borderRadius: 10, border: `1.5px solid ${dragFolderId && over === folder.id ? col : over === folder.id && !dragFolderId ? col : C.border}`, overflow: "hidden", opacity: dragFolderId === folder.id ? 0.4 : 1, transition: "opacity 0.15s" }}>
               <div draggable={editingFolderId !== folder.id}
                 onDragStart={e => { e.dataTransfer.setData("folderId", folder.id); e.dataTransfer.effectAllowed = "move"; setDragFolderId(folder.id); }}
@@ -724,7 +727,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
         <div
           onDragOver={e => { e.preventDefault(); setOver("__unfoldered__"); }}
           onDragLeave={() => setOver(null)}
-          onDrop={e => dropTask(e, null)}
+          onDrop={e => { e.stopPropagation(); dropTask(e, null); }}
           style={{ display:"flex", flexDirection:"column", gap:6, padding:"6px 8px", borderRadius:10, border:`1.5px dashed ${over==="__unfoldered__" ? col : folders.length > 0 ? C.border : "transparent"}`, background: over==="__unfoldered__" ? hoverBg : "transparent", minHeight: folders.length > 0 ? 80 : 36, transition:"background 0.15s, border 0.15s" }}>
           {folders.length > 0 && <div style={{ fontSize:11, color:C.muted, fontWeight:600 }}>📂 未分類</div>}
           {unfoldered.length === 0 && folders.length > 0 && (
