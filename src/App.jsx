@@ -1470,7 +1470,7 @@ function CalendarPage({ projects, onUpdate }) {
                 {(milestonesByDate[ds] || []).map(m => (
                   <div key={m.id}
                     style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, marginBottom: 2, background: m.achieved ? C.sageLight : m.pColor + "22", border: `1px solid ${m.pColor}`, color: m.pColor, fontWeight: 700, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: m.achieved ? "line-through" : "none", opacity: m.achieved ? 0.6 : 1 }}>
-                    🏁 {m.name}
+                    🚩 {m.name}
                   </div>
                 ))}
                 {(eventsByDate[ds] || []).map(ev => (
@@ -4118,7 +4118,7 @@ function MilestonePage({ project, onUpdate }) {
   return (
     <div style={{ padding: 24, maxWidth: 700 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: C.text }}>🏁 マイルストーン</h2>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: C.text }}>🚩 マイルストーン</h2>
         <button onClick={() => setForm({ id: uid(), name: "", date: "", achieved: false })} style={BTN.primary}>+ 追加</button>
       </div>
       {sorted.length === 0 && !form && (
@@ -4154,7 +4154,7 @@ function MilestonePage({ project, onUpdate }) {
               {m.achieved ? "✓" : ""}
             </button>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, textDecoration: m.achieved ? "line-through" : "none" }}>🏁 {m.name}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, textDecoration: m.achieved ? "line-through" : "none" }}>🚩 {m.name}</div>
               {m.date && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>📅 {m.date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1/$2/$3")}</div>}
             </div>
             <button onClick={() => setForm({ ...m })} style={btn({ padding: "5px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 12, fontWeight: 600 })}>編集</button>
@@ -4184,7 +4184,7 @@ function ProjectDetailPage({ project, onUpdate, onMinutesUpdate }) {
   return (
     <div>
       <div style={{ background: C.surface, borderBottom: `1.5px solid ${C.border}`, display: "flex", paddingLeft: 24 }}>
-        {[["tasks","📋 タスク"],["minutes","📝 議事録"],["decisions","📌 決定事項"],["milestones","🏁 マイルストーン"]].map(([id, lbl]) => (
+        {[["tasks","📋 タスク"],["minutes","📝 議事録"],["decisions","📌 決定事項"],["milestones","🚩 マイルストーン"]].map(([id, lbl]) => (
           <button key={id} onClick={() => setSubTab(id)}
             style={btn({ padding: "10px 18px", fontSize: 13, fontWeight: 700, background: "transparent", color: subTab === id ? project.color : C.muted, borderBottom: subTab === id ? `2.5px solid ${project.color}` : "2.5px solid transparent", borderRadius: 0 })}>
             {lbl}
