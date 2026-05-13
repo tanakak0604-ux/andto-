@@ -1870,6 +1870,9 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [chunkProgress, setChunkProgress] = useState("");
   const [isChunked, setIsChunked] = useState(false);
   const [loadingOp, setLoadingOp] = useState(null); // "transcript" | "minutes" | null
+  const [aiDiff, setAiDiff] = useState(null); // { original, revised } 議事録AI修正プレビュー
+  const [transcriptAiDiff, setTranscriptAiDiff] = useState(null); // 文字起こしAI修正プレビュー
+  const [fileError, setFileError] = useState("");
   const fileRef = useRef();
   const abortControllerRef = useRef(null);
   const selProjObj = projects.find(p => p.id === selProj);
@@ -1900,7 +1903,8 @@ function MinutesPage({ projects, onUpdateProject }) {
       } else if (f.name.endsWith(".m4a") || f.type === "audio/mp4" || f.type === "audio/x-m4a" || f.type === "audio/m4a") {
         setAttachedFiles(prev => [...prev, { name: f.name, isAudio: true, file: f, mimeType: "audio/m4a" }]);
       } else {
-        setAttachedFiles(prev => [...prev, { name: f.name, content: `[ファイル: ${f.name}]\n（.txt / .md / .mp3 / .m4a のみ対応）`, isAudio: false }]);
+        setFileError(`「${f.name}」は非対応形式です。対応ファイル：.txt / .md / .mp3 / .m4a`);
+        setTimeout(() => setFileError(""), 4000);
       }
     });
     if (fileRef.current) fileRef.current.value = "";
@@ -1915,9 +1919,8 @@ function MinutesPage({ projects, onUpdateProject }) {
         messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。\n\n【修正指示】\n${aiInstruction}\n\n【議事録】\n${minutes}` }]
       });
       if (revised) {
-        setMinutes(revised);
+        setAiDiff({ original: minutes, revised });
         setShowAiEdit(false);
-        // Save learning pattern to project
         const latestProj = projects.find(p => p.id === selProj);
         if (latestProj && aiInstruction.trim()) {
           const learning = [...(latestProj.minutesLearning || []), { instruction: aiInstruction.trim(), date: new Date().toISOString() }].slice(-10);
@@ -2068,7 +2071,7 @@ function MinutesPage({ projects, onUpdateProject }) {
         system: "あなたは文字起こし編集の専門家です。ユーザーの指示に従って文字起こし内容を修正してください。修正後の文字起こし全文のみを出力してください。",
         messages: [{ role: "user", content: `以下の文字起こしを指示に従って修正してください。\n\n【修正指示】\n${transcriptAiInstruction}\n\n【文字起こし】\n${transcript}` }],
       });
-      if (revised) { setTranscript(revised); setShowTranscriptAiEdit(false); setTranscriptAiInstruction(""); }
+      if (revised) { setTranscriptAiDiff({ original: transcript, revised }); setShowTranscriptAiEdit(false); setTranscriptAiInstruction(""); }
     } catch (e) { setTranscriptAiEditError(e.message); }
     setTranscriptAiEditLoading(false);
   };
@@ -2318,6 +2321,7 @@ function MinutesPage({ projects, onUpdateProject }) {
   };
 
   const extractBoth = async () => {
+    if (!minutesSaved) saveToProject();
     abortControllerRef.current = new AbortController();
     setLoading(true);
     try {
@@ -2641,6 +2645,11 @@ function MinutesPage({ projects, onUpdateProject }) {
                     <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>.txt / .md / .mp3 / .m4a 対応</div>
                     <input ref={fileRef} type="file" style={{ display:"none" }} accept=".txt,.md,.mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a" multiple onChange={handleFile} />
                   </div>
+                  {fileError && (
+                    <div style={{ marginBottom:8, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#DC2626", fontWeight:600 }}>
+                      ⚠️ {fileError}
+                    </div>
+                  )}
                   {attachedFiles.length > 0 && (
                     <div style={{ marginBottom:10, display:"flex", flexDirection:"column", gap:5 }}>
                       {attachedFiles.map((f, i) => (
@@ -2696,8 +2705,27 @@ function MinutesPage({ projects, onUpdateProject }) {
                     </div>
                   </div>
                 )}
+                {transcriptAiDiff && (
+                  <div style={{ marginBottom:16, background:"#F0FDF4", border:`1.5px solid ${C.sage}`, borderRadius:12, padding:16 }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:C.sage, marginBottom:10 }}>✨ AI修正プレビュー — 内容を確認して適用してください</div>
+                    <div style={{ display:"flex", gap:10, marginBottom:12 }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:C.muted, marginBottom:4 }}>修正前</div>
+                        <textarea readOnly value={transcriptAiDiff.original} rows={8} style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 10px", fontSize:11, background:"#fff", color:C.muted, resize:"vertical", boxSizing:"border-box", fontFamily:"'Courier New',monospace", lineHeight:1.6 }} />
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:C.sage, marginBottom:4 }}>修正後</div>
+                        <textarea readOnly value={transcriptAiDiff.revised} rows={8} style={{ width:"100%", border:`1.5px solid ${C.sage}`, borderRadius:8, padding:"8px 10px", fontSize:11, background:C.sageLight, color:C.text, resize:"vertical", boxSizing:"border-box", fontFamily:"'Courier New',monospace", lineHeight:1.6 }} />
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+                      <button onClick={()=>setTranscriptAiDiff(null)} style={BTN.ghost}>キャンセル</button>
+                      <button onClick={()=>{ setTranscript(transcriptAiDiff.revised); setTranscriptAiDiff(null); }} style={BTN.primary}>適用する</button>
+                    </div>
+                  </div>
+                )}
                 <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-                  <button onClick={()=>{setShowTranscriptAiEdit(v=>!v);setTranscriptAiInstruction("");setTranscriptAiEditError("");}}
+                  <button onClick={()=>{setShowTranscriptAiEdit(v=>!v);setTranscriptAiInstruction("");setTranscriptAiEditError("");setTranscriptAiDiff(null);}}
                     style={btn({padding:"10px 18px",borderRadius:12,background:showTranscriptAiEdit?C.accent:C.accentLight,color:showTranscriptAiEdit?"#fff":C.accent,fontSize:13,fontWeight:800,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
                   {!isChunked && (
                   <button onClick={continueTranscript} disabled={transcriptContinueLoading||loading}
@@ -2743,8 +2771,27 @@ function MinutesPage({ projects, onUpdateProject }) {
                     </div>
                   </div>
                 )}
+                {aiDiff && (
+                  <div style={{ marginBottom:16, background:"#F0FDF4", border:`1.5px solid ${C.sage}`, borderRadius:12, padding:16 }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:C.sage, marginBottom:10 }}>✨ AI修正プレビュー — 内容を確認して適用してください</div>
+                    <div style={{ display:"flex", gap:10, marginBottom:12 }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:C.muted, marginBottom:4 }}>修正前</div>
+                        <textarea readOnly value={aiDiff.original} rows={8} style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 10px", fontSize:11, background:"#fff", color:C.muted, resize:"vertical", boxSizing:"border-box", fontFamily:"'Courier New',monospace", lineHeight:1.6 }} />
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:C.sage, marginBottom:4 }}>修正後</div>
+                        <textarea readOnly value={aiDiff.revised} rows={8} style={{ width:"100%", border:`1.5px solid ${C.sage}`, borderRadius:8, padding:"8px 10px", fontSize:11, background:C.sageLight, color:C.text, resize:"vertical", boxSizing:"border-box", fontFamily:"'Courier New',monospace", lineHeight:1.6 }} />
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+                      <button onClick={()=>setAiDiff(null)} style={BTN.ghost}>キャンセル</button>
+                      <button onClick={()=>{ setMinutes(aiDiff.revised); setAiDiff(null); setMinutesSaved(false); }} style={BTN.primary}>適用する</button>
+                    </div>
+                  </div>
+                )}
                 <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-                  <button onClick={()=>{setShowAiEdit(v=>!v);setAiInstruction("");setAiEditError("");}}
+                  <button onClick={()=>{setShowAiEdit(v=>!v);setAiInstruction("");setAiEditError("");setAiDiff(null);}}
                     style={btn({padding:"10px 18px",borderRadius:12,background:showAiEdit?C.accent:C.accentLight,color:showAiEdit?"#fff":C.accent,fontSize:13,fontWeight:800,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
                   <button onClick={()=>{saveToProject();}} disabled={!minutes||minutesSaved}
                     style={btn({padding:"10px 18px",borderRadius:12,background:minutesSaved?C.border:minutes?C.sage:C.border,color:"#fff",fontSize:13,fontWeight:800})}>
