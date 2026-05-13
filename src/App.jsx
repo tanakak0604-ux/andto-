@@ -4119,7 +4119,7 @@ function MilestonePage({ project, onUpdate }) {
     <div style={{ padding: 24, maxWidth: 700 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: C.text }}>🚩 マイルストーン</h2>
-        <button onClick={() => setForm({ id: uid(), name: "", date: "", achieved: false })} style={BTN.primary}>+ 追加</button>
+        <button onClick={() => setForm({ id: uid(), name: "", date: "", achieved: false })} style={BTN.primaryLg}>+ 追加</button>
       </div>
       {sorted.length === 0 && !form && (
         <div style={{ textAlign: "center", padding: "48px 0", color: C.muted, fontSize: 13 }}>マイルストーンがありません</div>
