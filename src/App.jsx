@@ -4184,7 +4184,7 @@ function ProjectDetailPage({ project, onUpdate, onMinutesUpdate }) {
   return (
     <div>
       <div style={{ background: C.surface, borderBottom: `1.5px solid ${C.border}`, display: "flex", paddingLeft: 24 }}>
-        {[["tasks","📋 タスク"],["minutes","📝 議事録"],["decisions","📌 決定事項"],["milestones","🚩 マイルストーン"]].map(([id, lbl]) => (
+        {[["milestones","🚩 マイルストーン"],["tasks","📋 タスク"],["minutes","📝 議事録"],["decisions","📌 決定事項"]].map(([id, lbl]) => (
           <button key={id} onClick={() => setSubTab(id)}
             style={btn({ padding: "10px 18px", fontSize: 13, fontWeight: 700, background: "transparent", color: subTab === id ? project.color : C.muted, borderBottom: subTab === id ? `2.5px solid ${project.color}` : "2.5px solid transparent", borderRadius: 0 })}>
             {lbl}
