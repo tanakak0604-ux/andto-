@@ -1359,6 +1359,11 @@ function CalendarPage({ projects, onUpdate }) {
   const eventsByDate = {};
   filteredEvents.forEach(e => { if (e.date) { if (!eventsByDate[e.date]) eventsByDate[e.date] = []; eventsByDate[e.date].push(e); } });
 
+  const allMilestones = projects.flatMap(p => (p.milestones || []).map(m => ({ ...m, pId: p.id, pColor: p.color, pName: p.name })));
+  const filteredMilestones = selectedProjects.length === 0 ? allMilestones : allMilestones.filter(m => selectedProjects.includes(m.pId));
+  const milestonesByDate = {};
+  filteredMilestones.forEach(m => { if (m.date) { if (!milestonesByDate[m.date]) milestonesByDate[m.date] = []; milestonesByDate[m.date].push(m); } });
+
   const firstDayRaw = new Date(year, month, 1).getDay();
   const firstDay = firstDayRaw === 0 ? 6 : firstDayRaw - 1;
   const days = new Date(year, month + 1, 0).getDate();
@@ -1462,6 +1467,12 @@ function CalendarPage({ projects, onUpdate }) {
                       style={btn({ width: 18, height: 18, borderRadius: "50%", background: C.sage, color: "#fff", fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 })}>+</button>
                   )}
                 </div>
+                {(milestonesByDate[ds] || []).map(m => (
+                  <div key={m.id}
+                    style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, marginBottom: 2, background: m.achieved ? C.sageLight : m.pColor + "22", border: `1px solid ${m.pColor}`, color: m.pColor, fontWeight: 700, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: m.achieved ? "line-through" : "none", opacity: m.achieved ? 0.6 : 1 }}>
+                    🏁 {m.name}
+                  </div>
+                ))}
                 {(eventsByDate[ds] || []).map(ev => (
                   <div key={ev.id}
                     draggable
@@ -4082,12 +4093,98 @@ function DecisionsPage({ project, onUpdate }) {
   );
 }
 
+function MilestonePage({ project, onUpdate }) {
+  const [form, setForm] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const milestones = project.milestones || [];
+  const sorted = [...milestones].sort((a, b) => {
+    if (!a.date && !b.date) return 0;
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return new Date(a.date) - new Date(b.date);
+  });
+  const save = () => {
+    if (!form.name.trim()) return;
+    const exists = milestones.find(m => m.id === form.id);
+    const updated = exists ? milestones.map(m => m.id === form.id ? form : m) : [...milestones, form];
+    onUpdate({ ...project, milestones: updated });
+    setForm(null);
+  };
+  const toggleAchieved = (id) => {
+    onUpdate({ ...project, milestones: milestones.map(m => m.id === id ? { ...m, achieved: !m.achieved } : m) });
+  };
+  const del = (id) => { onUpdate({ ...project, milestones: milestones.filter(m => m.id !== id) }); setConfirmDeleteId(null); };
+
+  return (
+    <div style={{ padding: 24, maxWidth: 700 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: C.text }}>🏁 マイルストーン</h2>
+        <button onClick={() => setForm({ id: uid(), name: "", date: "", achieved: false })} style={BTN.primary}>+ 追加</button>
+      </div>
+      {sorted.length === 0 && !form && (
+        <div style={{ textAlign: "center", padding: "48px 0", color: C.muted, fontSize: 13 }}>マイルストーンがありません</div>
+      )}
+      {form && (
+        <div style={{ background: C.surface, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 4 }}>マイルストーン名</div>
+              <input autoFocus value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") setForm(null); }}
+                placeholder="例：基本設計完了"
+                style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", fontSize: 13, boxSizing: "border-box", outline: "none" }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 4 }}>日付</div>
+              <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                style={{ border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", fontSize: 13, outline: "none" }} />
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setForm(null)} style={BTN.ghost}>キャンセル</button>
+              <button onClick={save} style={BTN.primary}>保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {sorted.map(m => (
+          <div key={m.id} style={{ background: C.surface, border: `1.5px solid ${m.achieved ? C.sage : C.border}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, opacity: m.achieved ? 0.7 : 1, transition: "opacity 0.2s" }}>
+            <button onClick={() => toggleAchieved(m.id)}
+              style={btn({ width: 24, height: 24, borderRadius: "50%", border: `2px solid ${m.achieved ? C.sage : C.border}`, background: m.achieved ? C.sage : "transparent", color: "#fff", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 })}>
+              {m.achieved ? "✓" : ""}
+            </button>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, textDecoration: m.achieved ? "line-through" : "none" }}>🏁 {m.name}</div>
+              {m.date && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>📅 {m.date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1/$2/$3")}</div>}
+            </div>
+            <button onClick={() => setForm({ ...m })} style={btn({ padding: "5px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 12, fontWeight: 600 })}>編集</button>
+            <button onClick={() => setConfirmDeleteId(m.id)} style={BTN.danger}>削除</button>
+          </div>
+        ))}
+      </div>
+      {confirmDeleteId && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
+          onMouseDown={e => { if (e.target === e.currentTarget) setConfirmDeleteId(null); }}>
+          <div style={{ background: C.surface, borderRadius: 16, padding: 24, width: 340, boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: C.text, marginBottom: 8 }}>マイルストーンを削除しますか？</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>「{milestones.find(m => m.id === confirmDeleteId)?.name}」を削除します。</div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmDeleteId(null)} style={BTN.ghost}>キャンセル</button>
+              <button onClick={() => del(confirmDeleteId)} style={{ ...BTN.danger, background: "#E53935", color: "#fff", border: "none" }}>削除する</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectDetailPage({ project, onUpdate, onMinutesUpdate }) {
   const [subTab, setSubTab] = useState("tasks");
   return (
     <div>
       <div style={{ background: C.surface, borderBottom: `1.5px solid ${C.border}`, display: "flex", paddingLeft: 24 }}>
-        {[["tasks","📋 タスク"],["minutes","📝 議事録"],["decisions","📌 決定事項"]].map(([id, lbl]) => (
+        {[["tasks","📋 タスク"],["minutes","📝 議事録"],["decisions","📌 決定事項"],["milestones","🏁 マイルストーン"]].map(([id, lbl]) => (
           <button key={id} onClick={() => setSubTab(id)}
             style={btn({ padding: "10px 18px", fontSize: 13, fontWeight: 700, background: "transparent", color: subTab === id ? project.color : C.muted, borderBottom: subTab === id ? `2.5px solid ${project.color}` : "2.5px solid transparent", borderRadius: 0 })}>
             {lbl}
@@ -4097,6 +4194,7 @@ function ProjectDetailPage({ project, onUpdate, onMinutesUpdate }) {
       {subTab === "tasks" && <KanbanPage key={project.id} project={project} onUpdate={onUpdate} />}
       {subTab === "minutes" && <MinutesDetailPage project={project} onBack={() => setSubTab("tasks")} onUpdate={onMinutesUpdate} />}
       {subTab === "decisions" && <DecisionsPage project={project} onUpdate={onUpdate} />}
+      {subTab === "milestones" && <MilestonePage project={project} onUpdate={onUpdate} />}
     </div>
   );
 }
