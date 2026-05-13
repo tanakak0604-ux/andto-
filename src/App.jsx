@@ -4477,6 +4477,19 @@ export default function App() {
   const projectsRef = useRef(projects);
   useEffect(() => { projectsRef.current = projects; }, [projects]);
   const showToast = (msg) => setToast(msg);
+
+  const navigate = (newTab) => {
+    setTab(newTab);
+    window.history.pushState({ tab: newTab }, '');
+  };
+
+  useEffect(() => {
+    const onPopState = (e) => setTab(e.state?.tab || 'projects');
+    window.history.replaceState({ tab: 'projects' }, '');
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []); // eslint-disable-line
+
   const toastWithProject = (projectId, msg) => {
     const name = projectsRef.current.find(p => p.id === projectId)?.name || "";
     showToast(name ? `【${name}】${msg}` : msg);
@@ -4639,12 +4652,12 @@ export default function App() {
       return ps.map(x => x.id === newProj.id ? newProj : x);
     });
   };
-  const deleteProject = id => { setProjects(ps => ps.filter(p => p.id!==id)); setTab("projects"); };
+  const deleteProject = id => { setProjects(ps => ps.filter(p => p.id!==id)); navigate("projects"); };
   const addProject = () => {
     if (!newName.trim()) return;
     const colors = [C.sage,C.doing,C.done,C.accent,"#9B8EC0"];
     const p = { id:uid(), name:newName, desc:"", color:colors[projects.length%colors.length], minutes:[], members:[], tasks:[] };
-    setProjects(ps=>[...ps,p]); setTab(p.id); setNewName(""); setShowAdd(false);
+    setProjects(ps=>[...ps,p]); navigate(p.id); setNewName(""); setShowAdd(false);
   };
   const addTasks = (pid, tasks) => { setProjects(ps=>ps.map(p=>p.id===pid?{...p,tasks:[...p.tasks,...tasks]}:p)); };
   const active = projects.find(p => p.id===tab);
@@ -4690,7 +4703,7 @@ export default function App() {
     ];
     setProjects(merged);
     setImportModal(null);
-    setTab("projects");
+    navigate("projects");
   };
 
   const importRef = useRef(null);
@@ -4764,11 +4777,11 @@ export default function App() {
   <img src={logo} alt="logo" style={{ height:20, objectFit:"contain" }} />
 </div>
         {[["projects","📁 Projects"],["calendar","📅 カレンダー"],["minutes","✨ 議事録作成"],["members","👥 メンバー"]].map(([id,lbl],i)=>(
-          <button key={id} onClick={()=>setTab(id)} className="nav-tab nav-tab-anim" style={{...btn({padding:"0 16px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===id?C.accent:C.muted,borderBottom:tab===id?`2.5px solid ${C.accent}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap"}), animationDelay:`${i*40}ms`}}>{lbl}</button>
+          <button key={id} onClick={()=>navigate(id)} className="nav-tab nav-tab-anim" style={{...btn({padding:"0 16px",height:52,background:"transparent",fontSize:13,fontWeight:700,color:tab===id?C.accent:C.muted,borderBottom:tab===id?`2.5px solid ${C.accent}`:"2.5px solid transparent",flexShrink:0,whiteSpace:"nowrap"}), animationDelay:`${i*40}ms`}}>{lbl}</button>
         ))}
         <div style={{ width:1, background:C.border, margin:"10px 8px", flexShrink:0 }} />
         {sortedProjects.map((p,i)=>(
-          <button key={p.id} draggable onClick={()=>setTab(p.id)} className="nav-tab nav-tab-anim"
+          <button key={p.id} draggable onClick={()=>navigate(p.id)} className="nav-tab nav-tab-anim"
             onDragStart={()=>setDragTabId(p.id)}
             onDragOver={e=>e.preventDefault()}
             onDrop={()=>{ if(!dragTabId||dragTabId===p.id)return; const ids=sortedProjects.map(x=>x.id); const from=ids.indexOf(dragTabId); const to=ids.indexOf(p.id); const next=[...ids]; next.splice(from,1); next.splice(to,0,dragTabId); reorderProjects(next); setDragTabId(null); }}
@@ -4788,7 +4801,7 @@ export default function App() {
           <button onClick={()=>setShowAdd(true)} style={btn({padding:"0 14px",height:52,background:"transparent",fontSize:16,fontWeight:700,color:C.muted,flexShrink:0,lineHeight:1})}>+</button>
         )}
         <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:4, padding:"0 12px", flexShrink:0 }}>
-          <button onClick={()=>setTab("slack-settings")} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${tab==="slack-settings"?C.sage:C.border}`,background:tab==="slack-settings"?C.sageLight:"transparent",color:tab==="slack-settings"?C.sage:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>💬 Slack設定</button>
+          <button onClick={()=>navigate("slack-settings")} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${tab==="slack-settings"?C.sage:C.border}`,background:tab==="slack-settings"?C.sageLight:"transparent",color:tab==="slack-settings"?C.sage:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>💬 Slack設定</button>
           <button onClick={exportData} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>⬆ エクスポート</button>
           <button onClick={()=>importRef.current?.click()} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>⬇ インポート</button>
           <input ref={importRef} type="file" accept=".json" onChange={importData} style={{ display:"none" }} />
@@ -4796,7 +4809,7 @@ export default function App() {
       </div>
 
       <>
-        <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={sortedProjects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>setTab(id)} onReorder={reorderProjects} /></div>
+        <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={sortedProjects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>navigate(id)} onReorder={reorderProjects} /></div>
         <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} onUpdate={updateProject} /></div>
         <div style={{ display:tab==="minutes"?"block":"none" }}><MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} /></div>
         <div style={{ display:tab==="members"?"block":"none" }}><MemberTasksPage projects={projects} /></div>
