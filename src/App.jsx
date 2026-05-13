@@ -3750,6 +3750,7 @@ function DecisionsPage({ project, onUpdate }) {
   const [dragOverId, setDragOverId] = useState(null);
   const [dropSide, setDropSide] = useState('after'); // 'before'|'after'|'into'
   const [confirmDeleteDecisionId, setConfirmDeleteDecisionId] = useState(null);
+  const [breadcrumbHoverId, setBreadcrumbHoverId] = useState(undefined);
 
   const folders = project.decisionFolders || [];
   const allDecisions = (project.decisions || []).map(d => ({ ...d, folderId: d.folderId ?? null }));
@@ -3866,6 +3867,18 @@ function DecisionsPage({ project, onUpdate }) {
     }
     setDragItem(null);
   };
+  const handleBreadcrumbDrop = (targetFolderId) => {
+    if (!dragItem) { setBreadcrumbHoverId(undefined); return; }
+    if (dragItem.type === 'decision') {
+      onUpdate({ ...project, decisions: allDecisions.map(d => d.id === dragItem.id ? { ...d, folderId: targetFolderId } : d) });
+    } else if (dragItem.type === 'folder') {
+      const isDesc = (fid, anc) => { if (!fid) return false; if (fid === anc) return true; const f = folders.find(x => x.id === fid); return f ? isDesc(f.parentId, anc) : false; };
+      if (dragItem.id === targetFolderId || isDesc(targetFolderId, dragItem.id)) { setBreadcrumbHoverId(undefined); setDragItem(null); return; }
+      onUpdate({ ...project, decisionFolders: folders.map(f => f.id === dragItem.id ? { ...f, parentId: targetFolderId } : f) });
+    }
+    setBreadcrumbHoverId(undefined); setDragItem(null); setDragOverId(null);
+  };
+
   // drop onto grid container (move item to current folder)
   const handleDropOnContainer = (e) => {
     e.preventDefault();
@@ -3955,16 +3968,24 @@ function DecisionsPage({ project, onUpdate }) {
         )}
 
         {/* パンくずリスト */}
-        <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:18, flexWrap:"wrap", background:C.surface, borderRadius:10, padding:"8px 14px", border:`1px solid ${C.border}` }}>
+        <div
+          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setBreadcrumbHoverId(undefined); }}
+          style={{ display:"flex", alignItems:"center", gap:4, marginBottom:18, flexWrap:"wrap", background:C.surface, borderRadius:10, padding:"8px 14px", border:`1px solid ${C.border}` }}>
           <button onClick={()=>setCurrentFolderId(null)}
-            style={btn({ fontSize:12, fontWeight:700, color:currentFolderId===null?project.color:C.muted, background:"transparent", padding:"2px 6px", textDecoration:currentFolderId===null?"none":"underline" })}>
+            onDragOver={e=>{ if(!dragItem) return; e.preventDefault(); setBreadcrumbHoverId(null); }}
+            onDragLeave={()=>setBreadcrumbHoverId(undefined)}
+            onDrop={e=>{ e.preventDefault(); e.stopPropagation(); handleBreadcrumbDrop(null); }}
+            style={btn({ fontSize:12, fontWeight:700, color:currentFolderId===null?project.color:C.muted, background:breadcrumbHoverId===null?C.sageLight:"transparent", padding:"4px 8px", borderRadius:6, border:breadcrumbHoverId===null?`1.5px solid ${C.sage}`:"1.5px solid transparent", textDecoration:currentFolderId===null?"none":"underline", transition:"all 0.15s" })}>
             ルート
           </button>
           {breadcrumb.map((f, i) => (
             <React.Fragment key={f.id}>
               <span style={{ color:C.muted, fontSize:13, fontWeight:300 }}>›</span>
               <button onClick={()=>setCurrentFolderId(f.id)}
-                style={btn({ fontSize:12, fontWeight:700, color:i===breadcrumb.length-1?project.color:C.muted, background:"transparent", padding:"2px 6px", textDecoration:i===breadcrumb.length-1?"none":"underline" })}>
+                onDragOver={e=>{ if(!dragItem) return; e.preventDefault(); setBreadcrumbHoverId(f.id); }}
+                onDragLeave={()=>setBreadcrumbHoverId(undefined)}
+                onDrop={e=>{ e.preventDefault(); e.stopPropagation(); handleBreadcrumbDrop(f.id); }}
+                style={btn({ fontSize:12, fontWeight:700, color:i===breadcrumb.length-1?project.color:C.muted, background:breadcrumbHoverId===f.id?C.sageLight:"transparent", padding:"4px 8px", borderRadius:6, border:breadcrumbHoverId===f.id?`1.5px solid ${C.sage}`:"1.5px solid transparent", textDecoration:i===breadcrumb.length-1?"none":"underline", transition:"all 0.15s" })}>
                 {f.name}
               </button>
             </React.Fragment>
