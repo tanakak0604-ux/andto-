@@ -1328,6 +1328,8 @@ function CalendarPage({ projects, onUpdate }) {
   const [selectedEvent, setSelectedEvent] = useState(null); // { event, projectId }
   const [editEventMode, setEditEventMode] = useState(false);
   const [editEventForm, setEditEventForm] = useState({ title: "", date: "", projectId: "" });
+  const [addMilestoneModal, setAddMilestoneModal] = useState(null);
+  const [addMilestoneForm, setAddMilestoneForm] = useState({ name: "", date: "", projectId: "" });
 
   useEffect(() => { localStorage.setItem('taskflow-calendar-members', JSON.stringify(selectedMembers)); }, [selectedMembers]);
   useEffect(() => { localStorage.setItem('taskflow-calendar-projects', JSON.stringify(selectedProjects)); }, [selectedProjects]);
@@ -1512,7 +1514,9 @@ function CalendarPage({ projects, onUpdate }) {
           <button onClick={e => { e.stopPropagation(); setAddTaskModal({ date: cellMenu.date }); setAddTaskForm({ title: "", dueDate: cellMenu.date, projectId: projects[0]?.id || "", priority: "medium" }); setCellMenu(null); }}
             style={btn({ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 12, fontWeight: 700, background: "transparent", color: C.text, borderBottom: `1px solid ${C.border}` })}>📋 タスク作成</button>
           <button onClick={e => { e.stopPropagation(); setAddEventModal({ date: cellMenu.date }); setAddEventForm({ title: "", date: cellMenu.date, projectId: projects[0]?.id || "" }); setCellMenu(null); }}
-            style={btn({ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 12, fontWeight: 700, background: "transparent", color: C.text })}>📅 予定作成</button>
+            style={btn({ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 12, fontWeight: 700, background: "transparent", color: C.text, borderBottom: `1px solid ${C.border}` })}>📅 予定作成</button>
+          <button onClick={e => { e.stopPropagation(); setAddMilestoneModal({ date: cellMenu.date }); setAddMilestoneForm({ name: "", date: cellMenu.date, projectId: projects[0]?.id || "" }); setCellMenu(null); }}
+            style={btn({ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 12, fontWeight: 700, background: "transparent", color: C.text })}>🚩 マイルストーン作成</button>
         </div>
       )}
 
@@ -1554,6 +1558,44 @@ function CalendarPage({ projects, onUpdate }) {
                   if (!proj) return;
                   onUpdate({ ...proj, tasks: [...proj.tasks, { id: uid(), title: addTaskForm.title.trim(), status: "todo", dueDate: addTaskForm.dueDate, priority: addTaskForm.priority, desc: "", assigneeIds: [], subtasks: [], relatedDecisionIds: [], createdAt: new Date().toISOString() }] });
                   setAddTaskModal(null);
+                }} style={BTN.primary}>作成</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addMilestoneModal && (
+        <div onClick={() => setAddMilestoneModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: C.surface, borderRadius: 16, padding: "24px 28px", maxWidth: 360, width: "100%", boxShadow: "0 16px 48px rgba(0,0,0,0.18)" }}>
+            <div style={{ fontSize: 15, fontWeight: 900, color: C.text, marginBottom: 18 }}>🚩 マイルストーンを作成</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>マイルストーン名 *</label>
+                <input autoFocus value={addMilestoneForm.name} onChange={e => setAddMilestoneForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="例：基本設計完了"
+                  style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box", background: C.bg, color: C.text }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>日付</label>
+                <input type="date" value={addMilestoneForm.date} onChange={e => setAddMilestoneForm(f => ({ ...f, date: e.target.value }))}
+                  style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box", background: C.bg, color: C.text }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.muted, display: "block", marginBottom: 3 }}>プロジェクト</label>
+                <select value={addMilestoneForm.projectId} onChange={e => setAddMilestoneForm(f => ({ ...f, projectId: e.target.value }))}
+                  style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box", background: C.bg, color: C.text }}>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                <button onClick={() => setAddMilestoneModal(null)} style={BTN.ghost}>キャンセル</button>
+                <button onClick={() => {
+                  if (!addMilestoneForm.name.trim() || !addMilestoneForm.projectId) return;
+                  const proj = projects.find(p => p.id === addMilestoneForm.projectId);
+                  if (!proj) return;
+                  onUpdate({ ...proj, milestones: [...(proj.milestones || []), { id: uid(), name: addMilestoneForm.name.trim(), date: addMilestoneForm.date, achieved: false }] });
+                  setAddMilestoneModal(null);
                 }} style={BTN.primary}>作成</button>
               </div>
             </div>
