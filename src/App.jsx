@@ -4247,17 +4247,28 @@ function MilestonePage({ project, onUpdate }) {
     const cur = new Date(startDate);
     while (cur < endDate) { monthLabels.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
 
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    // 今日の日付がどのフェーズ期間に属するかを自動判定
+    let curPhaseLabel = null;
+    let prevPD = null;
+    for (const label of PH) {
+      const endStr = pd[label]; if (!endStr) continue;
+      const start = prevPD ? new Date(prevPD) : new Date(0);
+      const end = new Date(endStr);
+      if (today >= start && today <= end) { curPhaseLabel = label; break; }
+      prevPD = endStr;
+    }
+
     const phBg = ["#EFEFED","#EFEFED","#EFEFED","#EFEFED","#EFEFED","#EFEFED"];
     const phBd = ["#C8C8C4","#C8C8C4","#C8C8C4","#C8C8C4","#C8C8C4","#C8C8C4"];
     const CUR_BG = "#BFBFBB"; const CUR_BD = "#999";
     const segments = []; let prevD = null;
     PH.forEach((label, i) => {
       const end = pd[label]; if (!end) return;
-      segments.push({ label, x: prevD ? toX(prevD) : 0, w: prevD ? toX(end) - toX(prevD) : toX(end), bg: phBg[i % 6], bd: phBd[i % 6], cur: project.phase === label });
+      segments.push({ label, x: prevD ? toX(prevD) : 0, w: prevD ? toX(end) - toX(prevD) : toX(end), bg: phBg[i % 6], bd: phBd[i % 6], cur: label === curPhaseLabel });
       prevD = end;
     });
-
-    const today = new Date(); today.setHours(0,0,0,0);
     const todayX = toX(today);
     const datedMs = sorted.filter(m => m.date);
     const undatedMs = sorted.filter(m => !m.date);
