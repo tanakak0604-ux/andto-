@@ -4206,6 +4206,7 @@ function DecisionsPage({ project, onUpdate }) {
 function MilestonePage({ project, onUpdate }) {
   const [form, setForm] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [viewMode, setViewMode] = useState("list");
   const milestones = project.milestones || [];
   const sorted = [...milestones].sort((a, b) => {
     if (!a.date && !b.date) return 0;
@@ -4225,11 +4226,109 @@ function MilestonePage({ project, onUpdate }) {
   };
   const del = (id) => { onUpdate({ ...project, milestones: milestones.filter(m => m.id !== id) }); setConfirmDeleteId(null); };
 
+  const renderTimeline = () => {
+    const PH = ["調査企画","基本計画","基本設計","実施設計","監理","竣工"];
+    const pd = project.phaseDates || {};
+    const allDates = [...PH.map(p => pd[p]).filter(Boolean), ...milestones.filter(m => m.date).map(m => m.date)].map(d => new Date(d));
+    if (allDates.length === 0) return (
+      <div style={{ textAlign:"center", padding:"48px 0", color:C.muted, fontSize:13 }}>日付が設定されたフェーズまたはマイルストーンがありません</div>
+    );
+    const minMs = Math.min(...allDates.map(d => d.getTime()));
+    const maxMs = Math.max(...allDates.map(d => d.getTime()));
+    const startDate = new Date(minMs); startDate.setDate(1); startDate.setMonth(startDate.getMonth() - 1);
+    const endDate = new Date(maxMs); endDate.setDate(1); endDate.setMonth(endDate.getMonth() + 2);
+    const totalDays = (endDate - startDate) / 86400000;
+    const PX = Math.max(2, Math.min(14, 760 / totalDays));
+    const totalW = Math.ceil(totalDays * PX);
+    const toX = d => Math.round((new Date(d) - startDate) / 86400000 * PX);
+
+    const monthLabels = [];
+    const cur = new Date(startDate);
+    while (cur < endDate) { monthLabels.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
+
+    const phBg = ["#DBEAFE","#D1FAE5","#FEF3C7","#FCE7F3","#EDE9FE","#CFFAFE"];
+    const phBd = ["#93C5FD","#6EE7B7","#FCD34D","#F9A8D4","#C4B5FD","#67E8F9"];
+    const segments = []; let prevD = null;
+    PH.forEach((label, i) => {
+      const end = pd[label]; if (!end) return;
+      segments.push({ label, x: prevD ? toX(prevD) : 0, w: prevD ? toX(end) - toX(prevD) : toX(end), bg: phBg[i % 6], bd: phBd[i % 6], cur: project.phase === label });
+      prevD = end;
+    });
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const todayX = toX(today);
+    const datedMs = sorted.filter(m => m.date);
+    const undatedMs = sorted.filter(m => !m.date);
+
+    return (
+      <div>
+        <div style={{ overflowX:"auto", background:C.surface, borderRadius:12, border:`1.5px solid ${C.border}`, padding:16 }}>
+          <div style={{ position:"relative", width:totalW, minWidth:totalW }}>
+            {todayX >= 0 && todayX <= totalW && (
+              <div style={{ position:"absolute", left:todayX, top:0, bottom:0, width:1.5, background:C.accent, zIndex:10, pointerEvents:"none" }}>
+                <div style={{ position:"absolute", top:-16, left:-10, fontSize:9, fontWeight:800, color:C.accent, whiteSpace:"nowrap" }}>今日</div>
+              </div>
+            )}
+            <div style={{ position:"relative", height:28, borderBottom:`1px solid ${C.border}`, marginBottom:10 }}>
+              {monthLabels.map((ml, i) => (
+                <div key={i} style={{ position:"absolute", left:toX(ml), fontSize:10, fontWeight:700, color:C.muted, whiteSpace:"nowrap", paddingLeft:3, top:6 }}>
+                  {ml.getFullYear()}/{String(ml.getMonth()+1).padStart(2,"0")}
+                </div>
+              ))}
+            </div>
+            {segments.length > 0 && (
+              <div style={{ position:"relative", height:36, marginBottom:14 }}>
+                {segments.map((seg, i) => (
+                  <div key={i} title={seg.label} style={{ position:"absolute", left:seg.x, width:Math.max(seg.w, 28), top:2, height:32, background:seg.bg, border:`1.5px solid ${seg.bd}`, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:seg.cur?800:600, color:"#444", overflow:"hidden", whiteSpace:"nowrap", padding:"0 5px", boxShadow:seg.cur?`0 0 0 2px ${seg.bd}`:"none" }}>
+                    {seg.label}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ position:"relative", height: datedMs.length > 0 ? 76 : 8, borderTop:`1px solid ${C.border}`, paddingTop:10 }}>
+              {datedMs.map(m => (
+                <div key={m.id} title={m.name} onClick={() => setForm({ ...m })}
+                  style={{ position:"absolute", left:toX(m.date), transform:"translateX(-50%)", display:"flex", flexDirection:"column", alignItems:"center", width:80, cursor:"pointer" }}>
+                  <div style={{ fontSize:15, opacity:m.achieved?0.35:1, lineHeight:1 }}>🚩</div>
+                  <div style={{ fontSize:9, fontWeight:700, color:m.achieved?C.muted:C.text, textAlign:"center", maxWidth:72, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginTop:2, textDecoration:m.achieved?"line-through":"none" }}>{m.name}</div>
+                  <div style={{ fontSize:8, color:C.muted, marginTop:1 }}>{m.date.slice(5).replace("-","/")}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        {undatedMs.length > 0 && (
+          <div style={{ marginTop:12, background:C.surface, borderRadius:12, border:`1.5px solid ${C.border}`, padding:"12px 16px" }}>
+            <div style={{ fontSize:11, fontWeight:700, color:C.muted, marginBottom:6 }}>日付未設定</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+              {undatedMs.map(m => (
+                <div key={m.id} style={{ fontSize:12, color:C.muted, display:"flex", alignItems:"center", gap:6, cursor:"pointer" }} onClick={() => setForm({ ...m })}>
+                  <span style={{ opacity:m.achieved?0.4:1 }}>🚩</span>
+                  <span style={{ textDecoration:m.achieved?"line-through":"none" }}>{m.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div style={{ padding: 24, maxWidth: 700 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+    <div style={{ padding: 24, maxWidth: 860 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap:"wrap", gap:8 }}>
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: C.text }}>🚩 マイルストーン</h2>
-        <button onClick={() => setForm({ id: uid(), name: "", date: "", achieved: false })} style={BTN.primaryLg}>+ 追加</button>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ display:"flex", borderRadius:8, overflow:"hidden", border:`1.5px solid ${C.border}` }}>
+            {[["list","リスト"],["timeline","タイムライン"]].map(([mode, label]) => (
+              <button key={mode} onClick={() => setViewMode(mode)}
+                style={btn({ padding:"6px 14px", fontSize:12, fontWeight:700, background:viewMode===mode?C.text:"transparent", color:viewMode===mode?"#fff":C.muted, borderRadius:0 })}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setForm({ id: uid(), name: "", date: "", achieved: false })} style={BTN.primaryLg}>+ 追加</button>
+        </div>
       </div>
       {sorted.length === 0 && !form && (
         <div style={{ textAlign: "center", padding: "48px 0", color: C.muted, fontSize: 13 }}>マイルストーンがありません</div>
@@ -4256,22 +4355,24 @@ function MilestonePage({ project, onUpdate }) {
           </div>
         </div>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {sorted.map(m => (
-          <div key={m.id} style={{ background: C.surface, border: `1.5px solid ${m.achieved ? C.sage : C.border}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, opacity: m.achieved ? 0.7 : 1, transition: "opacity 0.2s" }}>
-            <button onClick={() => toggleAchieved(m.id)}
-              style={btn({ width: 24, height: 24, borderRadius: "50%", border: `2px solid ${m.achieved ? C.sage : C.border}`, background: m.achieved ? C.sage : "transparent", color: "#fff", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 })}>
-              {m.achieved ? "✓" : ""}
-            </button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, textDecoration: m.achieved ? "line-through" : "none" }}>🚩 {m.name}</div>
-              {m.date && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>📅 {m.date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1/$2/$3")}</div>}
+      {viewMode === "timeline" ? renderTimeline() : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {sorted.map(m => (
+            <div key={m.id} style={{ background: C.surface, border: `1.5px solid ${m.achieved ? C.sage : C.border}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, opacity: m.achieved ? 0.7 : 1, transition: "opacity 0.2s" }}>
+              <button onClick={() => toggleAchieved(m.id)}
+                style={btn({ width: 24, height: 24, borderRadius: "50%", border: `2px solid ${m.achieved ? C.sage : C.border}`, background: m.achieved ? C.sage : "transparent", color: "#fff", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 })}>
+                {m.achieved ? "✓" : ""}
+              </button>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.text, textDecoration: m.achieved ? "line-through" : "none" }}>🚩 {m.name}</div>
+                {m.date && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>📅 {m.date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1/$2/$3")}</div>}
+              </div>
+              <button onClick={() => setForm({ ...m })} style={btn({ padding: "5px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 12, fontWeight: 600 })}>編集</button>
+              <button onClick={() => setConfirmDeleteId(m.id)} style={BTN.danger}>削除</button>
             </div>
-            <button onClick={() => setForm({ ...m })} style={btn({ padding: "5px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 12, fontWeight: 600 })}>編集</button>
-            <button onClick={() => setConfirmDeleteId(m.id)} style={BTN.danger}>削除</button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
       {confirmDeleteId && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
           onMouseDown={e => { if (e.target === e.currentTarget) setConfirmDeleteId(null); }}>
