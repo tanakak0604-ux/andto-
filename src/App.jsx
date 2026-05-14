@@ -4238,7 +4238,8 @@ function MilestonePage({ project, onUpdate }) {
     const startDate = new Date(minMs); startDate.setDate(1); startDate.setMonth(startDate.getMonth() - 1);
     const endDate = new Date(maxMs); endDate.setDate(1); endDate.setMonth(endDate.getMonth() + 2);
     const totalDays = (endDate - startDate) / 86400000;
-    const PX = Math.max(2, Math.min(14, 760 / totalDays));
+    const availW = Math.max(900, window.innerWidth - 120);
+    const PX = Math.max(2, Math.min(14, availW / totalDays));
     const totalW = Math.ceil(totalDays * PX);
     const toX = d => Math.round((new Date(d) - startDate) / 86400000 * PX);
 
@@ -4329,7 +4330,7 @@ function MilestonePage({ project, onUpdate }) {
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 860 }}>
+    <div style={{ padding: 24, maxWidth: viewMode === "timeline" ? "none" : 860 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap:"wrap", gap:8 }}>
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: C.text }}>🚩 マイルストーン</h2>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
