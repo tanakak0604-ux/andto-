@@ -4342,7 +4342,7 @@ function MilestonePage({ project, onUpdate }) {
               </button>
             ))}
           </div>
-          <button onClick={() => setForm({ id: uid(), name: "", date: "", achieved: false })} style={BTN.primaryLg}>+ 追加</button>
+          <button onClick={() => setForm({ id: uid(), name: "", date: "", achieved: false })} style={btn({ padding:"6px 14px", fontSize:12, fontWeight:700, background:"#4A9B8E", color:"#fff", borderRadius:8 })}>+ 追加</button>
         </div>
       </div>
       {sorted.length === 0 && !form && (
