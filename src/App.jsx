@@ -4229,7 +4229,7 @@ function MilestonePage({ project, onUpdate }) {
   const renderTimeline = () => {
     const PH = ["調査企画","基本計画","基本設計","実施設計","監理","竣工"];
     const pd = project.phaseDates || {};
-    const allDates = [...PH.map(p => pd[p]).filter(Boolean), ...milestones.filter(m => m.date).map(m => m.date)].map(d => new Date(d));
+    const allDates = [...PH.map(p => pd[p]).filter(Boolean), ...milestones.filter(m => m.date).map(m => m.date), ...(project.events||[]).filter(e=>e.date).map(e=>e.date)].map(d => new Date(d));
     if (allDates.length === 0) return (
       <div style={{ textAlign:"center", padding:"48px 0", color:C.muted, fontSize:13 }}>日付が設定されたフェーズまたはマイルストーンがありません</div>
     );
@@ -4273,6 +4273,11 @@ function MilestonePage({ project, onUpdate }) {
     const todayX = toX(today);
     const datedMs = sorted.filter(m => m.date);
     const undatedMs = sorted.filter(m => !m.date);
+    const datedEvents = (project.events || []).filter(e => e.date).sort((a,b) => a.date < b.date ? -1 : 1);
+    const allItems = [
+      ...datedMs.map(m => ({ ...m, type: 'milestone' })),
+      ...datedEvents.map(e => ({ id: e.id, name: e.title, date: e.date, achieved: false, type: 'event' }))
+    ].sort((a, b) => a.date < b.date ? -1 : 1);
 
     return (
       <div>
@@ -4302,22 +4307,23 @@ function MilestonePage({ project, onUpdate }) {
             {(() => {
               const ITEM_W = 80, ROW_H = 58;
               const rowEnds = [];
-              const msWithRow = datedMs.map(m => {
-                const x = toX(m.date);
+              const itemsWithRow = allItems.map(item => {
+                const x = toX(item.date);
                 let rowIdx = rowEnds.findIndex(endX => x - endX >= ITEM_W / 2 + 4);
                 if (rowIdx === -1) { rowIdx = rowEnds.length; rowEnds.push(x + ITEM_W / 2); }
                 else rowEnds[rowIdx] = x + ITEM_W / 2;
-                return { ...m, rowIdx };
+                return { ...item, rowIdx };
               });
               const numRows = Math.max(rowEnds.length, 1);
               return (
-                <div style={{ position:"relative", height: datedMs.length > 0 ? numRows * ROW_H + 10 : 8, borderTop:`1px solid ${C.border}`, paddingTop:10 }}>
-                  {msWithRow.map(m => (
-                    <div key={m.id} title={m.name} onClick={() => setForm({ ...m })}
-                      style={{ position:"absolute", left:toX(m.date), top: m.rowIdx * ROW_H, transform:"translateX(-50%)", display:"flex", flexDirection:"column", alignItems:"center", width:ITEM_W, cursor:"pointer" }}>
-                      <div style={{ fontSize:15, opacity:m.achieved?0.35:1, lineHeight:1 }}>🚩</div>
-                      <div style={{ fontSize:9, fontWeight:700, color:m.achieved?C.muted:C.text, textAlign:"center", maxWidth:72, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginTop:2, textDecoration:m.achieved?"line-through":"none" }}>{m.name}</div>
-                      <div style={{ fontSize:8, color:C.muted, marginTop:1 }}>{m.date.slice(5).replace("-","/")}</div>
+                <div style={{ position:"relative", height: allItems.length > 0 ? numRows * ROW_H + 10 : 8, borderTop:`1px solid ${C.border}`, paddingTop:10 }}>
+                  {itemsWithRow.map(item => (
+                    <div key={item.id} title={item.name}
+                      onClick={item.type === 'milestone' ? () => setForm({ id:item.id, name:item.name, date:item.date, achieved:item.achieved }) : undefined}
+                      style={{ position:"absolute", left:toX(item.date), top: item.rowIdx * ROW_H, transform:"translateX(-50%)", display:"flex", flexDirection:"column", alignItems:"center", width:ITEM_W, cursor: item.type === 'milestone' ? "pointer" : "default" }}>
+                      <div style={{ fontSize:15, opacity:item.achieved?0.35:1, lineHeight:1 }}>{item.type === 'milestone' ? '🚩' : '📅'}</div>
+                      <div style={{ fontSize:9, fontWeight:700, color:item.achieved?C.muted:(item.type==='event'?C.muted:C.text), textAlign:"center", maxWidth:72, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginTop:2, textDecoration:item.achieved?"line-through":"none" }}>{item.name}</div>
+                      <div style={{ fontSize:8, color:C.muted, marginTop:1 }}>{item.date.slice(5).replace("-","/")}</div>
                     </div>
                   ))}
                 </div>
