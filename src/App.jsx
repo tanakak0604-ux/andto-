@@ -4206,7 +4206,7 @@ function DecisionsPage({ project, onUpdate }) {
 function MilestonePage({ project, onUpdate }) {
   const [form, setForm] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [viewMode, setViewMode] = useState("list");
+  const [viewMode, setViewMode] = useState("timeline");
   const milestones = project.milestones || [];
   const sorted = [...milestones].sort((a, b) => {
     if (!a.date && !b.date) return 0;
@@ -4285,16 +4285,30 @@ function MilestonePage({ project, onUpdate }) {
                 ))}
               </div>
             )}
-            <div style={{ position:"relative", height: datedMs.length > 0 ? 76 : 8, borderTop:`1px solid ${C.border}`, paddingTop:10 }}>
-              {datedMs.map(m => (
-                <div key={m.id} title={m.name} onClick={() => setForm({ ...m })}
-                  style={{ position:"absolute", left:toX(m.date), transform:"translateX(-50%)", display:"flex", flexDirection:"column", alignItems:"center", width:80, cursor:"pointer" }}>
-                  <div style={{ fontSize:15, opacity:m.achieved?0.35:1, lineHeight:1 }}>🚩</div>
-                  <div style={{ fontSize:9, fontWeight:700, color:m.achieved?C.muted:C.text, textAlign:"center", maxWidth:72, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginTop:2, textDecoration:m.achieved?"line-through":"none" }}>{m.name}</div>
-                  <div style={{ fontSize:8, color:C.muted, marginTop:1 }}>{m.date.slice(5).replace("-","/")}</div>
+            {(() => {
+              const ITEM_W = 80, ROW_H = 58;
+              const rowEnds = [];
+              const msWithRow = datedMs.map(m => {
+                const x = toX(m.date);
+                let rowIdx = rowEnds.findIndex(endX => x - endX >= ITEM_W / 2 + 4);
+                if (rowIdx === -1) { rowIdx = rowEnds.length; rowEnds.push(x + ITEM_W / 2); }
+                else rowEnds[rowIdx] = x + ITEM_W / 2;
+                return { ...m, rowIdx };
+              });
+              const numRows = Math.max(rowEnds.length, 1);
+              return (
+                <div style={{ position:"relative", height: datedMs.length > 0 ? numRows * ROW_H + 10 : 8, borderTop:`1px solid ${C.border}`, paddingTop:10 }}>
+                  {msWithRow.map(m => (
+                    <div key={m.id} title={m.name} onClick={() => setForm({ ...m })}
+                      style={{ position:"absolute", left:toX(m.date), top: m.rowIdx * ROW_H, transform:"translateX(-50%)", display:"flex", flexDirection:"column", alignItems:"center", width:ITEM_W, cursor:"pointer" }}>
+                      <div style={{ fontSize:15, opacity:m.achieved?0.35:1, lineHeight:1 }}>🚩</div>
+                      <div style={{ fontSize:9, fontWeight:700, color:m.achieved?C.muted:C.text, textAlign:"center", maxWidth:72, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginTop:2, textDecoration:m.achieved?"line-through":"none" }}>{m.name}</div>
+                      <div style={{ fontSize:8, color:C.muted, marginTop:1 }}>{m.date.slice(5).replace("-","/")}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </div>
         </div>
         {undatedMs.length > 0 && (
