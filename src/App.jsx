@@ -4249,6 +4249,7 @@ function MilestonePage({ project, onUpdate }) {
 
     const phBg = ["#EFEFED","#EFEFED","#EFEFED","#EFEFED","#EFEFED","#EFEFED"];
     const phBd = ["#C8C8C4","#C8C8C4","#C8C8C4","#C8C8C4","#C8C8C4","#C8C8C4"];
+    const CUR_BG = "#BFBFBB"; const CUR_BD = "#999";
     const segments = []; let prevD = null;
     PH.forEach((label, i) => {
       const end = pd[label]; if (!end) return;
@@ -4280,7 +4281,7 @@ function MilestonePage({ project, onUpdate }) {
             {segments.length > 0 && (
               <div style={{ position:"relative", height:36, marginBottom:14 }}>
                 {segments.map((seg, i) => (
-                  <div key={i} title={seg.label} style={{ position:"absolute", left:seg.x, width:Math.max(seg.w, 28), top:2, height:32, background:seg.bg, border:`1.5px solid ${seg.cur ? "#888" : seg.bd}`, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:seg.cur?800:600, color:seg.cur?"#222":"#888", overflow:"hidden", whiteSpace:"nowrap", padding:"0 5px" }}>
+                  <div key={i} title={seg.label} style={{ position:"absolute", left:seg.x, width:Math.max(seg.w, 28), top:2, height:32, background:seg.cur?CUR_BG:seg.bg, border:`1.5px solid ${seg.cur?CUR_BD:seg.bd}`, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:seg.cur?700:500, color:seg.cur?"#333":"#999", overflow:"hidden", whiteSpace:"nowrap", padding:"0 5px" }}>
                     {seg.label}
                   </div>
                 ))}
