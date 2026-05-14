@@ -4280,7 +4280,7 @@ function MilestonePage({ project, onUpdate }) {
             {segments.length > 0 && (
               <div style={{ position:"relative", height:36, marginBottom:14 }}>
                 {segments.map((seg, i) => (
-                  <div key={i} title={seg.label} style={{ position:"absolute", left:seg.x, width:Math.max(seg.w, 28), top:2, height:32, background:seg.bg, border:`1.5px solid ${seg.bd}`, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:seg.cur?800:600, color:"#444", overflow:"hidden", whiteSpace:"nowrap", padding:"0 5px", boxShadow:seg.cur?`0 0 0 2px ${seg.bd}`:"none" }}>
+                  <div key={i} title={seg.label} style={{ position:"absolute", left:seg.x, width:Math.max(seg.w, 28), top:2, height:32, background:seg.bg, border:`1.5px solid ${seg.cur ? "#888" : seg.bd}`, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:seg.cur?800:600, color:seg.cur?"#222":"#888", overflow:"hidden", whiteSpace:"nowrap", padding:"0 5px" }}>
                     {seg.label}
                   </div>
                 ))}
