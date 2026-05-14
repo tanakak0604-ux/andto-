@@ -4247,8 +4247,8 @@ function MilestonePage({ project, onUpdate }) {
     const cur = new Date(startDate);
     while (cur < endDate) { monthLabels.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1); }
 
-    const phBg = ["#DBEAFE","#D1FAE5","#FEF3C7","#FCE7F3","#EDE9FE","#CFFAFE"];
-    const phBd = ["#93C5FD","#6EE7B7","#FCD34D","#F9A8D4","#C4B5FD","#67E8F9"];
+    const phBg = ["#EFEFED","#EFEFED","#EFEFED","#EFEFED","#EFEFED","#EFEFED"];
+    const phBd = ["#C8C8C4","#C8C8C4","#C8C8C4","#C8C8C4","#C8C8C4","#C8C8C4"];
     const segments = []; let prevD = null;
     PH.forEach((label, i) => {
       const end = pd[label]; if (!end) return;
