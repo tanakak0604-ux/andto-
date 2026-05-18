@@ -1855,6 +1855,7 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [showPdfConfirm, setShowPdfConfirm] = useState(false);
   const [showAiCompDialog, setShowAiCompDialog] = useState(false);
   const [pendingMinutes, setPendingMinutes] = useState("");
+  const [pendingMinutesOriginal, setPendingMinutesOriginal] = useState("");
   const [editingDecisionId, setEditingDecisionId] = useState(null);
   const [editingDecisionText, setEditingDecisionText] = useState("");
   const [prevStep, setPrevStep] = useState("tasks");
@@ -2277,6 +2278,7 @@ function MinutesPage({ projects, onUpdateProject }) {
       let hasAiComp = false;
       if (result.includes("※AI補完") || result.includes("※AI要約")) {
         setPendingMinutes(result);
+        setPendingMinutesOriginal(minutes);
         setShowAiCompDialog(true);
         hasAiComp = true;
       } else {
@@ -2420,38 +2422,29 @@ function MinutesPage({ projects, onUpdateProject }) {
     <div style={{ overflowY:"auto", height:"calc(100vh - 52px)", background:C.bg }}>
       {/* モーダル */}
       {showAiCompDialog && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:400 }} onClick={()=>{}}>
-          <div style={{ background:C.surface, borderRadius:20, padding:26, width:380, maxWidth:"90vw", boxShadow:"0 24px 70px rgba(0,0,0,0.2)" }} onClick={e=>e.stopPropagation()}>
-            <h3 style={{ margin:"0 0 12px", fontSize:15, fontWeight:900, color:C.text }}>⚠️ AI補完・要約が発生しました</h3>
-            <p style={{ fontSize:12, color:C.muted, marginBottom:12, lineHeight:1.7 }}>
-              以下の箇所でAIが補完または要約を行いました。このまま反映しますか？<br />
-              「いいえ」を選ぶと該当箇所を<strong>※要確認（原文を参照してください）</strong>に置き換えます。
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:400 }}>
+          <div style={{ background:C.surface, borderRadius:20, padding:26, width:"80vw", maxWidth:820, maxHeight:"85vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 70px rgba(0,0,0,0.2)" }} onClick={e=>e.stopPropagation()}>
+            <h3 style={{ margin:"0 0 6px", fontSize:15, fontWeight:900, color:C.text }}>⚠️ AI補完・要約が発生しました</h3>
+            <p style={{ fontSize:12, color:C.muted, marginBottom:14, lineHeight:1.7 }}>
+              AIが一部を補完または要約しました（⚠マーク箇所）。変更前後を確認して反映するか選んでください。
             </p>
-            {(() => {
-              const affected = (pendingMinutes || "").split("\n").filter(l => l.includes("※AI補完") || l.includes("※AI要約"));
-              return affected.length > 0 && (
-                <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px", marginBottom:16, maxHeight:160, overflowY:"auto" }}>
-                  {affected.map((l, i) => (
-                    <div key={i} style={{ fontSize:11, color:C.text, lineHeight:1.7, padding:"2px 0", borderBottom: i < affected.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                      <span style={{ color:"#D97706", fontWeight:700 }}>⚠ </span>{l.trim()}
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
+            <div style={{ display:"flex", gap:12, flex:1, minHeight:0, marginBottom:14 }}>
+              <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
+                <div style={{ fontSize:11, fontWeight:700, color:C.muted, marginBottom:5 }}>変更前</div>
+                <textarea readOnly value={pendingMinutesOriginal} style={{ flex:1, width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 10px", fontSize:11, background:"#fff", color:C.muted, resize:"none", boxSizing:"border-box", fontFamily:"'Courier New',monospace", lineHeight:1.6, minHeight:260 }} />
+              </div>
+              <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#D97706", marginBottom:5 }}>変更後（⚠ = AI補完・要約箇所）</div>
+                <textarea readOnly value={pendingMinutes} style={{ flex:1, width:"100%", border:`1.5px solid #D97706`, borderRadius:8, padding:"8px 10px", fontSize:11, background:"#FFFBEB", color:C.text, resize:"none", boxSizing:"border-box", fontFamily:"'Courier New',monospace", lineHeight:1.6, minHeight:260 }} />
+              </div>
+            </div>
             <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
               <button onClick={()=>{
                 const replaced = pendingMinutes.replace(/※AI補完/g,"※要確認（原文を参照してください）").replace(/※AI要約/g,"※要確認（原文を参照してください）");
-                setMinutes(replaced);
-                setPendingMinutes("");
-                setShowAiCompDialog(false);
-                setStep("minutes");
+                setMinutes(replaced); setPendingMinutes(""); setPendingMinutesOriginal(""); setShowAiCompDialog(false); setStep("minutes");
               }} style={btn({padding:"9px 16px",borderRadius:10,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:13,fontWeight:700})}>いいえ（原文に戻す）</button>
               <button onClick={()=>{
-                setMinutes(pendingMinutes);
-                setPendingMinutes("");
-                setShowAiCompDialog(false);
-                setStep("minutes");
+                setMinutes(pendingMinutes); setPendingMinutes(""); setPendingMinutesOriginal(""); setShowAiCompDialog(false); setStep("minutes");
               }} style={btn({padding:"9px 20px",borderRadius:10,background:C.accent,color:"#fff",fontSize:13,fontWeight:800})}>はい（反映する）</button>
             </div>
           </div>
