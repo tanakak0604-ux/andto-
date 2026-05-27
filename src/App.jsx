@@ -3396,7 +3396,7 @@ ${pastMinutesTitles}
               {/* 左：議事録エリア */}
               <div style={{ flex:"1 1 320px", minWidth:0, overflow:"hidden" }}>
                 {/* ボタン行 */}
-                <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:8 }}>
+                <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, flexWrap:"nowrap", gap:8 }}>
                   {isEditing ? (
                     <>
                       <button onClick={saveEdit} disabled={!!diffResult} style={{...BTN.primary, opacity:diffResult?0.5:1, cursor:diffResult?"default":"pointer"}}>💾 保存</button>
