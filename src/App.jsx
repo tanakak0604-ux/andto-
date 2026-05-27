@@ -2966,6 +2966,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [selectedId, setSelectedId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
+  const detailTextareaRef = useRef();
   const [aiEditOpen, setAiEditOpen] = useState(false);
   const [aiInstruction, setAiInstruction] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -3670,7 +3671,20 @@ ${pastMinutesTitles}
                   </div>
                 </div>
               ) : (
-                <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
+                <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:4 }}>
+                  <button onClick={() => {
+                    const el = detailTextareaRef.current;
+                    if (!el) return;
+                    const s = el.selectionStart, e2 = el.selectionEnd;
+                    const marker = "\n[改ページ]\n";
+                    const next = editContent.slice(0, s) + marker + editContent.slice(e2);
+                    setEditContent(next);
+                    setTimeout(() => { el.selectionStart = el.selectionEnd = s + marker.length; el.focus(); }, 0);
+                  }} style={btn({ fontSize:11, fontWeight:700, color:C.muted, border:`1px solid ${C.border}`, borderRadius:6, padding:"3px 10px", background:C.surface })}>
+                    ✂ 改ページ挿入
+                  </button>
+                </div>
+                <textarea ref={detailTextareaRef} value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
                   style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
               )
             ) : (<>
