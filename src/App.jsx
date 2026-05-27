@@ -3402,6 +3402,15 @@ ${pastMinutesTitles}
                       <button onClick={saveEdit} disabled={!!diffResult} style={{...BTN.primary, opacity:diffResult?0.5:1, cursor:diffResult?"default":"pointer"}}>💾 保存</button>
                       {!diffResult && <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
                         style={{ background:aiEditOpen?C.accent:C.accentLight, color:aiEditOpen?"#fff":C.accent, border:`1.5px solid ${C.accent}`, borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✨ AI修正</button>}
+                      {!diffResult && <button onClick={() => {
+                        const el = detailTextareaRef.current;
+                        if (!el) return;
+                        const s = el.selectionStart, e2 = el.selectionEnd;
+                        const marker = "\n[改ページ]\n";
+                        const next = editContent.slice(0, s) + marker + editContent.slice(e2);
+                        setEditContent(next);
+                        setTimeout(() => { el.selectionStart = el.selectionEnd = s + marker.length; el.focus(); }, 0);
+                      }} style={BTN.ghost}>✂ 改ページ</button>}
                       <button onClick={()=>{ setIsEditing(false); setAiEditOpen(false); setDiffResult(null); }} style={BTN.ghost}>キャンセル</button>
                     </>
                   ) : extractMode ? (
@@ -3670,23 +3679,10 @@ ${pastMinutesTitles}
                     ))}
                   </div>
                 </div>
-              ) : (<>
-                <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:4 }}>
-                  <button onClick={() => {
-                    const el = detailTextareaRef.current;
-                    if (!el) return;
-                    const s = el.selectionStart, e2 = el.selectionEnd;
-                    const marker = "\n[改ページ]\n";
-                    const next = editContent.slice(0, s) + marker + editContent.slice(e2);
-                    setEditContent(next);
-                    setTimeout(() => { el.selectionStart = el.selectionEnd = s + marker.length; el.focus(); }, 0);
-                  }} style={btn({ fontSize:11, fontWeight:700, color:C.muted, border:`1px solid ${C.border}`, borderRadius:6, padding:"3px 10px", background:C.surface })}>
-                    ✂ 改ページ挿入
-                  </button>
-                </div>
+              ) : (
                 <textarea ref={detailTextareaRef} value={editContent} onChange={e=>setEditContent(e.target.value)} rows={30}
                   style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
-              </>)
+              )
             ) : (<>
               <div className="mins-preview" style={{ background:"#fff", borderRadius:12, padding:"28px 32px", border:`1px solid ${C.border}`, wordBreak:"break-word", overflowWrap:"break-word", overflow:"hidden" }}
                 dangerouslySetInnerHTML={{ __html: highlightInHtml(buildMinutesBody(selectedMinute.content), searchQuery.trim()) }} />
