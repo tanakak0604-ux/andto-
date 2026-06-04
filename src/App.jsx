@@ -2577,23 +2577,22 @@ function MinutesPage({ projects, onUpdateProject }) {
                   <div style={{ marginBottom:20 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
                       <label style={{ fontSize:12, fontWeight:700, color:C.muted }}>📋 テンプレート</label>
-                      <span style={{ fontSize:11, color:C.muted }}>（クリックで挿入 / ✎で編集）</span>
+                      <span style={{ fontSize:11, color:C.muted }}>（クリックで挿入 / ✎で編集・登録）</span>
                     </div>
                     <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                      {tplSlots.map((tpl, idx) => tpl.name ? (
-                        <div key={idx} style={{ display:"flex", alignItems:"center", gap:2 }}>
-                          <button onClick={()=>setText(tpl.content)}
-                            style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700, background:C.accentLight, color:C.accent, border:`1.5px solid ${C.accent}` })}>
-                            {tpl.name}
-                          </button>
-                          <button onClick={()=>setTemplateModal({ idx, name:tpl.name, content:tpl.content })}
-                            style={btn({ padding:"4px 6px", borderRadius:20, fontSize:11, color:C.muted, background:"transparent" })}>✎</button>
+                      {tplSlots.map((tpl, idx) => (
+                        <div key={idx} style={{ display:"flex", alignItems:"center", gap:4 }}>
+                          {tpl.name ? (
+                            <button onClick={()=>{ setText(tpl.content); }}
+                              style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700, background:C.accentLight, color:C.accent, border:`1.5px solid ${C.accent}` })}>
+                              {tpl.name}
+                            </button>
+                          ) : (
+                            <span style={{ fontSize:11, color:C.muted, padding:"6px 4px" }}>テンプレート{idx+1}</span>
+                          )}
+                          <button onClick={()=>setTemplateModal({ idx, name:tpl.name||"", content:tpl.content||"" })}
+                            style={btn({ padding:"4px 8px", borderRadius:20, fontSize:12, color:tpl.name?C.muted:"#aaa", background:"transparent", border:`1px solid ${C.border}` })}>✎</button>
                         </div>
-                      ) : (
-                        <button key={idx} onClick={()=>setTemplateModal({ idx, name:"", content:"" })}
-                          style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:600, color:C.muted, border:`1.5px dashed ${C.border}`, background:"transparent" })}>
-                          ＋ テンプレート{idx+1}
-                        </button>
                       ))}
                     </div>
                   </div>
