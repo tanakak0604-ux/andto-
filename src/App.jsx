@@ -1824,7 +1824,8 @@ FF&E（家具・備品・什器）・OS&E・プログラム・ゾーニング・
 function MinutesPage({ projects, onUpdateProject }) {
   const [selProj, setSelProj] = useState(projects[0]?.id||"");
   const [text, setText] = useState("");
-  const [templateModal, setTemplateModal] = useState(null); // null | { idx, name, content } 編集中テンプレート
+  const [templateModal, setTemplateModal] = useState(null); // null | { idx, name, attendees, bunseki }
+  const [selectedTplIdx, setSelectedTplIdx] = useState(null);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [minutes, setMinutes] = useState("");
   const [minutesTitle, setMinutesTitle] = useState("");
@@ -1881,17 +1882,18 @@ function MinutesPage({ projects, onUpdateProject }) {
   const minutesTextareaRef = useRef();
   const selProjObj = projects.find(p => p.id === selProj);
 
-  const tplSlots = selProjObj ? [...Array(4)].map((_,i) => (selProjObj.minutesTemplates||[])[i] || { id:"_"+i, name:"", content:"" }) : [];
-  const saveTemplate = (idx, name, content) => {
+  const tplSlots = selProjObj ? [...Array(4)].map((_,i) => (selProjObj.minutesTemplates||[])[i] || { id:"_"+i, name:"", attendees:[], bunseki:"" }) : [];
+  const saveTemplate = (idx, name, attendees, bunseki) => {
     if (!selProjObj) return;
-    const next = [...Array(4)].map((_,i) => (selProjObj.minutesTemplates||[])[i] || { id: uid(), name:"", content:"" });
-    next[idx] = { ...next[idx], name, content };
+    const next = [...Array(4)].map((_,i) => (selProjObj.minutesTemplates||[])[i] || { id: uid(), name:"", attendees:[], bunseki:"" });
+    next[idx] = { ...next[idx], name, attendees, bunseki };
     onUpdateProject({ ...selProjObj, minutesTemplates: next });
   };
   const deleteTemplate = (idx) => {
     if (!selProjObj) return;
-    const next = [...Array(4)].map((_,i) => (selProjObj.minutesTemplates||[])[i] || { id: uid(), name:"", content:"" });
-    next[idx] = { id: uid(), name:"", content:"" };
+    const next = [...Array(4)].map((_,i) => (selProjObj.minutesTemplates||[])[i] || { id: uid(), name:"", attendees:[], bunseki:"" });
+    next[idx] = { id: uid(), name:"", attendees:[], bunseki:"" };
+    if (selectedTplIdx === idx) { setSelectedTplIdx(null); setAttendees([]); setBunseki(""); }
     onUpdateProject({ ...selProjObj, minutesTemplates: next });
   };
 
@@ -1904,7 +1906,7 @@ function MinutesPage({ projects, onUpdateProject }) {
     return match ? match[1].trim() : "";
   };
 
-  const handleProjChange = (id) => { setSelProj(id); setAttendees([]); };
+  const handleProjChange = (id) => { setSelProj(id); setAttendees([]); setBunseki(""); setSelectedTplIdx(null); };
   const toggleAttendee = (memberId) => setAttendees(prev => prev.includes(memberId) ? prev.filter(id=>id!==memberId) : [...prev, memberId]);
 
   const handleFile = e => {
@@ -2469,27 +2471,59 @@ function MinutesPage({ projects, onUpdateProject }) {
       )}
       {templateModal !== null && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:600 }} onClick={()=>setTemplateModal(null)}>
-          <div style={{ background:C.surface, borderRadius:16, padding:24, width:480, maxWidth:"90vw", boxShadow:"0 16px 50px rgba(0,0,0,0.18)" }} onClick={e=>e.stopPropagation()}>
+          <div style={{ background:C.surface, borderRadius:16, padding:24, width:520, maxWidth:"92vw", maxHeight:"85vh", overflowY:"auto", boxShadow:"0 16px 50px rgba(0,0,0,0.18)" }} onClick={e=>e.stopPropagation()}>
             <h3 style={{ margin:"0 0 16px", fontSize:14, fontWeight:900, color:C.text }}>📋 テンプレートを編集</h3>
-            <div style={{ marginBottom:12 }}>
+            <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:12, fontWeight:700, color:C.muted, marginBottom:4 }}>ボタン名</div>
               <input autoFocus value={templateModal.name} onChange={e=>setTemplateModal(m=>({...m,name:e.target.value}))}
                 placeholder="例：定例打合せ、消防協議、施主確認"
                 style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }} />
             </div>
-            <div style={{ marginBottom:16 }}>
-              <div style={{ fontSize:12, fontWeight:700, color:C.muted, marginBottom:4 }}>テンプレート内容</div>
-              <textarea value={templateModal.content} onChange={e=>setTemplateModal(m=>({...m,content:e.target.value}))} rows={8}
-                placeholder="議事録のひな形となるテキストを入力..."
-                style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 12px", fontSize:12, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"'Courier New',monospace", lineHeight:1.7 }} />
-            </div>
+            {selProjObj && (selProjObj.members||[]).length > 0 && (
+              <div style={{ marginBottom:14 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:C.muted, marginBottom:6 }}>👥 出席者</div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {(selProjObj.members||[]).map(m => {
+                    const sel = (templateModal.attendees||[]).includes(m.id);
+                    return (
+                      <button key={m.id} onClick={()=>setTemplateModal(tm=>({ ...tm, attendees: sel ? tm.attendees.filter(id=>id!==m.id) : [...(tm.attendees||[]), m.id] }))}
+                        style={btn({ padding:"5px 12px", borderRadius:20, fontSize:12, fontWeight:700,
+                          background:sel?(m.isAndto?C.accent:C.sage):"transparent",
+                          color:sel?"#fff":C.muted,
+                          border:`1.5px solid ${sel?(m.isAndto?C.accent:C.sage):C.border}` })}>
+                        {m.name}{m.org?` ${m.org}`:""}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {selProjObj && (selProjObj.members||[]).length > 0 && (
+              <div style={{ marginBottom:18 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:C.muted, marginBottom:6 }}>✍️ 文責</div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {(selProjObj.members||[]).map(m => {
+                    const sel = templateModal.bunseki === m.id;
+                    return (
+                      <button key={m.id} onClick={()=>setTemplateModal(tm=>({ ...tm, bunseki: sel ? "" : m.id }))}
+                        style={btn({ padding:"5px 12px", borderRadius:20, fontSize:12, fontWeight:700,
+                          background:sel?(m.isAndto?C.accent:C.sage):"transparent",
+                          color:sel?"#fff":C.muted,
+                          border:`1.5px solid ${sel?(m.isAndto?C.accent:C.sage):C.border}` })}>
+                        {m.name}{m.org?` ${m.org}`:""}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div style={{ display:"flex", justifyContent:"space-between" }}>
               {templateModal.name ? (
                 <button onClick={()=>{ deleteTemplate(templateModal.idx); setTemplateModal(null); }} style={BTN.danger}>削除</button>
               ) : <div />}
               <div style={{ display:"flex", gap:8 }}>
                 <button onClick={()=>setTemplateModal(null)} style={BTN.ghost}>キャンセル</button>
-                <button onClick={()=>{ if(templateModal.name.trim()){ saveTemplate(templateModal.idx, templateModal.name.trim(), templateModal.content); setTemplateModal(null); }}} style={BTN.primary}>保存</button>
+                <button onClick={()=>{ if(templateModal.name.trim()){ saveTemplate(templateModal.idx, templateModal.name.trim(), templateModal.attendees||[], templateModal.bunseki||""); setTemplateModal(null); }}} style={BTN.primary}>保存</button>
               </div>
             </div>
           </div>
@@ -2580,20 +2614,28 @@ function MinutesPage({ projects, onUpdateProject }) {
                       <span style={{ fontSize:11, color:C.muted }}>（クリックで挿入 / ✎で編集・登録）</span>
                     </div>
                     <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                      {tplSlots.map((tpl, idx) => (
-                        <div key={idx} style={{ display:"flex", alignItems:"center", gap:4 }}>
-                          {tpl.name ? (
-                            <button onClick={()=>{ setText(tpl.content); }}
-                              style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700, background:C.accentLight, color:C.accent, border:`1.5px solid ${C.accent}` })}>
-                              {tpl.name}
-                            </button>
-                          ) : (
-                            <span style={{ fontSize:11, color:C.muted, padding:"6px 4px" }}>テンプレート{idx+1}</span>
-                          )}
-                          <button onClick={()=>setTemplateModal({ idx, name:tpl.name||"", content:tpl.content||"" })}
-                            style={btn({ padding:"4px 8px", borderRadius:20, fontSize:12, color:tpl.name?C.muted:"#aaa", background:"transparent", border:`1px solid ${C.border}` })}>✎</button>
-                        </div>
-                      ))}
+                      {tplSlots.map((tpl, idx) => {
+                        const isSel = selectedTplIdx === idx;
+                        return (
+                          <div key={idx} style={{ display:"flex", alignItems:"center", gap:4 }}>
+                            {tpl.name ? (
+                              <button onClick={()=>{
+                                if (isSel) { setSelectedTplIdx(null); setAttendees([]); setBunseki(""); }
+                                else { setSelectedTplIdx(idx); setAttendees(tpl.attendees||[]); setBunseki(tpl.bunseki||""); }
+                              }}
+                                style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700,
+                                  background:isSel?C.accent:C.accentLight, color:isSel?"#fff":C.accent,
+                                  border:`1.5px solid ${C.accent}` })}>
+                                {tpl.name}
+                              </button>
+                            ) : (
+                              <span style={{ fontSize:11, color:C.muted, padding:"6px 4px" }}>テンプレート{idx+1}</span>
+                            )}
+                            <button onClick={()=>setTemplateModal({ idx, name:tpl.name||"", attendees:tpl.attendees||[], bunseki:tpl.bunseki||"" })}
+                              style={btn({ padding:"4px 8px", borderRadius:20, fontSize:12, color:tpl.name?C.muted:"#aaa", background:"transparent", border:`1px solid ${C.border}` })}>✎</button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
