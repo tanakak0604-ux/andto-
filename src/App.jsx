@@ -1826,12 +1826,14 @@ function detectCurrentPhase(proj) {
   const pd = proj.phaseDates || {};
   const today = new Date(); today.setHours(0,0,0,0);
   const valid = PHASE_LABELS.filter(p => pd[p]);
-  for (let i = 0; i < valid.length; i++) {
-    const start = new Date(pd[valid[i]]);
-    const end = valid[i+1] ? new Date(pd[valid[i+1]]) : new Date("9999-12-31");
-    if (today >= start && today < end) return valid[i];
+  if (valid.length > 0) {
+    for (let i = 0; i < valid.length; i++) {
+      const start = new Date(pd[valid[i]]);
+      const end = valid[i+1] ? new Date(pd[valid[i+1]]) : new Date("9999-12-31");
+      if (today >= start && today < end) return valid[i];
+    }
   }
-  return "";
+  return proj.phase || "";
 }
 
 function MinutesPage({ projects, onUpdateProject }) {
