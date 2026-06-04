@@ -2644,8 +2644,8 @@ function MinutesPage({ projects, onUpdateProject }) {
                                 else { setSelectedTplIdx(idx); setAttendees(tpl.attendees||[]); setBunseki(tpl.bunseki||""); }
                               }}
                                 style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700,
-                                  background:isSel?C.accent:C.accentLight, color:isSel?"#fff":C.accent,
-                                  border:`1.5px solid ${C.accent}` })}>
+                                  background:isSel?C.accent:"transparent", color:isSel?"#fff":C.muted,
+                                  border:`1.5px solid ${isSel?C.accent:C.border}` })}>
                                 {tpl.name}
                               </button>
                             ) : (
