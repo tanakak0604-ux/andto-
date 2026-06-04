@@ -1881,6 +1881,20 @@ function MinutesPage({ projects, onUpdateProject }) {
   const minutesTextareaRef = useRef();
   const selProjObj = projects.find(p => p.id === selProj);
 
+  const tplSlots = selProjObj ? [...Array(4)].map((_,i) => (selProjObj.minutesTemplates||[])[i] || { id:"_"+i, name:"", content:"" }) : [];
+  const saveTemplate = (idx, name, content) => {
+    if (!selProjObj) return;
+    const next = [...Array(4)].map((_,i) => (selProjObj.minutesTemplates||[])[i] || { id: uid(), name:"", content:"" });
+    next[idx] = { ...next[idx], name, content };
+    onUpdateProject({ ...selProjObj, minutesTemplates: next });
+  };
+  const deleteTemplate = (idx) => {
+    if (!selProjObj) return;
+    const next = [...Array(4)].map((_,i) => (selProjObj.minutesTemplates||[])[i] || { id: uid(), name:"", content:"" });
+    next[idx] = { id: uid(), name:"", content:"" };
+    onUpdateProject({ ...selProjObj, minutesTemplates: next });
+  };
+
   const extractGaiyou = (content) => {
     const match = content.match(/名称[　\s]*：[　\s]*(.+)/) || content.match(/打合せ概要[　\s]*：[　\s]*(.+)/);
     return match ? match[1].trim() : "";
@@ -2453,6 +2467,34 @@ function MinutesPage({ projects, onUpdateProject }) {
           </div>
         </div>
       )}
+      {templateModal !== null && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:600 }} onClick={()=>setTemplateModal(null)}>
+          <div style={{ background:C.surface, borderRadius:16, padding:24, width:480, maxWidth:"90vw", boxShadow:"0 16px 50px rgba(0,0,0,0.18)" }} onClick={e=>e.stopPropagation()}>
+            <h3 style={{ margin:"0 0 16px", fontSize:14, fontWeight:900, color:C.text }}>📋 テンプレートを編集</h3>
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:C.muted, marginBottom:4 }}>ボタン名</div>
+              <input autoFocus value={templateModal.name} onChange={e=>setTemplateModal(m=>({...m,name:e.target.value}))}
+                placeholder="例：定例打合せ、消防協議、施主確認"
+                style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }} />
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:C.muted, marginBottom:4 }}>テンプレート内容</div>
+              <textarea value={templateModal.content} onChange={e=>setTemplateModal(m=>({...m,content:e.target.value}))} rows={8}
+                placeholder="議事録のひな形となるテキストを入力..."
+                style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 12px", fontSize:12, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"'Courier New',monospace", lineHeight:1.7 }} />
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between" }}>
+              {templateModal.name ? (
+                <button onClick={()=>{ deleteTemplate(templateModal.idx); setTemplateModal(null); }} style={BTN.danger}>削除</button>
+              ) : <div />}
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={()=>setTemplateModal(null)} style={BTN.ghost}>キャンセル</button>
+                <button onClick={()=>{ if(templateModal.name.trim()){ saveTemplate(templateModal.idx, templateModal.name.trim(), templateModal.content); setTemplateModal(null); }}} style={BTN.primary}>保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {showPdfConfirm && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:350 }} onClick={()=>setShowPdfConfirm(false)}>
           <div style={{ background:C.surface, borderRadius:20, padding:26, width:360, maxWidth:"90vw", boxShadow:"0 24px 70px rgba(0,0,0,0.2)" }} onClick={e=>e.stopPropagation()}>
@@ -2531,74 +2573,31 @@ function MinutesPage({ projects, onUpdateProject }) {
                     ))}
                   </div>
                 </div>
-                {selProjObj&&(()=>{
-                  const templates = selProjObj.minutesTemplates || [];
-                  const saveTemplate = (idx, name, content) => {
-                    const next = [...Array(4)].map((_,i) => templates[i] || { id: uid(), name:"", content:"" });
-                    next[idx] = { ...next[idx], name, content };
-                    onUpdateProject({ ...selProjObj, minutesTemplates: next });
-                  };
-                  const deleteTemplate = (idx) => {
-                    const next = [...Array(4)].map((_,i) => templates[i] || { id: uid(), name:"", content:"" });
-                    next[idx] = { id: uid(), name:"", content:"" };
-                    onUpdateProject({ ...selProjObj, minutesTemplates: next });
-                  };
-                  const slots = [...Array(4)].map((_,i) => templates[i] || { id:"_"+i, name:"", content:"" });
-                  return (
-                    <div style={{ marginBottom:20 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                        <label style={{ fontSize:12, fontWeight:700, color:C.muted }}>📋 テンプレート</label>
-                        <span style={{ fontSize:11, color:C.muted }}>（クリックで挿入 / ✎で編集）</span>
-                      </div>
-                      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                        {slots.map((tpl, idx) => tpl.name ? (
-                          <div key={tpl.id||idx} style={{ display:"flex", alignItems:"center", gap:2 }}>
-                            <button onClick={()=>setText(tpl.content)}
-                              style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700, background:C.accentLight, color:C.accent, border:`1.5px solid ${C.accent}` })}>
-                              {tpl.name}
-                            </button>
-                            <button onClick={()=>setTemplateModal({ idx, name:tpl.name, content:tpl.content })}
-                              style={btn({ padding:"4px 6px", borderRadius:20, fontSize:11, color:C.muted, background:"transparent" })}>✎</button>
-                          </div>
-                        ) : (
-                          <button key={tpl.id||idx} onClick={()=>setTemplateModal({ idx, name:"", content:"" })}
-                            style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:600, color:C.muted, border:`1.5px dashed ${C.border}`, background:"transparent" })}>
-                            ＋ テンプレート{idx+1}
-                          </button>
-                        ))}
-                      </div>
-                      {templateModal !== null && (
-                        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:500 }}
-                          onClick={()=>setTemplateModal(null)}>
-                          <div style={{ background:C.surface, borderRadius:16, padding:24, width:480, maxWidth:"90vw", boxShadow:"0 16px 50px rgba(0,0,0,0.18)" }} onClick={e=>e.stopPropagation()}>
-                            <h3 style={{ margin:"0 0 16px", fontSize:14, fontWeight:900, color:C.text }}>📋 テンプレートを編集</h3>
-                            <div style={{ marginBottom:12 }}>
-                              <div style={{ fontSize:12, fontWeight:700, color:C.muted, marginBottom:4 }}>ボタン名</div>
-                              <input value={templateModal.name} onChange={e=>setTemplateModal(m=>({...m,name:e.target.value}))}
-                                placeholder="例：定例打合せ、消防協議、施主確認"
-                                style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }} />
-                            </div>
-                            <div style={{ marginBottom:16 }}>
-                              <div style={{ fontSize:12, fontWeight:700, color:C.muted, marginBottom:4 }}>テンプレート内容</div>
-                              <textarea value={templateModal.content} onChange={e=>setTemplateModal(m=>({...m,content:e.target.value}))} rows={8}
-                                placeholder="議事録のひな形となるテキストを入力..."
-                                style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 12px", fontSize:12, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"'Courier New',monospace", lineHeight:1.7 }} />
-                            </div>
-                            <div style={{ display:"flex", justifyContent:"space-between" }}>
-                              {templateModal.name ? (
-                                <button onClick={()=>{ deleteTemplate(templateModal.idx); setTemplateModal(null); }} style={BTN.danger}>削除</button>
-                              ) : <div />}
-                              <div style={{ display:"flex", gap:8 }}>
-                                <button onClick={()=>setTemplateModal(null)} style={BTN.ghost}>キャンセル</button>
-                                <button onClick={()=>{ if(templateModal.name.trim()) { saveTemplate(templateModal.idx, templateModal.name.trim(), templateModal.content); setTemplateModal(null); } }} style={BTN.primary}>保存</button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                {selProjObj && (
+                  <div style={{ marginBottom:20 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                      <label style={{ fontSize:12, fontWeight:700, color:C.muted }}>📋 テンプレート</label>
+                      <span style={{ fontSize:11, color:C.muted }}>（クリックで挿入 / ✎で編集）</span>
                     </div>
-                  );
-                })()}
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                      {tplSlots.map((tpl, idx) => tpl.name ? (
+                        <div key={idx} style={{ display:"flex", alignItems:"center", gap:2 }}>
+                          <button onClick={()=>setText(tpl.content)}
+                            style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700, background:C.accentLight, color:C.accent, border:`1.5px solid ${C.accent}` })}>
+                            {tpl.name}
+                          </button>
+                          <button onClick={()=>setTemplateModal({ idx, name:tpl.name, content:tpl.content })}
+                            style={btn({ padding:"4px 6px", borderRadius:20, fontSize:11, color:C.muted, background:"transparent" })}>✎</button>
+                        </div>
+                      ) : (
+                        <button key={idx} onClick={()=>setTemplateModal({ idx, name:"", content:"" })}
+                          style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:600, color:C.muted, border:`1.5px dashed ${C.border}`, background:"transparent" })}>
+                          ＋ テンプレート{idx+1}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {selProjObj&&(
                   <div style={{ marginBottom:20 }}>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
