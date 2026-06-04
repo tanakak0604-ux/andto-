@@ -1824,6 +1824,7 @@ FF&E（家具・備品・什器）・OS&E・プログラム・ゾーニング・
 function MinutesPage({ projects, onUpdateProject }) {
   const [selProj, setSelProj] = useState(projects[0]?.id||"");
   const [text, setText] = useState("");
+  const [templateModal, setTemplateModal] = useState(null); // null | { idx, name, content } 編集中テンプレート
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [minutes, setMinutes] = useState("");
   const [minutesTitle, setMinutesTitle] = useState("");
@@ -2530,6 +2531,74 @@ function MinutesPage({ projects, onUpdateProject }) {
                     ))}
                   </div>
                 </div>
+                {selProjObj&&(()=>{
+                  const templates = selProjObj.minutesTemplates || [];
+                  const saveTemplate = (idx, name, content) => {
+                    const next = [...Array(4)].map((_,i) => templates[i] || { id: uid(), name:"", content:"" });
+                    next[idx] = { ...next[idx], name, content };
+                    onUpdateProject({ ...selProjObj, minutesTemplates: next });
+                  };
+                  const deleteTemplate = (idx) => {
+                    const next = [...Array(4)].map((_,i) => templates[i] || { id: uid(), name:"", content:"" });
+                    next[idx] = { id: uid(), name:"", content:"" };
+                    onUpdateProject({ ...selProjObj, minutesTemplates: next });
+                  };
+                  const slots = [...Array(4)].map((_,i) => templates[i] || { id:"_"+i, name:"", content:"" });
+                  return (
+                    <div style={{ marginBottom:20 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                        <label style={{ fontSize:12, fontWeight:700, color:C.muted }}>📋 テンプレート</label>
+                        <span style={{ fontSize:11, color:C.muted }}>（クリックで挿入 / ✎で編集）</span>
+                      </div>
+                      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                        {slots.map((tpl, idx) => tpl.name ? (
+                          <div key={tpl.id||idx} style={{ display:"flex", alignItems:"center", gap:2 }}>
+                            <button onClick={()=>setText(tpl.content)}
+                              style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700, background:C.accentLight, color:C.accent, border:`1.5px solid ${C.accent}` })}>
+                              {tpl.name}
+                            </button>
+                            <button onClick={()=>setTemplateModal({ idx, name:tpl.name, content:tpl.content })}
+                              style={btn({ padding:"4px 6px", borderRadius:20, fontSize:11, color:C.muted, background:"transparent" })}>✎</button>
+                          </div>
+                        ) : (
+                          <button key={tpl.id||idx} onClick={()=>setTemplateModal({ idx, name:"", content:"" })}
+                            style={btn({ padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:600, color:C.muted, border:`1.5px dashed ${C.border}`, background:"transparent" })}>
+                            ＋ テンプレート{idx+1}
+                          </button>
+                        ))}
+                      </div>
+                      {templateModal !== null && (
+                        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:500 }}
+                          onClick={()=>setTemplateModal(null)}>
+                          <div style={{ background:C.surface, borderRadius:16, padding:24, width:480, maxWidth:"90vw", boxShadow:"0 16px 50px rgba(0,0,0,0.18)" }} onClick={e=>e.stopPropagation()}>
+                            <h3 style={{ margin:"0 0 16px", fontSize:14, fontWeight:900, color:C.text }}>📋 テンプレートを編集</h3>
+                            <div style={{ marginBottom:12 }}>
+                              <div style={{ fontSize:12, fontWeight:700, color:C.muted, marginBottom:4 }}>ボタン名</div>
+                              <input value={templateModal.name} onChange={e=>setTemplateModal(m=>({...m,name:e.target.value}))}
+                                placeholder="例：定例打合せ、消防協議、施主確認"
+                                style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }} />
+                            </div>
+                            <div style={{ marginBottom:16 }}>
+                              <div style={{ fontSize:12, fontWeight:700, color:C.muted, marginBottom:4 }}>テンプレート内容</div>
+                              <textarea value={templateModal.content} onChange={e=>setTemplateModal(m=>({...m,content:e.target.value}))} rows={8}
+                                placeholder="議事録のひな形となるテキストを入力..."
+                                style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 12px", fontSize:12, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"'Courier New',monospace", lineHeight:1.7 }} />
+                            </div>
+                            <div style={{ display:"flex", justifyContent:"space-between" }}>
+                              {templateModal.name ? (
+                                <button onClick={()=>{ deleteTemplate(templateModal.idx); setTemplateModal(null); }} style={BTN.danger}>削除</button>
+                              ) : <div />}
+                              <div style={{ display:"flex", gap:8 }}>
+                                <button onClick={()=>setTemplateModal(null)} style={BTN.ghost}>キャンセル</button>
+                                <button onClick={()=>{ if(templateModal.name.trim()) { saveTemplate(templateModal.idx, templateModal.name.trim(), templateModal.content); setTemplateModal(null); } }} style={BTN.primary}>保存</button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {selProjObj&&(
                   <div style={{ marginBottom:20 }}>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
