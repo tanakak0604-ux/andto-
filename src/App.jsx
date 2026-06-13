@@ -2460,7 +2460,7 @@ function MinutesPage({ projects, onUpdateProject }) {
   const inputStyle ={ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"8px 12px", fontSize:13, background:C.bg, color:C.text, outline:"none", boxSizing:"border-box" };
 
   return (
-    <div style={{ overflowY:"auto", height:"calc(100vh - 52px)", background:C.bg }}>
+    <div style={{ overflowY:"auto", height:"calc(100dvh - 52px)", background:C.bg }}>
       {/* モーダル */}
       {showAiCompDialog && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:400 }}>
@@ -3460,7 +3460,7 @@ ${pastMinutesTitles}
   };
 
   return (
-    <><div style={{ display:"flex", height:"calc(100vh - 52px)", overflow:"hidden" }}>
+    <><div style={{ display:"flex", height:"calc(100dvh - 52px)", overflow:"hidden" }}>
       {/* 左カラム：議事録一覧 */}
       <div style={{ width:160, borderRight:`1.5px solid ${C.border}`, display:"flex", flexDirection:"column", background:C.surface, flexShrink:0 }}>
         <div style={{ padding:"14px 16px 12px", borderBottom:`1px solid ${C.border}` }}>
@@ -4089,7 +4089,7 @@ function DecisionsPage({ project, onUpdate }) {
 
   return (
     <>
-    <div style={{ overflowY:"auto", height:"calc(100vh - 52px)", background:C.bg }}>
+    <div style={{ overflowY:"auto", height:"calc(100dvh - 52px)", background:C.bg }}>
       {/* 移動モーダル */}
       {movingDecisionId && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:300 }} onClick={()=>setMovingDecisionId(null)}>
@@ -4614,7 +4614,7 @@ function MemberTasksPage({ projects }) {
   })).filter(e => e.tasks.length > 0);
 
   return (
-    <div style={{ overflowY:"auto", height:"calc(100vh - 52px)", background:C.bg }}>
+    <div style={{ overflowY:"auto", height:"calc(100dvh - 52px)", background:C.bg }}>
       <div style={{ padding:24, maxWidth:960, margin:"0 auto" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20, flexWrap:"wrap" }}>
           <h2 style={{ fontSize:18, fontWeight:900, color:C.text, margin:0 }}>👥 メンバー別タスク</h2>
@@ -5040,14 +5040,14 @@ export default function App() {
   const importRef = useRef(null);
 
   if (!storageReady) return (
-    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif" }}>
+    <div style={{ minHeight:"100dvh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif" }}>
       <img src={logo} alt="andto" style={{ height:36, objectFit:"contain", animation:"pulse 1.6s ease-in-out infinite" }} />
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
     </div>
   );
 
   return (
-    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif", color:C.text }}>
+    <div style={{ minHeight:"100dvh", background:C.bg, fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif", color:C.text }}>
       <style>{`
         .nav-scroll::-webkit-scrollbar { display: none; }
         .nav-tab:hover { background: rgba(0,0,0,0.04) !important; }
