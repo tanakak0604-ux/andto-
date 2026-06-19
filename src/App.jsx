@@ -2901,9 +2901,9 @@ function MinutesPage({ projects, onUpdateProject }) {
                   style={{ ...inputStyle, resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace", fontSize:12, marginBottom:16 }} />
                 {showAiEdit && (
                   <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
-                    <div style={{ fontSize:12, fontWeight:700, color:C.accent, marginBottom:8 }}>✨ AI修正指示</div>
+                    <div style={{ fontSize:12, fontWeight:700, color:C.accent, marginBottom:8 }}>✨ AI編集</div>
                     <textarea value={aiInstruction} onChange={e=>setAiInstruction(e.target.value)} rows={3}
-                      placeholder="例：決定事項をより明確に書き直してください"
+                      placeholder="質問や編集指示を記入してください。"
                       style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit" }} />
                     {aiEditError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>⚠️ {aiEditError}</div>}
                     <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
@@ -2933,7 +2933,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                 )}
                 <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
                   <button onClick={()=>{setShowAiEdit(v=>!v);setAiInstruction("");setAiEditError("");setAiDiff(null);}}
-                    style={btn({padding:"10px 18px",borderRadius:12,background:showAiEdit?C.accent:C.accentLight,color:showAiEdit?"#fff":C.accent,fontSize:13,fontWeight:800,border:`1.5px solid ${C.accent}`})}>✨ AI修正</button>
+                    style={btn({padding:"10px 18px",borderRadius:12,background:showAiEdit?C.accent:C.accentLight,color:showAiEdit?"#fff":C.accent,fontSize:13,fontWeight:800,border:`1.5px solid ${C.accent}`})}>✨ AI編集</button>
                   <button onClick={()=>{saveToProject();}} disabled={!minutes||minutesSaved}
                     style={btn({padding:"10px 18px",borderRadius:12,background:minutesSaved?C.border:minutes?C.sage:C.border,color:"#fff",fontSize:13,fontWeight:800})}>
                     {minutesSaved?"✓ 保存済み":"💾 保存"}
@@ -3559,7 +3559,7 @@ ${pastMinutesTitles}
                     <>
                       <button onClick={saveEdit} disabled={!!diffResult} style={{...BTN.primary, opacity:diffResult?0.5:1, cursor:diffResult?"default":"pointer"}}>💾 保存</button>
                       {!diffResult && <button onClick={()=>{ setAiEditOpen(v=>!v); setAiInstruction(""); setAiError(""); }}
-                        style={{ background:aiEditOpen?C.accent:C.accentLight, color:aiEditOpen?"#fff":C.accent, border:`1.5px solid ${C.accent}`, borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✨ AI修正</button>}
+                        style={{ background:aiEditOpen?C.accent:C.accentLight, color:aiEditOpen?"#fff":C.accent, border:`1.5px solid ${C.accent}`, borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>✨ AI編集</button>}
                       {!diffResult && <button onClick={() => {
                         const el = detailTextareaRef.current;
                         if (!el) return;
@@ -3627,10 +3627,10 @@ ${pastMinutesTitles}
                         <div ref={chatBottomRef} />
                       </div>
                     )}
-                    <div style={{ fontSize:11, color:C.accent, marginBottom:6, fontWeight:700 }}>✨ AI — 修正指示または質問を入力してください</div>
+                    <div style={{ fontSize:11, color:C.accent, marginBottom:6, fontWeight:700 }}>✨ AI編集</div>
                     <textarea value={aiInstruction} onChange={e=>setAiInstruction(e.target.value)} rows={3}
                       onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey&&!aiLoading){ e.preventDefault(); runAiAction(); }}}
-                      placeholder={"例：決定事項をより明確に書き直して\n例：○○の話題は出ていた？"}
+                      placeholder="質問や編集指示を記入してください。"
                       style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
                     {aiError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>{aiError}</div>}
                     {!selectedMinute?.sourceText && <div style={{ fontSize:11, color:C.muted, marginTop:4 }}>※ 原文が保存されていないため議事録のみを参照します</div>}
