@@ -3204,37 +3204,37 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const runAiAction = async () => {
     if (!aiInstruction.trim() || !selectedMinute) return;
     const input = aiInstruction.trim();
+    setAiInstruction("");
     setAiLoading(true); setAiError("");
     const src = selectedMinute.sourceText;
     const system = `あなたは議事録編集の専門家です。ユーザーの入力が「修正指示」か「質問・確認」かを文章全体から判断してください。
 
-修正指示の場合（例：「〜を修正して」「〜に書き直して」「〜を追加して」）：
-議事録を修正し、修正後の全文をそのまま返してください。返答の先頭に必ず「EDIT:」と書いてください。
+【修正指示の場合】（例：〜を修正して、〜に書き直して、〜を追加して）
+返答の1行目に「EDIT」とだけ書き、2行目以降に修正後の議事録全文を書いてください。
 
-質問・確認の場合（例：「〜はなかった？」「〜について教えて」「〜は何と言っていた？」「〜の話題は出た？」）：
-議事録・原文を参照して日本語で簡潔に答えてください。返答の先頭に必ず「ANSWER:」と書いてください。
+【質問・確認の場合】（例：〜はなかった？、〜について教えて、〜は何と言っていた？）
+返答の1行目に「ANSWER」とだけ書き、2行目以降に日本語で簡潔に回答してください。
 
 【議事録】
 ${editContent}${src ? `\n\n【原文・文字起こし】\n${src}` : ""}`;
     try {
-      const userMsg = { role: "user", content: input };
-      const history = [...chatMessages.filter(m => m.type === "chat"), userMsg];
-      const raw = await callClaude({ system, messages: history });
-      if (raw.startsWith("EDIT:")) {
-        const revised = raw.slice(5).trim();
-        const lines = computeLineDiff(editContent, revised);
-        setDiffResult({ original: editContent, revised, lines });
-        setAiEditOpen(false); setAiInstruction("");
+      const raw = await callClaude({ system, messages: [{ role: "user", content: input }] });
+      const lines = raw.split("\n");
+      const firstLine = lines[0].trim();
+      if (firstLine === "EDIT" || firstLine.startsWith("EDIT")) {
+        const revised = lines.slice(1).join("\n").trim();
+        const diffLines = computeLineDiff(editContent, revised);
+        setDiffResult({ original: editContent, revised, lines: diffLines });
+        setAiEditOpen(false);
       } else {
-        const answer = raw.startsWith("ANSWER:") ? raw.slice(7).trim() : raw;
+        const answer = (firstLine === "ANSWER" || firstLine.startsWith("ANSWER")) ? lines.slice(1).join("\n").trim() : raw;
         setChatMessages(m => [...m,
-          { role: "user", content: input, type: "chat" },
-          { role: "assistant", content: answer, type: "chat" }
+          { role: "user", content: input },
+          { role: "assistant", content: answer }
         ]);
-        setAiInstruction("");
         setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
       }
-    } catch(e) { setAiError("エラー："+e.message); }
+    } catch(e) { setAiError("エラー："+e.message); setAiInstruction(input); }
     setAiLoading(false);
   };
 
@@ -3607,8 +3607,9 @@ ${pastMinutesTitles}
                 </div>
                 {aiEditOpen && isEditing && (
                   <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
-                    {chatMessages.length > 0 && (
+                    {(chatMessages.length > 0 || aiLoading) && (
                       <div style={{ maxHeight:200, overflowY:"auto", display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+                        {chatMessages.length === 0 && !aiLoading && null}
                         {chatMessages.map((msg, i) => (
                           <div key={i} style={{ display:"flex", justifyContent:msg.role==="user"?"flex-end":"flex-start" }}>
                             <div style={{ maxWidth:"85%", padding:"8px 12px", borderRadius:msg.role==="user"?"12px 12px 4px 12px":"12px 12px 12px 4px",
