@@ -1868,6 +1868,8 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [aiInstruction, setAiInstruction] = useState("");
   const [aiEditLoading, setAiEditLoading] = useState(false);
   const [aiEditError, setAiEditError] = useState("");
+  const [aiChatMessages, setAiChatMessages] = useState([]);
+  const aiChatBottomRef = useRef();
   const [genError, setGenError] = useState("");
   const [hoveredGenBtn, setHoveredGenBtn] = useState(false);
   const [showPdfConfirm, setShowPdfConfirm] = useState(false);
@@ -1974,7 +1976,26 @@ function MinutesPage({ projects, onUpdateProject }) {
     } catch(e) { setAiEditError(e.message); }
     setAiEditLoading(false);
   };
-  
+
+  const runAiChatMinutes = async () => {
+    if (!aiInstruction.trim()) return;
+    const input = aiInstruction.trim();
+    setAiInstruction("");
+    setAiEditLoading(true); setAiEditError("");
+    try {
+      const answer = await callClaude({
+        system: `あなたは議事録作成の専門家です。以下の情報を参照してユーザーの質問に日本語で簡潔に答えてください。\n\n【議事録】\n${minutes}${text.trim() ? `\n\n【原文・入力テキスト】\n${text}` : ""}`,
+        messages: [{ role: "user", content: input }]
+      });
+      setAiChatMessages(m => [...m,
+        { role: "user", content: input },
+        { role: "assistant", content: answer }
+      ]);
+      setTimeout(() => aiChatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    } catch(e) { setAiEditError(e.message); setAiInstruction(input); }
+    setAiEditLoading(false);
+  };
+
   const cancelGenerate = () => {
     abortControllerRef.current?.abort();
     setLoading(false);
@@ -2902,13 +2923,35 @@ function MinutesPage({ projects, onUpdateProject }) {
                 {showAiEdit && (
                   <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
                     <div style={{ fontSize:12, fontWeight:700, color:C.accent, marginBottom:8 }}>✨ AI編集</div>
+                    {(aiChatMessages.length > 0 || aiEditLoading) && (
+                      <div style={{ maxHeight:200, overflowY:"auto", display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+                        {aiChatMessages.map((msg, i) => (
+                          <div key={i} style={{ display:"flex", justifyContent:msg.role==="user"?"flex-end":"flex-start" }}>
+                            <div style={{ maxWidth:"85%", padding:"8px 12px", borderRadius:msg.role==="user"?"12px 12px 4px 12px":"12px 12px 12px 4px",
+                              background:msg.role==="user"?C.accent:"#fff", color:msg.role==="user"?"#fff":C.text,
+                              fontSize:12, lineHeight:1.6, border:msg.role==="assistant"?`1px solid ${C.border}`:"none", whiteSpace:"pre-wrap" }}>
+                              {msg.content}
+                            </div>
+                          </div>
+                        ))}
+                        {aiEditLoading && (
+                          <div style={{ display:"flex", justifyContent:"flex-start" }}>
+                            <div style={{ padding:"8px 14px", borderRadius:"12px 12px 12px 4px", background:"#fff", border:`1px solid ${C.border}`, fontSize:12, color:C.muted }}>考え中...</div>
+                          </div>
+                        )}
+                        <div ref={aiChatBottomRef} />
+                      </div>
+                    )}
                     <textarea value={aiInstruction} onChange={e=>setAiInstruction(e.target.value)} rows={3}
                       placeholder="質問や編集指示を記入してください。"
                       style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit" }} />
                     {aiEditError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>⚠️ {aiEditError}</div>}
-                    <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
+                    <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"space-between", alignItems:"center" }}>
                       <button onClick={()=>{setShowAiEdit(false);setAiInstruction("");setAiEditError("");}} style={BTN.ghost}>キャンセル</button>
-                      <button onClick={runAiEdit} disabled={aiEditLoading||!aiInstruction.trim()} style={{...BTN.primary, opacity:aiEditLoading||!aiInstruction.trim()?0.5:1, cursor:aiEditLoading||!aiInstruction.trim()?"default":"pointer"}}>{aiEditLoading?"修正中...":"修正する"}</button>
+                      <div style={{ display:"flex", gap:8 }}>
+                        <button onClick={runAiChatMinutes} disabled={aiEditLoading||!aiInstruction.trim()} style={{...BTN.ghost, opacity:aiEditLoading||!aiInstruction.trim()?0.5:1, cursor:aiEditLoading||!aiInstruction.trim()?"default":"pointer"}}>{aiEditLoading?"処理中...":"💬 質問する"}</button>
+                        <button onClick={runAiEdit} disabled={aiEditLoading||!aiInstruction.trim()} style={{...BTN.primary, opacity:aiEditLoading||!aiInstruction.trim()?0.5:1, cursor:aiEditLoading||!aiInstruction.trim()?"default":"pointer"}}>{aiEditLoading?"処理中...":"✨ 編集する"}</button>
+                      </div>
                     </div>
                   </div>
                 )}
