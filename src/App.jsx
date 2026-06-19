@@ -3201,39 +3201,41 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
     return result;
   };
 
-  const runAiAction = async () => {
+  const runAiEdit = async () => {
+    if (!aiInstruction.trim() || !selectedMinute) return;
+    const input = aiInstruction.trim();
+    setAiInstruction("");
+    setAiLoading(true); setAiError("");
+    try {
+      const revised = await callClaude({
+        system: "あなたは議事録編集の専門家です。ユーザーの指示に従って議事録を修正してください。元の構成・フォーマットを極力維持し、指示された箇所のみ修正してください。修正後の議事録全文のみを出力してください。",
+        messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。\n\n【修正指示】\n${input}\n\n【議事録】\n${editContent}` }]
+      });
+      if (revised) {
+        const diffLines = computeLineDiff(editContent, revised);
+        setDiffResult({ original: editContent, revised, lines: diffLines });
+        setAiEditOpen(false);
+      }
+    } catch(e) { setAiError("エラー："+e.message); setAiInstruction(input); }
+    setAiLoading(false);
+  };
+
+  const runAiChat = async () => {
     if (!aiInstruction.trim() || !selectedMinute) return;
     const input = aiInstruction.trim();
     setAiInstruction("");
     setAiLoading(true); setAiError("");
     const src = selectedMinute.sourceText;
-    const system = `あなたは議事録編集の専門家です。ユーザーの入力が「修正指示」か「質問・確認」かを文章全体から判断してください。
-
-【修正指示の場合】（例：〜を修正して、〜に書き直して、〜を追加して）
-返答の1行目に「EDIT」とだけ書き、2行目以降に修正後の議事録全文を書いてください。
-
-【質問・確認の場合】（例：〜はなかった？、〜について教えて、〜は何と言っていた？）
-返答の1行目に「ANSWER」とだけ書き、2行目以降に日本語で簡潔に回答してください。
-
-【議事録】
-${editContent}${src ? `\n\n【原文・文字起こし】\n${src}` : ""}`;
     try {
-      const raw = await callClaude({ system, messages: [{ role: "user", content: input }] });
-      const lines = raw.split("\n");
-      const firstLine = lines[0].trim();
-      if (firstLine === "EDIT" || firstLine.startsWith("EDIT")) {
-        const revised = lines.slice(1).join("\n").trim();
-        const diffLines = computeLineDiff(editContent, revised);
-        setDiffResult({ original: editContent, revised, lines: diffLines });
-        setAiEditOpen(false);
-      } else {
-        const answer = (firstLine === "ANSWER" || firstLine.startsWith("ANSWER")) ? lines.slice(1).join("\n").trim() : raw;
-        setChatMessages(m => [...m,
-          { role: "user", content: input },
-          { role: "assistant", content: answer }
-        ]);
-        setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-      }
+      const answer = await callClaude({
+        system: `あなたは議事録作成の専門家です。以下の情報を参照してユーザーの質問に日本語で簡潔に答えてください。\n\n【議事録】\n${editContent}${src ? `\n\n【原文・文字起こし】\n${src}` : ""}`,
+        messages: [{ role: "user", content: input }]
+      });
+      setChatMessages(m => [...m,
+        { role: "user", content: input },
+        { role: "assistant", content: answer }
+      ]);
+      setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     } catch(e) { setAiError("エラー："+e.message); setAiInstruction(input); }
     setAiLoading(false);
   };
@@ -3634,9 +3636,12 @@ ${pastMinutesTitles}
                       style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
                     {aiError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>{aiError}</div>}
                     {!selectedMinute?.sourceText && <div style={{ fontSize:11, color:C.muted, marginTop:4 }}>※ 原文が保存されていないため議事録のみを参照します</div>}
-                    <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
+                    <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"space-between", alignItems:"center" }}>
                       <button onClick={()=>{setAiEditOpen(false);setAiInstruction("");setAiError("");}} style={BTN.ghost}>閉じる</button>
-                      <button onClick={runAiAction} disabled={aiLoading||!aiInstruction.trim()} style={{...BTN.primary, opacity:aiLoading||!aiInstruction.trim()?0.5:1, cursor:aiLoading||!aiInstruction.trim()?"default":"pointer"}}>{aiLoading?"処理中...":"送信"}</button>
+                      <div style={{ display:"flex", gap:8 }}>
+                        <button onClick={runAiChat} disabled={aiLoading||!aiInstruction.trim()} style={{ ...BTN.ghost, opacity:aiLoading||!aiInstruction.trim()?0.5:1, cursor:aiLoading||!aiInstruction.trim()?"default":"pointer" }}>{aiLoading?"処理中...":"💬 質問する"}</button>
+                        <button onClick={runAiEdit} disabled={aiLoading||!aiInstruction.trim()} style={{ ...BTN.primary, opacity:aiLoading||!aiInstruction.trim()?0.5:1, cursor:aiLoading||!aiInstruction.trim()?"default":"pointer" }}>{aiLoading?"処理中...":"✨ 編集する"}</button>
+                      </div>
                     </div>
                   </div>
                 )}
