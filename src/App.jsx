@@ -3201,39 +3201,41 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
     return result;
   };
 
-  const runAiEdit = async () => {
+  const runAiAction = async () => {
     if (!aiInstruction.trim() || !selectedMinute) return;
+    const input = aiInstruction.trim();
     setAiLoading(true); setAiError("");
+    const src = selectedMinute.sourceText;
+    const system = `あなたは議事録編集の専門家です。ユーザーの入力が「修正指示」か「質問・確認」かを文章全体から判断してください。
+
+修正指示の場合（例：「〜を修正して」「〜に書き直して」「〜を追加して」）：
+議事録を修正し、修正後の全文をそのまま返してください。返答の先頭に必ず「EDIT:」と書いてください。
+
+質問・確認の場合（例：「〜はなかった？」「〜について教えて」「〜は何と言っていた？」「〜の話題は出た？」）：
+議事録・原文を参照して日本語で簡潔に答えてください。返答の先頭に必ず「ANSWER:」と書いてください。
+
+【議事録】
+${editContent}${src ? `\n\n【原文・文字起こし】\n${src}` : ""}`;
     try {
-      const revised = await callClaude({
-        system: "あなたは議事録編集の専門家です。ユーザーの指示に従って議事録を修正してください。元の構成・フォーマットを極力維持し、指示された箇所のみ修正してください。修正後の議事録全文のみを出力してください。",
-        messages: [{ role: "user", content: `以下の議事録を指示に従って修正してください。\n\n【修正指示】\n${aiInstruction}\n\n【議事録】\n${editContent}` }]
-      });
-      if (revised) {
+      const userMsg = { role: "user", content: input };
+      const history = [...chatMessages.filter(m => m.type === "chat"), userMsg];
+      const raw = await callClaude({ system, messages: history });
+      if (raw.startsWith("EDIT:")) {
+        const revised = raw.slice(5).trim();
         const lines = computeLineDiff(editContent, revised);
         setDiffResult({ original: editContent, revised, lines });
         setAiEditOpen(false); setAiInstruction("");
+      } else {
+        const answer = raw.startsWith("ANSWER:") ? raw.slice(7).trim() : raw;
+        setChatMessages(m => [...m,
+          { role: "user", content: input, type: "chat" },
+          { role: "assistant", content: answer, type: "chat" }
+        ]);
+        setAiInstruction("");
+        setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
       }
     } catch(e) { setAiError("エラー："+e.message); }
     setAiLoading(false);
-  };
-
-  const runChat = async () => {
-    if (!chatInput.trim() || !selectedMinute) return;
-    const userMsg = { role: "user", content: chatInput.trim() };
-    const nextMsgs = [...chatMessages, userMsg];
-    setChatMessages(nextMsgs);
-    setChatInput("");
-    setChatLoading(true);
-    setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-    try {
-      const src = selectedMinute.sourceText;
-      const systemMsg = `あなたは議事録作成の専門家です。以下の情報を参照してユーザーの質問に日本語で簡潔に答えてください。議事録の書き直しは行わず、質問への回答のみを行ってください。\n\n【議事録】\n${editContent}${src ? `\n\n【原文・文字起こし】\n${src}` : ""}`;
-      const reply = await callClaude({ system: systemMsg, messages: nextMsgs });
-      setChatMessages(m => [...m, { role: "assistant", content: reply }]);
-    } catch(e) { setChatMessages(m => [...m, { role: "assistant", content: "エラーが発生しました："+e.message }]); }
-    setChatLoading(false);
-    setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   };
 
   const saveEdit = () => {
@@ -3605,63 +3607,36 @@ ${pastMinutesTitles}
                 </div>
                 {aiEditOpen && isEditing && (
                   <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
-                    {/* モード切替タブ */}
-                    <div style={{ display:"flex", gap:0, marginBottom:12, borderRadius:8, overflow:"hidden", border:`1.5px solid ${C.accent}`, width:"fit-content" }}>
-                      {[["edit","✨ AI修正"],["chat","💬 AIに質問"]].map(([mode, lbl]) => (
-                        <button key={mode} onClick={()=>setAiPanelMode(mode)}
-                          style={{ padding:"5px 14px", fontSize:12, fontWeight:700, background:aiPanelMode===mode?C.accent:"transparent", color:aiPanelMode===mode?"#fff":C.accent, border:"none", cursor:"pointer" }}>{lbl}</button>
-                      ))}
-                    </div>
-                    {aiPanelMode === "edit" ? (
-                      <>
-                        <textarea value={aiInstruction} onChange={e=>setAiInstruction(e.target.value)} rows={3}
-                          placeholder="例：決定事項をより明確に書き直してください"
-                          style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
-                        {aiError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>{aiError}</div>}
-                        <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
-                          <button onClick={()=>{setAiEditOpen(false);setAiInstruction("");setAiError("");}} style={BTN.ghost}>閉じる</button>
-                          <button onClick={runAiEdit} disabled={aiLoading||!aiInstruction.trim()} style={{...BTN.primary, opacity:aiLoading||!aiInstruction.trim()?0.5:1, cursor:aiLoading||!aiInstruction.trim()?"default":"pointer"}}>{aiLoading?"修正中...":"修正する"}</button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ maxHeight:240, overflowY:"auto", display:"flex", flexDirection:"column", gap:8, marginBottom:10, paddingRight:2 }}>
-                          {chatMessages.length === 0 && (
-                            <div style={{ fontSize:12, color:C.muted, textAlign:"center", padding:"16px 0" }}>議事録や元の文字起こしについて質問してください<br/><span style={{ fontSize:11 }}>例：「○○の話はなかった？」「Aさんは何と言っていた？」</span></div>
-                          )}
-                          {chatMessages.map((msg, i) => (
-                            <div key={i} style={{ display:"flex", justifyContent:msg.role==="user"?"flex-end":"flex-start" }}>
-                              <div style={{ maxWidth:"85%", padding:"8px 12px", borderRadius:msg.role==="user"?"12px 12px 4px 12px":"12px 12px 12px 4px",
-                                background:msg.role==="user"?C.accent:"#fff", color:msg.role==="user"?"#fff":C.text,
-                                fontSize:12, lineHeight:1.6, border:msg.role==="assistant"?`1px solid ${C.border}`:"none",
-                                whiteSpace:"pre-wrap" }}>
-                                {msg.content}
-                              </div>
+                    {chatMessages.length > 0 && (
+                      <div style={{ maxHeight:200, overflowY:"auto", display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+                        {chatMessages.map((msg, i) => (
+                          <div key={i} style={{ display:"flex", justifyContent:msg.role==="user"?"flex-end":"flex-start" }}>
+                            <div style={{ maxWidth:"85%", padding:"8px 12px", borderRadius:msg.role==="user"?"12px 12px 4px 12px":"12px 12px 12px 4px",
+                              background:msg.role==="user"?C.accent:"#fff", color:msg.role==="user"?"#fff":C.text,
+                              fontSize:12, lineHeight:1.6, border:msg.role==="assistant"?`1px solid ${C.border}`:"none", whiteSpace:"pre-wrap" }}>
+                              {msg.content}
                             </div>
-                          ))}
-                          {chatLoading && (
-                            <div style={{ display:"flex", justifyContent:"flex-start" }}>
-                              <div style={{ padding:"8px 14px", borderRadius:"12px 12px 12px 4px", background:"#fff", border:`1px solid ${C.border}`, fontSize:12, color:C.muted }}>考え中...</div>
-                            </div>
-                          )}
-                          <div ref={chatBottomRef} />
-                        </div>
-                        <div style={{ display:"flex", gap:6 }}>
-                          <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
-                            onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey&&!chatLoading){ e.preventDefault(); runChat(); }}}
-                            placeholder="質問を入力（Enter で送信）"
-                            style={{ flex:1, border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none" }} />
-                          <button onClick={runChat} disabled={chatLoading||!chatInput.trim()}
-                            style={{...BTN.primary, opacity:chatLoading||!chatInput.trim()?0.5:1, cursor:chatLoading||!chatInput.trim()?"default":"pointer", padding:"8px 14px"}}>送信</button>
-                        </div>
-                        {!selectedMinute?.sourceText && (
-                          <div style={{ fontSize:11, color:C.muted, marginTop:6 }}>※ 原文テキストが保存されていないため、議事録のみを参照します</div>
+                          </div>
+                        ))}
+                        {aiLoading && (
+                          <div style={{ display:"flex", justifyContent:"flex-start" }}>
+                            <div style={{ padding:"8px 14px", borderRadius:"12px 12px 12px 4px", background:"#fff", border:`1px solid ${C.border}`, fontSize:12, color:C.muted }}>考え中...</div>
+                          </div>
                         )}
-                        <div style={{ display:"flex", justifyContent:"flex-end", marginTop:8 }}>
-                          <button onClick={()=>{setAiEditOpen(false);}} style={BTN.ghost}>閉じる</button>
-                        </div>
-                      </>
+                        <div ref={chatBottomRef} />
+                      </div>
                     )}
+                    <div style={{ fontSize:11, color:C.accent, marginBottom:6, fontWeight:700 }}>✨ AI — 修正指示または質問を入力してください</div>
+                    <textarea value={aiInstruction} onChange={e=>setAiInstruction(e.target.value)} rows={3}
+                      onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey&&!aiLoading){ e.preventDefault(); runAiAction(); }}}
+                      placeholder={"例：決定事項をより明確に書き直して\n例：○○の話題は出ていた？"}
+                      style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:8, padding:"8px 11px", fontSize:12, background:"#fff", color:C.text, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
+                    {aiError && <div style={{ fontSize:12, color:C.accent, marginTop:6 }}>{aiError}</div>}
+                    {!selectedMinute?.sourceText && <div style={{ fontSize:11, color:C.muted, marginTop:4 }}>※ 原文が保存されていないため議事録のみを参照します</div>}
+                    <div style={{ display:"flex", gap:8, marginTop:10, justifyContent:"flex-end" }}>
+                      <button onClick={()=>{setAiEditOpen(false);setAiInstruction("");setAiError("");}} style={BTN.ghost}>閉じる</button>
+                      <button onClick={runAiAction} disabled={aiLoading||!aiInstruction.trim()} style={{...BTN.primary, opacity:aiLoading||!aiInstruction.trim()?0.5:1, cursor:aiLoading||!aiInstruction.trim()?"default":"pointer"}}>{aiLoading?"処理中...":"送信"}</button>
+                    </div>
                   </div>
                 )}
             {extractMode ? (
