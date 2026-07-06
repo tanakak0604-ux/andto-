@@ -27,7 +27,10 @@
       "Read(//c/Users/info/Documents/file-transfer/api/**)",
       "Read(//c/Users/info/Documents/file-transfer//**)",
       "Bash(git add:*)",
-      "Read(//c/Users/info/Documents/sekkeiryou kanri-/**)"
+      "Read(//c/Users/info/Documents/sekkeiryou kanri-/**)",
+      "WebFetch(domain:sekkeiryou-kanri.vercel.app)",
+      "WebSearch",
+      "WebFetch(domain:ai.google.dev)"
     ],
     "additionalDirectories": [
       "C:\\Users\\info\\Documents\\file-transfer\\client\\src\\components",

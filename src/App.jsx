@@ -734,6 +734,11 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
           {unfoldered.length === 0 && folders.length > 0 && (
             <div style={{ fontSize:11, color: over==="__unfoldered__" ? col : C.muted, textAlign:"center", padding:"8px 0" }}>タスクをここにドロップ</div>
           )}
+          {colTasks.length === 0 && folders.length === 0 && (
+            <div style={{ fontSize:12, color:C.muted, textAlign:"center", padding:"20px 0", lineHeight:1.8 }}>
+              タスクがありません<br /><span style={{ fontSize:11 }}>＋ で追加</span>
+            </div>
+          )}
           {unfoldered.map(t => <TaskCard key={t.id} t={t} project={project} onUpdate={onUpdate} onEdit={onEdit} />)}
         </div>
       </div>
@@ -1882,6 +1887,9 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [minutesSaved, setMinutesSaved] = useState(false);
   const [savedMinutesId, setSavedMinutesId] = useState(null);
   const [generatedSourceText, setGeneratedSourceText] = useState("");
+  const [bgTranscriptStatus, setBgTranscriptStatus] = useState(null); // null | { pct, msg, error }
+  const bgStateRef = useRef({ savedMinutesId: null, selProj: "" });
+  const projectsRef = useRef(projects);
   const [transcript, setTranscript] = useState("");
   const [showTranscriptAiEdit, setShowTranscriptAiEdit] = useState(false);
   const [transcriptAiInstruction, setTranscriptAiInstruction] = useState("");
@@ -1899,6 +1907,8 @@ function MinutesPage({ projects, onUpdateProject }) {
   const abortControllerRef = useRef(null);
   const minutesTextareaRef = useRef();
   const selProjObj = projects.find(p => p.id === selProj);
+
+  useEffect(() => { projectsRef.current = projects; }, [projects]);
 
   const tplSlots = selProjObj ? [...Array(4)].map((_,i) => (selProjObj.minutesTemplates||[])[i] || { id:"_"+i, name:"", attendees:[], bunseki:"" }) : [];
   const saveTemplate = (idx, name, attendees, bunseki) => {
@@ -1999,6 +2009,58 @@ function MinutesPage({ projects, onUpdateProject }) {
   const cancelGenerate = () => {
     abortControllerRef.current?.abort();
     setLoading(false);
+  };
+
+  const runBgTranscript = async (audioFileUri, mimeType, geminiKey, memberInfo) => {
+    try {
+      setBgTranscriptStatus({ pct: 10, msg: "バックグラウンドで文字起こし中..." });
+      let fakePct = 10;
+      const ticker = setInterval(() => {
+        fakePct = Math.min(fakePct + 8, 85);
+        setBgTranscriptStatus(s => (s && !s.error) ? { pct: fakePct, msg: "バックグラウンドで文字起こし中..." } : s);
+      }, 4000);
+      let transcriptText = "";
+      try {
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [
+                { file_data: { file_uri: audioFileUri, mime_type: mimeType } },
+                { text: TRANSCRIPTION_SYSTEM_PROMPT + "\n\n以下の音声を文字起こしてください。\n\n【参加者情報】\n" + memberInfo + "\n\n参加者情報から話者を推定し、各発言を「話者名：内容」の形式で書き起こしてください。" },
+              ]}],
+              generationConfig: { maxOutputTokens: 65536, temperature: 0 },
+            }),
+          }
+        );
+        const geminiData = await geminiRes.json();
+        if (geminiData.error) throw new Error(geminiData.error.message);
+        transcriptText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      } finally {
+        clearInterval(ticker);
+      }
+      const cleaned = removeTimestampRegression(removeLoopedLines(transcriptText));
+      setBgTranscriptStatus({ pct: 95, msg: "バックグラウンドで文字起こし中..." });
+      setGeneratedSourceText(cleaned);
+      const savedId = bgStateRef.current.savedMinutesId;
+      const projId = bgStateRef.current.selProj;
+      if (savedId && projId) {
+        const latestProj = projectsRef.current.find(p => p.id === projId);
+        if (latestProj) {
+          const updatedMinutes = (latestProj.minutes || []).map(m =>
+            m.id === savedId ? { ...m, sourceText: cleaned } : m
+          );
+          onUpdateProject({ ...latestProj, minutes: updatedMinutes });
+        }
+      }
+      setBgTranscriptStatus({ pct: 100, msg: "文字起こし完了" });
+      setTimeout(() => setBgTranscriptStatus(null), 3000);
+    } catch (e) {
+      setBgTranscriptStatus({ pct: 0, msg: "", error: "文字起こしエラー: " + e.message });
+      setTimeout(() => setBgTranscriptStatus(null), 5000);
+    }
   };
 
   const generateTranscript = async () => {
@@ -2308,6 +2370,12 @@ function MinutesPage({ projects, onUpdateProject }) {
         if (!uploadRes.ok) throw new Error(`Gemini upload error (${uploadRes.status}): ${uploadData?.error?.message || uploadRawText.slice(0, 150)}`);
         audioFileUri = uploadData?.file?.uri;
         if (!audioFileUri) throw new Error("File URI が返されませんでした: " + JSON.stringify(uploadData).slice(0, 150));
+        // バックグラウンドで文字起こしを並行実行（fire-and-forget）
+        const bgMemberInfo = (latestProj?.members || []).length > 0
+          ? (latestProj.members || []).map(m => `${m.name}（${m.isAndto ? "andto" : m.org || "参加者"}）`).join("、")
+          : "不明";
+        bgStateRef.current.selProj = selProj;
+        runBgTranscript(audioFileUri, audioAttachment.mimeType, geminiKey, bgMemberInfo);
       } catch (e) {
         setLoading(false);
         setGenError("音声アップロードエラー: " + e.message);
@@ -2383,6 +2451,8 @@ function MinutesPage({ projects, onUpdateProject }) {
     setSaveMsg("議事録を保存しました");
     setMinutesSaved(true);
     setSavedMinutesId(entry.id);
+    bgStateRef.current.savedMinutesId = entry.id;
+    bgStateRef.current.selProj = selProj;
     return {...entry, projName: latestProj.name, projColor: latestProj.color, projId: latestProj.id};
   };
 
@@ -2905,6 +2975,22 @@ function MinutesPage({ projects, onUpdateProject }) {
                     style={{ flex:1, border:"none", outline:"none", fontSize:13, fontWeight:700, color:C.text, background:"transparent" }} />
                 </div>
                 {genError&&<div style={{ marginBottom:14, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#DC2626", fontWeight:600 }}>⚠️ {genError}</div>}
+                {bgTranscriptStatus && (
+                  <div style={{ marginBottom:14, padding:"10px 14px", background: bgTranscriptStatus.error ? "#FEF2F2" : "#F0FDF4", border:`1.5px solid ${bgTranscriptStatus.error ? "#FCA5A5" : "#86EFAC"}`, borderRadius:10 }}>
+                    {bgTranscriptStatus.error ? (
+                      <div style={{ fontSize:12, color:"#DC2626", fontWeight:600 }}>⚠️ {bgTranscriptStatus.error}</div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize:12, color:"#16A34A", fontWeight:700, marginBottom:6 }}>
+                          {bgTranscriptStatus.pct < 100 ? `バックグラウンドで文字起こし中... ${bgTranscriptStatus.pct}%` : "✓ 文字起こし完了"}
+                        </div>
+                        <div style={{ height:4, background:"#D1FAE5", borderRadius:2, overflow:"hidden" }}>
+                          <div style={{ height:"100%", width:`${bgTranscriptStatus.pct}%`, background:"#22C55E", borderRadius:2, transition:"width 0.5s ease" }} />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
                 <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:4 }}>
                   <button onClick={() => {
                     const el = minutesTextareaRef.current;
@@ -3219,6 +3305,11 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
     setIsEditingAgenda(false);
   }, [selectedId]); // eslint-disable-line
 
+  useEffect(() => {
+    const minute = project.minutes?.find(m => m.id === selectedId);
+    setChatMessages(minute?.chatHistory || []);
+  }, [selectedId]); // eslint-disable-line
+
   const hasAgenda = Boolean(
     currentAgenda &&
     selectedMinute?.agendas &&
@@ -3266,6 +3357,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
   const runAiChat = async () => {
     if (!aiInstruction.trim() || !selectedMinute) return;
     const input = aiInstruction.trim();
+    const prevMessages = [...chatMessages];
     setAiInstruction("");
     setAiLoading(true); setAiError("");
     const src = selectedMinute.sourceText;
@@ -3274,10 +3366,9 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
         system: `あなたは議事録作成の専門家です。以下の情報を参照してユーザーの質問に日本語で簡潔に答えてください。\n\n【議事録】\n${editContent}${src ? `\n\n【原文・文字起こし】\n${src}` : ""}`,
         messages: [{ role: "user", content: input }]
       });
-      setChatMessages(m => [...m,
-        { role: "user", content: input },
-        { role: "assistant", content: answer }
-      ]);
+      const newMessages = [...prevMessages, { role: "user", content: input }, { role: "assistant", content: answer }];
+      setChatMessages(newMessages);
+      onUpdate({ ...project, minutes: project.minutes.map(m => m.id === selectedId ? { ...m, chatHistory: newMessages } : m) });
       setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     } catch(e) { setAiError("エラー："+e.message); setAiInstruction(input); }
     setAiLoading(false);
