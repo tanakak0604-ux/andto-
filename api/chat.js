@@ -44,7 +44,7 @@ async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  const { system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType } = req.body;
+  const { system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType, collectPartial } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
 
@@ -68,6 +68,65 @@ async function handler(req, res) {
 
     const prompt = (system ? system + "\n\n" : "") + messages.map(m => m.content).join("\n");
     parts.push({ text: prompt });
+
+    if (collectPartial) {
+      // ストリーミングで受信し、時間切れ前に取れたところまで返す（長時間音声の文字起こし用）
+      // truncated: true が返ったらクライアント側が続きを再リクエストする
+      const DEADLINE_MS = 250000; // maxDuration 300秒に対して余裕を持たせる
+      const streamUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=" + apiKey;
+      const controller = new AbortController();
+      let deadlineHit = false;
+      const timer = setTimeout(() => { deadlineHit = true; controller.abort(); }, DEADLINE_MS);
+      let text = "";
+      let finishReason = null;
+      try {
+        const streamRes = await fetch(streamUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts }],
+            generationConfig: { maxOutputTokens: max_tokens || 65536, ...(temperature !== undefined ? { temperature } : {}) },
+          }),
+          signal: controller.signal,
+        });
+        if (!streamRes.ok) {
+          const errText = await streamRes.text();
+          clearTimeout(timer);
+          return res.status(500).json({ error: { message: `Gemini APIエラー (${streamRes.status}): ${errText.slice(0, 300)}` } });
+        }
+        const reader = streamRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            const payload = line.slice(5).trim();
+            if (!payload) continue;
+            try {
+              const chunk = JSON.parse(payload);
+              const part = chunk.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (part) text += part;
+              const fr = chunk.candidates?.[0]?.finishReason;
+              if (fr) finishReason = fr;
+            } catch { /* 不完全なJSON行は無視 */ }
+          }
+        }
+      } catch (e) {
+        if (!deadlineHit) { clearTimeout(timer); throw e; }
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!text) {
+        return res.status(500).json({ error: { message: deadlineHit ? "時間内に文字起こしを開始できませんでした。もう一度お試しください。" : "空の応答が返されました" } });
+      }
+      const truncated = deadlineHit || finishReason === "MAX_TOKENS";
+      return res.status(200).json({ content: [{ type: "text", text }], truncated });
+    }
 
     const response = await fetch(url, {
       method: "POST",

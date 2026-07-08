@@ -19,6 +19,45 @@ async function callClaude({ system, messages, max_tokens = 65536, temperature, s
   return data.content?.[0]?.text || "";
 }
 
+// サーバーの時間制限内に取れたところまで受け取る（truncated: true なら続きがある）
+async function callClaudePartial({ messages, temperature, signal, audioFileUri, audioMimeType }) {
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, temperature, audioFileUri, audioMimeType, collectPartial: true }),
+    signal,
+  });
+  const rawText = await response.text();
+  let data;
+  try { data = JSON.parse(rawText); } catch {
+    throw new Error("サーバーエラー: " + rawText.slice(0, 100));
+  }
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  return { text: data.content?.[0]?.text || "", truncated: !!data.truncated };
+}
+
+// 長時間音声の文字起こし：時間切れで途切れたら「続きから」を自動で繰り返して最後まで取得する
+async function transcribeLongAudio({ audioFileUri, mimeType, firstPrompt, signal, onPass }) {
+  let full = "";
+  for (let pass = 1; pass <= 12; pass++) {
+    if (onPass) onPass(pass);
+    const promptText = pass === 1
+      ? firstPrompt
+      : `以下の音声の文字起こしを行っています。すでに書き起こされた末尾部分を参考に、その続きから文字起こしを続けてください。重複しないように、末尾の直後から続けてください。\n\n【ここまでの末尾】\n${full.slice(-800)}\n\n【続きの文字起こし（末尾の直後から）】`;
+    const { text, truncated } = await callClaudePartial({
+      messages: [{ role: "user", content: promptText }],
+      temperature: 0,
+      audioFileUri,
+      audioMimeType: mimeType,
+      signal,
+    });
+    const cleaned = removeTimestampRegression(removeLoopedLines(text));
+    full = full ? removeLoopedLines(full + "\n" + cleaned) : cleaned;
+    if (!truncated || !text.trim()) break;
+  }
+  return full;
+}
+
 // Gemini File API アップロード（キーはサーバー側のみ。署名付きURLを受け取り、ファイル本体はブラウザから直接送る）
 async function uploadAudioToGemini(bytes, mimeType, displayName, signal) {
   const startRes = await fetch("/api/gemini-upload", {
@@ -2040,18 +2079,16 @@ function MinutesPage({ projects, onUpdateProject }) {
         fakePct = Math.min(fakePct + 8, 85);
         setBgTranscriptStatus(s => (s && !s.error) ? { pct: fakePct, msg: "バックグラウンドで文字起こし中..." } : s);
       }, 4000);
-      let transcriptText = "";
+      let cleaned = "";
       try {
-        transcriptText = await callClaude({
-          messages: [{ role: "user", content: TRANSCRIPTION_SYSTEM_PROMPT + "\n\n以下の音声を文字起こしてください。\n\n【参加者情報】\n" + memberInfo + "\n\n参加者情報から話者を推定し、各発言を「話者名：内容」の形式で書き起こしてください。" }],
-          temperature: 0,
+        cleaned = await transcribeLongAudio({
           audioFileUri,
-          audioMimeType: mimeType,
+          mimeType,
+          firstPrompt: TRANSCRIPTION_SYSTEM_PROMPT + "\n\n以下の音声を文字起こしてください。\n\n【参加者情報】\n" + memberInfo + "\n\n参加者情報から話者を推定し、各発言を「話者名：内容」の形式で書き起こしてください。",
         });
       } finally {
         clearInterval(ticker);
       }
-      const cleaned = removeTimestampRegression(removeLoopedLines(transcriptText));
       setBgTranscriptStatus({ pct: 95, msg: "バックグラウンドで文字起こし中..." });
       setGeneratedSourceText(cleaned);
       const savedId = bgStateRef.current.savedMinutesId;
@@ -2108,14 +2145,14 @@ function MinutesPage({ projects, onUpdateProject }) {
         const { uri: audioFileUri, name: audioFileName } = await uploadAudioToGemini(fileBytes, audioAttachment.mimeType, audioAttachment.name, abortControllerRef.current?.signal);
         setUploadedAudioFileUri(audioFileUri);
         await waitGeminiFileActive(audioFileName, abortControllerRef.current?.signal);
-        const raw = await callClaude({
-          messages: [{ role: "user", content: basePrompt("00:00", 0) }],
-          temperature: 0,
+        const raw = await transcribeLongAudio({
           audioFileUri,
-          audioMimeType: audioAttachment.mimeType,
+          mimeType: audioAttachment.mimeType,
+          firstPrompt: basePrompt("00:00", 0),
           signal: abortControllerRef.current?.signal,
+          onPass: (n) => setChunkProgress(n > 1 ? `文字起こし継続中（${n}回目）...` : ""),
         });
-        setTranscript(removeTimestampRegression(removeLoopedLines(raw)));
+        setTranscript(raw);
       } else {
         // ── チャンク分割フロー（5分超）────────────────────────────
         setIsChunked(true);
@@ -2189,7 +2226,7 @@ function MinutesPage({ projects, onUpdateProject }) {
 
       const tail = transcript.slice(-800);
       const continuePrompt = `以下の音声の文字起こしを行っています。すでに書き起こされた末尾部分を参考に、その続きから文字起こしを続けてください。重複しないように、末尾の直後から続けてください。\n\n【ここまでの末尾】\n${tail}\n\n【続きの文字起こし（末尾の直後から）】`;
-      const continuation = await callClaude({
+      const { text: continuation } = await callClaudePartial({
         messages: [{ role: "user", content: continuePrompt }],
         temperature: 0,
         audioFileUri: fileUri,
