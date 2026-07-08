@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { escapeHtml, uid, removeTimestampRegression, removeLoopedLines, extractJsonArray } from "./text";
+import { escapeHtml, uid, removeTimestampRegression, removeLoopedLines, normalizeTimestamps, cleanTranscriptChunk, extractJsonArray } from "./text";
 
 describe("escapeHtml", () => {
   it("HTML特殊文字をエスケープする", () => {
@@ -47,6 +47,39 @@ describe("removeLoopedLines", () => {
   it("異なる内容の行はすべて残す", () => {
     const input = "発言A\n発言B\n発言C";
     expect(removeLoopedLines(input)).toBe(input);
+  });
+  it("2種類の行が交互に繰り返すループを検出して打ち切る", () => {
+    const loop = Array.from({ length: 10 }, (_, i) => (i % 2 === 0 ? "慶子：あー。" : "谷口：あそこまで。")).join("\n");
+    const input = "谷口：構造の話をします。\n慶子：お願いします。\n" + loop + "\n谷口：続きの発言";
+    const result = removeLoopedLines(input);
+    expect(result).toBe("谷口：構造の話をします。\n慶子：お願いします。");
+  });
+  it("普通の会話（内容が多様）は交互ループと誤判定しない", () => {
+    const input = Array.from({ length: 15 }, (_, i) => `発言者：内容${i}`).join("\n");
+    expect(removeLoopedLines(input)).toBe(input);
+  });
+});
+
+describe("normalizeTimestamps", () => {
+  it("崩れたms形式のタイムスタンプを[分:秒]に正規化する", () => {
+    expect(normalizeTimestamps("[ 31m23s700ms ] 谷口：はい。")).toBe("[31:23] 谷口：はい。");
+    expect(normalizeTimestamps("[32m9s800ms] 慶子：あー。")).toBe("[32:09] 慶子：あー。");
+  });
+  it("時間付き（h）も分に換算する", () => {
+    expect(normalizeTimestamps("[1h5m30s] 発言")).toBe("[65:30] 発言");
+  });
+  it("正しい形式はそのまま", () => {
+    expect(normalizeTimestamps("[45:12] 発言")).toBe("[45:12] 発言");
+  });
+});
+
+describe("cleanTranscriptChunk", () => {
+  it("形式崩れ＋交互ループの劣化した文字起こしをまとめて修復する", () => {
+    const loop = Array.from({ length: 12 }, (_, i) =>
+      `[ 32m${10 + i}s300ms ] ${i % 2 === 0 ? "慶子：あー。" : "谷口：あそこまで。"}`
+    ).join("\n");
+    const input = "[31:20] 谷口：見積もりの話です。\n[31:24] 谷口：後ほど対応します。\n" + loop;
+    expect(cleanTranscriptChunk(input)).toBe("[31:20] 谷口：見積もりの話です。\n[31:24] 谷口：後ほど対応します。");
   });
 });
 

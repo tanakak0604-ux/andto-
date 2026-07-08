@@ -1,4 +1,4 @@
-import { removeLoopedLines, removeTimestampRegression } from "./text";
+import { cleanTranscriptChunk, removeLoopedLines } from "./text";
 
 async function callClaude({ system, messages, max_tokens = 65536, temperature, signal, audioFile, audioFileUri, audioMimeType }) {
   const response = await fetch("/api/chat", {
@@ -18,11 +18,11 @@ async function callClaude({ system, messages, max_tokens = 65536, temperature, s
 }
 
 // サーバーの時間制限内に取れたところまで受け取る（truncated: true なら続きがある）
-async function callClaudePartial({ messages, temperature, signal, audioFileUri, audioMimeType }) {
+async function callClaudePartial({ messages, temperature, max_tokens, signal, audioFileUri, audioMimeType }) {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, temperature, audioFileUri, audioMimeType, collectPartial: true }),
+    body: JSON.stringify({ messages, temperature, max_tokens, audioFileUri, audioMimeType, collectPartial: true }),
     signal,
   });
   const rawText = await response.text();
@@ -34,24 +34,30 @@ async function callClaudePartial({ messages, temperature, signal, audioFileUri, 
   return { text: data.content?.[0]?.text || "", truncated: !!data.truncated };
 }
 
-// 長時間音声の文字起こし：時間切れで途切れたら「続きから」を自動で繰り返して最後まで取得する
+// 長時間音声の文字起こし：短いパス（8千トークン）を自動で繰り返して最後まで取得する
+// 一度に長く生成させるとループや形式崩れの劣化が起きやすいため、
+// 小刻みに区切り、毎回クリーニングした末尾から仕切り直す
 async function transcribeLongAudio({ audioFileUri, mimeType, firstPrompt, signal, onPass }) {
+  const PASS_TOKENS = 8192;
   let full = "";
-  for (let pass = 1; pass <= 12; pass++) {
+  for (let pass = 1; pass <= 30; pass++) {
     if (onPass) onPass(pass);
     const promptText = pass === 1
       ? firstPrompt
-      : `以下の音声の文字起こしを行っています。すでに書き起こされた末尾部分を参考に、その続きから文字起こしを続けてください。重複しないように、末尾の直後から続けてください。\n\n【ここまでの末尾】\n${full.slice(-800)}\n\n【続きの文字起こし（末尾の直後から）】`;
+      : `以下の音声の文字起こしを行っています。すでに書き起こされた末尾部分を参考に、その続きから文字起こしを続けてください。重複しないように、末尾の直後から続けてください。タイムスタンプは必ず [分:秒] 形式（例 [45:12]）で、末尾の時刻より後から単調増加で記載してください。\n\n【ここまでの末尾】\n${full.slice(-800)}\n\n【続きの文字起こし（末尾の直後から）】`;
     const { text, truncated } = await callClaudePartial({
       messages: [{ role: "user", content: promptText }],
       temperature: 0,
+      max_tokens: PASS_TOKENS,
       audioFileUri,
       audioMimeType: mimeType,
       signal,
     });
-    const cleaned = removeTimestampRegression(removeLoopedLines(text));
+    const cleaned = cleanTranscriptChunk(text);
+    const prevLen = full.length;
     full = full ? removeLoopedLines(full + "\n" + cleaned) : cleaned;
     if (!truncated || !text.trim()) break;
+    if (pass > 1 && full.length <= prevLen + 10) break; // 進捗がなければ打ち切り（無限ループ防止）
   }
   return full;
 }

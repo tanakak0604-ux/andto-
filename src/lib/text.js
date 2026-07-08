@@ -30,10 +30,11 @@ function removeLoopedLines(text) {
   const result = [];
   let repeatCount = 0;
   let lastContent = null;
+  const recent = []; // 直近の内容行（交互ループ検出用）
+  const WINDOW = 10;
+  const stripTs = (s) => s.trim().replace(/^\[\d+:\d+\]\s*/, "");
   for (const line of lines) {
-    const trimmed = line.trim();
-    // タイムスタンプ [MM:SS] を除いた内容部分で重複を判定
-    const content = trimmed.replace(/^\[\d+:\d+\]\s*/, "");
+    const content = stripTs(line);
     if (content === lastContent && content !== "") {
       repeatCount++;
       if (repeatCount >= 3) break; // 同じ内容が3回以上続いたら打ち切り
@@ -42,8 +43,37 @@ function removeLoopedLines(text) {
       lastContent = content;
       result.push(line);
     }
+    if (content !== "") {
+      recent.push(content);
+      if (recent.length > WINDOW) recent.shift();
+      // 直近10行の内容が2種類以下 → 「あー。」「そうそう。」のような交互ループとみなし、
+      // ループ開始位置まで巻き戻して打ち切り
+      if (recent.length === WINDOW && new Set(recent).size <= 2) {
+        const loopSet = new Set(recent);
+        let cut = result.length;
+        while (cut > 0) {
+          const c = stripTs(result[cut - 1]);
+          if (c === "" || loopSet.has(c)) cut--;
+          else break;
+        }
+        return result.slice(0, cut).join("\n");
+      }
+    }
   }
   return result.join("\n");
+}
+
+// 劣化時に出る崩れたタイムスタンプ（[ 31m23s700ms ] 等）を [31:23] 形式に正規化
+function normalizeTimestamps(text) {
+  return text.replace(/\[\s*(?:(\d+)h)?(\d+)m(\d+)s(?:\d+ms)?\s*\]/g, (_, h, m, s) => {
+    const min = (h ? parseInt(h) * 60 : 0) + parseInt(m);
+    return `[${String(min).padStart(2, "0")}:${String(parseInt(s)).padStart(2, "0")}]`;
+  });
+}
+
+// 文字起こしテキストの一括クリーニング（正規化 → ループ除去 → 逆戻り除去）
+function cleanTranscriptChunk(text) {
+  return removeTimestampRegression(removeLoopedLines(normalizeTimestamps(text)));
 }
 function extractJsonArray(raw) {
   const s = raw.replace(/```json|```/g, "").trim();
@@ -53,4 +83,4 @@ function extractJsonArray(raw) {
   throw new Error("JSON配列が見つかりません");
 }
 
-export { escapeHtml, uid, removeTimestampRegression, removeLoopedLines, extractJsonArray };
+export { escapeHtml, uid, removeTimestampRegression, removeLoopedLines, normalizeTimestamps, cleanTranscriptChunk, extractJsonArray };

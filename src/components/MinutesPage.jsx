@@ -4,7 +4,7 @@ import { BTN, C, PHASE_LABELS, btn } from "../constants";
 import { audioBufferToWavBlob, extractAudioChunk } from "../lib/audio";
 import { callClaude, callClaudePartial, transcribeLongAudio, uploadAudioToGemini, uploadWavChunkToGemini, waitGeminiFileActive } from "../lib/gemini";
 import { buildMinutesBody } from "../lib/print";
-import { escapeHtml, extractJsonArray, removeLoopedLines, removeTimestampRegression, uid } from "../lib/text";
+import { cleanTranscriptChunk, escapeHtml, extractJsonArray, removeLoopedLines, uid } from "../lib/text";
 import { SYSTEM_PROMPT, TEMPLATE } from "../prompts";
 
 const STEPS = ["input","minutes","tasks","save"];
@@ -333,7 +333,7 @@ function MinutesPage({ projects, onUpdateProject }) {
             throw new Error(`チャンク${i + 1}: ${err.message}`);
           }
           // チャンクごとに個別クリーニング（チャンク間の誤検知防止）
-          const cleanedChunk = removeTimestampRegression(removeLoopedLines(chunkText));
+          const cleanedChunk = cleanTranscriptChunk(chunkText);
           fullTranscript += (fullTranscript ? "\n" : "") + cleanedChunk;
         }
         setTranscript(removeLoopedLines(fullTranscript));
@@ -383,7 +383,7 @@ function MinutesPage({ projects, onUpdateProject }) {
         audioFileUri: fileUri,
         audioMimeType: audioAttachment?.mimeType || "audio/m4a",
       });
-      if (continuation) setTranscript(prev => removeLoopedLines(prev + "\n" + continuation));
+      if (continuation) setTranscript(prev => removeLoopedLines(prev + "\n" + cleanTranscriptChunk(continuation)));
     } catch (e) {
       setGenError("続き生成エラー：" + e.message);
     }
