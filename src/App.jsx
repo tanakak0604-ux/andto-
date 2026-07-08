@@ -99,8 +99,8 @@ async function waitGeminiFileActive(fileName, signal) {
     if (data?.state === "FAILED") throw new Error("音声ファイルの処理に失敗しました");
   }
 }
-const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
-const SUPABASE_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
+const SUPABASE_URL = import.meta.env.REACT_APP_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.REACT_APP_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   realtime: { params: { eventsPerSecond: 10 } }
 });
@@ -4768,7 +4768,7 @@ function SlackSettingsPage({ slackSettings, onChange }) {
       const res = await fetch("/api/manual-summary", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${process.env.REACT_APP_SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${import.meta.env.REACT_APP_SUPABASE_ANON_KEY}`,
         },
       });
       const data = await res.json();
