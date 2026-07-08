@@ -156,7 +156,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
             onKeyDown={e => { if (e.key === "Enter") addFolder(); if (e.key === "Escape") setAddingFolder(false); }}
             placeholder="フォルダ名" style={{ flex: 1, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "5px 9px", fontSize: 12, background: "#fff", outline: "none" }} />
           <button onClick={addFolder} style={btn({ padding: "5px 10px", borderRadius: 8, background: col, color: "#fff", fontSize: 12 })}>追加</button>
-          <button onClick={() => setAddingFolder(false)} style={btn({ padding: "5px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 12 })}>✕</button>
+          <button aria-label="キャンセル" onClick={() => setAddingFolder(false)} style={btn({ padding: "5px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 12 })}>✕</button>
         </div>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -184,7 +184,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
                       }}
                       onBlur={() => { if (editFolderName.trim()) onUpdate({ ...project, [folderKey]: folders.map(f => f.id === folder.id ? { ...f, name: editFolderName.trim() } : f) }); setEditingFolderId(null); }}
                       style={{ flex: 1, border: `1.5px solid ${C.sage}`, borderRadius: 6, padding: "3px 8px", fontSize: 12, fontWeight: 700, color: C.text, outline: "none" }} />
-                    <button onMouseDown={e => { e.preventDefault(); setConfirmDeleteFolderId(folder.id); setEditingFolderId(null); }}
+                    <button aria-label="フォルダを削除" onMouseDown={e => { e.preventDefault(); setConfirmDeleteFolderId(folder.id); setEditingFolderId(null); }}
                       style={btn({ color: C.muted, background: "transparent", fontSize: 13, padding: "2px 4px" })}>✕</button>
                   </>
                 ) : (
@@ -435,7 +435,7 @@ function KanbanPage({ project, onUpdate }) {
                         }}
                         style={{ width: "100%", border: "none", background: "transparent", fontSize: 12, color: s.done ? C.muted : C.text, outline: "none", textDecoration: s.done ? "line-through" : "none", userSelect: "text", WebkitUserSelect: "text", cursor: "text", boxSizing: "border-box", padding: 0, lineHeight: "normal" }} />
                     </div>
-                    <button onClick={() => setForm(f => ({ ...f, subtasks: f.subtasks.filter((_,j) => j!==i) }))} style={btn({ color: C.muted, fontSize: 14, background: "transparent" })}>✕</button>
+                    <button aria-label="サブタスクを削除" onClick={() => setForm(f => ({ ...f, subtasks: f.subtasks.filter((_,j) => j!==i) }))} style={btn({ color: C.muted, fontSize: 14, background: "transparent" })}>✕</button>
                   </div>
                 ))}
               </div>

@@ -304,9 +304,9 @@ function DecisionsPage({ project, onUpdate }) {
                         <span style={{ fontSize:13, fontWeight:800, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</span>
                       </div>
                       <div onClick={e=>e.stopPropagation()} style={{ display:"flex", gap:2, flexShrink:0, marginLeft:4 }}>
-                        <button onClick={()=>{ setRenamingFolderId(f.id); setRenamingFolderText(f.name); }}
+                        <button aria-label="フォルダ名を変更" onClick={()=>{ setRenamingFolderId(f.id); setRenamingFolderText(f.name); }}
                           style={btn({ padding:"3px 6px", borderRadius:6, background:"transparent", color:C.muted, fontSize:11 })}>✏️</button>
-                        <button onClick={()=>setConfirmDeleteDecisionFolderId(f.id)}
+                        <button aria-label="フォルダを削除" onClick={()=>setConfirmDeleteDecisionFolderId(f.id)}
                           style={btn({ padding:"3px 6px", borderRadius:6, background:"transparent", color:C.muted, fontSize:13 })}>✕</button>
                       </div>
                     </div>
@@ -354,9 +354,9 @@ function DecisionsPage({ project, onUpdate }) {
                       <div style={{ display:"flex", gap:3 }}>
                         <button onClick={()=>setMovingDecisionId(d.id)} title="フォルダへ移動"
                           style={btn({ color:C.muted, background:"transparent", fontSize:12, padding:"2px 5px" })}>📁</button>
-                        <button onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); setEditingDecisionSource(d.source||""); setEditingDecisionDate(d.date||""); }}
+                        <button aria-label="決定事項を編集" onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); setEditingDecisionSource(d.source||""); setEditingDecisionDate(d.date||""); }}
                           style={btn({ color:C.muted, background:"transparent", fontSize:12, padding:"2px 5px" })}>✏️</button>
-                        <button onClick={()=>setConfirmDeleteDecisionId(d.id)}
+                        <button aria-label="決定事項を削除" onClick={()=>setConfirmDeleteDecisionId(d.id)}
                           style={btn({ color:C.muted, background:"transparent", fontSize:14, padding:"2px 5px" })}>✕</button>
                       </div>
                     </div>

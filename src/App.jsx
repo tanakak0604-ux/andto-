@@ -294,7 +294,7 @@ export default function App() {
       {saveError && (
         <div style={{ background:"#DC2626", color:"#fff", padding:"10px 20px", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"space-between", zIndex:9999 }}>
           <span>⚠️ {saveError}</span>
-          <button onClick={()=>setSaveError(null)} style={{ background:"transparent", border:"none", color:"#fff", cursor:"pointer", fontSize:16, fontWeight:700, padding:"0 4px" }}>✕</button>
+          <button aria-label="エラーを閉じる" onClick={()=>setSaveError(null)} style={{ background:"transparent", border:"none", color:"#fff", cursor:"pointer", fontSize:16, fontWeight:700, padding:"0 4px" }}>✕</button>
         </div>
       )}
       {importModal && (
@@ -353,7 +353,7 @@ export default function App() {
             <input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addProject()} placeholder="プロジェクト名"
               style={{ border:`1.5px solid ${C.border}`, borderRadius:8, padding:"5px 10px", fontSize:13, background:C.bg, color:C.text, outline:"none", width:130 }} />
             <button onClick={addProject} style={btn({background:C.accent,color:"#fff",borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700})}>追加</button>
-            <button onClick={()=>setShowAdd(false)} style={btn({background:"transparent",color:C.muted,fontSize:16})}>✕</button>
+            <button aria-label="閉じる" onClick={()=>setShowAdd(false)} style={btn({background:"transparent",color:C.muted,fontSize:16})}>✕</button>
           </div>
         ) : (
           <button onClick={()=>setShowAdd(true)} style={btn({padding:"0 14px",height:52,background:"transparent",fontSize:16,fontWeight:700,color:C.muted,flexShrink:0,lineHeight:1})}>+</button>

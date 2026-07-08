@@ -173,7 +173,7 @@ function SlackSettingsPage({ slackSettings, onChange }) {
                 <input value={ch.name} onChange={e => updateChannel(i, "name", e.target.value)}
                   placeholder="チャンネル名（例：KAM）"
                   style={{ flex: 1, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", fontSize: 12, background: C.bg, color: C.text, outline: "none", boxSizing: "border-box" }} />
-                <button onClick={() => removeChannel(i)} style={btn({ padding: "5px 10px", borderRadius: 8, background: "transparent", color: C.muted, fontSize: 13, border: `1.5px solid ${C.border}` })}>✕</button>
+                <button aria-label="チャンネルを削除" onClick={() => removeChannel(i)} style={btn({ padding: "5px 10px", borderRadius: 8, background: "transparent", color: C.muted, fontSize: 13, border: `1.5px solid ${C.border}` })}>✕</button>
               </div>
             ))}
           </div>

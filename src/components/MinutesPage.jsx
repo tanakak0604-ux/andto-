@@ -814,7 +814,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                             ) : (
                               <span style={{ fontSize:11, color:C.muted, padding:"6px 4px" }}>テンプレート{idx+1}</span>
                             )}
-                            <button onClick={()=>setTemplateModal({ idx, name:tpl.name||"", attendees:tpl.attendees||[], bunseki:tpl.bunseki||"" })}
+                            <button aria-label="テンプレートを編集" onClick={()=>setTemplateModal({ idx, name:tpl.name||"", attendees:tpl.attendees||[], bunseki:tpl.bunseki||"" })}
                               style={btn({ padding:"4px 8px", borderRadius:20, fontSize:12, color:tpl.name?C.muted:"#aaa", background:"transparent", border:`1px solid ${C.border}` })}>✎</button>
                           </div>
                         );
@@ -943,7 +943,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                         <div key={i} style={{ display:"flex", alignItems:"center", gap:8, background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:8, padding:"6px 10px" }}>
                           <span style={{ fontSize:11, color:C.accent, flexShrink:0 }}>{f.isAudio ? "🎙" : "📄"}</span>
                           <span style={{ flex:1, fontSize:12, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</span>
-                          <button onClick={()=>setAttachedFiles(prev=>prev.filter((_,j)=>j!==i))}
+                          <button aria-label="添付ファイルを削除" onClick={()=>setAttachedFiles(prev=>prev.filter((_,j)=>j!==i))}
                             style={btn({padding:"2px 8px",borderRadius:6,fontSize:11,color:C.muted,background:"transparent",border:`1px solid ${C.border}`})}>×</button>
                         </div>
                       ))}
@@ -1183,7 +1183,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                                   style={btn({padding:"3px 7px",borderRadius:6,background:"transparent",color:C.muted,fontSize:11,border:`1px solid ${C.border}`})}>取消</button>
                               </>
                             ) : (
-                              <button onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); }}
+                              <button aria-label="決定事項を編集" onClick={()=>{ setEditingDecisionId(d.id); setEditingDecisionText(d.text); }}
                                 style={btn({padding:"3px 7px",borderRadius:6,background:"transparent",color:C.muted,fontSize:11})}>✏️</button>
                             )}
                           </div>

@@ -111,9 +111,9 @@ function CalendarPage({ projects, onUpdate }) {
     <div style={{ padding: 24 }}>
       {/* ヘッダー */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <button onClick={prev} style={btn({ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${C.border}`, background: "transparent", fontSize: 16, color: C.text })}>‹</button>
+        <button aria-label="前へ" onClick={prev} style={btn({ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${C.border}`, background: "transparent", fontSize: 16, color: C.text })}>‹</button>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: C.text }}>{year}年 {mn[month]}</h2>
-        <button onClick={next} style={btn({ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${C.border}`, background: "transparent", fontSize: 16, color: C.text })}>›</button>
+        <button aria-label="次へ" onClick={next} style={btn({ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${C.border}`, background: "transparent", fontSize: 16, color: C.text })}>›</button>
       </div>
 
       {/* フィルター */}
@@ -313,7 +313,7 @@ function CalendarPage({ projects, onUpdate }) {
             <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 420, width: "100%", boxShadow: "0 16px 48px rgba(0,0,0,0.18)" }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
                 <div style={{ fontSize: 15, fontWeight: 900, color: C.text, flex: 1, paddingRight: 12 }}>{selectedTask.title}</div>
-                <button onClick={() => setSelectedTask(null)} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
+                <button aria-label="閉じる" onClick={() => setSelectedTask(null)} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
               </div>
               {editMode ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -420,7 +420,7 @@ function CalendarPage({ projects, onUpdate }) {
           <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "24px 28px", maxWidth: 360, width: "100%", boxShadow: "0 16px 48px rgba(0,0,0,0.18)" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontSize: 15, fontWeight: 900, color: C.text }}>📅 {editEventMode ? "予定を編集" : selectedEvent.title}</div>
-              <button onClick={() => { setSelectedEvent(null); setEditEventMode(false); }} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
+              <button aria-label="閉じる" onClick={() => { setSelectedEvent(null); setEditEventMode(false); }} style={btn({ background: "transparent", color: C.muted, fontSize: 18, padding: "0 4px" })}>✕</button>
             </div>
             {editEventMode ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

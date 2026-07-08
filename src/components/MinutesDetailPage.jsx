@@ -582,7 +582,7 @@ ${pastMinutesTitles}
                                   style={btn({padding:"3px 7px",borderRadius:6,background:"transparent",color:C.muted,fontSize:11,border:`1px solid ${C.border}`})}>取消</button>
                               </>
                             ) : (
-                              <button onClick={()=>{ setDetailEditingDecId(d.id); setDetailEditingDecText(d.text); }}
+                              <button aria-label="決定事項を編集" onClick={()=>{ setDetailEditingDecId(d.id); setDetailEditingDecText(d.text); }}
                                 style={btn({padding:"3px 7px",borderRadius:6,background:"transparent",color:C.muted,fontSize:11})}>✏️</button>
                             )}
                           </div>
@@ -630,7 +630,7 @@ ${pastMinutesTitles}
                           </div>
                           <span style={{ flex:1, fontSize:12, fontWeight:700, color:C.text }}>{t.title||"（タイトル未入力）"}</span>
                           <PriorityDot p={t.priority} />
-                          <button onClick={e=>{e.stopPropagation();setEditingTaskId(t.id);}}
+                          <button aria-label="タスクを編集" onClick={e=>{e.stopPropagation();setEditingTaskId(t.id);}}
                             style={btn({padding:"2px 6px",borderRadius:5,background:"transparent",color:C.muted,fontSize:12})}>✏️</button>
                         </div>
                         {editingTaskId===t.id ? (
@@ -712,10 +712,10 @@ ${pastMinutesTitles}
                                         <span onClick={()=>setEditingSubtaskId(s.id)} style={{ flex:1, fontSize:11, color:C.text, cursor:"text" }}>{s.title||"（未入力）"}</span>
                                       )}
                                       {editingSubtaskId!==s.id && (
-                                        <button onClick={()=>setEditingSubtaskId(s.id)}
+                                        <button aria-label="サブタスクを編集" onClick={()=>setEditingSubtaskId(s.id)}
                                           style={btn({padding:"1px 4px",borderRadius:4,fontSize:10,color:C.muted,background:"transparent"})}>✏️</button>
                                       )}
-                                      <button onClick={()=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,subtasks:(x.subtasks||[]).filter(ss=>ss.id!==s.id)}:x))}
+                                      <button aria-label="サブタスクを削除" onClick={()=>setDetailExtracted(ts=>ts.map(x=>x.id===t.id?{...x,subtasks:(x.subtasks||[]).filter(ss=>ss.id!==s.id)}:x))}
                                         style={btn({padding:"1px 6px",borderRadius:4,fontSize:10,color:C.muted,background:"transparent"})}>×</button>
                                     </div>
                                   ))}
