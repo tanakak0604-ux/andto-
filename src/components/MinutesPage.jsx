@@ -899,7 +899,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                       </div>
                     </div>
                   )}
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
+                  <div className="form-grid-2" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
                     <div>
                       <label style={{ fontSize:11, fontWeight:700, color:C.muted, display:"block", marginBottom:4 }}>名称</label>
                       <input value={gaiyou} onChange={e=>setGaiyou(e.target.value)} placeholder="会議の名称（空欄時はAIが推測）"

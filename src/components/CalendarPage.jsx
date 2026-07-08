@@ -135,7 +135,8 @@ function CalendarPage({ projects, onUpdate }) {
       </div>
 
       {/* カレンダーグリッド */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 1, background: C.border, borderRadius: 16, overflow: "hidden" }}>
+      <div className="cal-scroll-wrap">
+      <div className="cal-grid" style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 1, background: C.border, borderRadius: 16, overflow: "hidden" }}>
         {dn.map((d, i) => (
           <div key={d} style={{ background: C.surface, padding: "10px 0", textAlign: "center", fontSize: 12, fontWeight: 800, color: i === 5 ? C.done : i === 6 ? C.accent : C.muted }}>{d}</div>
         ))}
@@ -203,6 +204,7 @@ function CalendarPage({ projects, onUpdate }) {
             </div>
           );
         })}
+      </div>
       </div>
 
       {cellMenu && (

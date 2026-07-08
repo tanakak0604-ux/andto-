@@ -146,7 +146,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
   const unfoldered = colTasks.filter(t => !t.folderId || !folders.find(f => f.id === t.folderId));
 
   return (
-    <div style={{ flex: 1, minWidth: 240, background: bg, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}` }}
+    <div className="kanban-col" style={{ flex: 1, minWidth: 240, background: bg, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}` }}
       onDragOver={e => e.preventDefault()}
       onDrop={e => dropTask(e, null)}
     >
@@ -346,7 +346,7 @@ function KanbanPage({ project, onUpdate }) {
           );
         })}
       </div>
-      <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
+      <div className="kanban-cols" style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
         <KanbanColumn status="todo" label="未着手" bg={C.todoLight} col={C.todo} project={project} viewTasks={viewTasks} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />
         <KanbanColumn status="doing" label="進行中" bg={C.doingLight} col={C.doing} project={project} viewTasks={viewTasks} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />
         <KanbanColumn status="done" label="完了" bg={C.doneLight} col={C.done} project={project} viewTasks={viewTasks} onUpdate={onUpdate} onEdit={openEdit} onOpenNew={openNew} />

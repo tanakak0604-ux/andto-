@@ -32,3 +32,27 @@ select:focus-visible {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
 }
+
+/* ── スマホ対応（第一弾） ─────────────────────────── */
+@media (max-width: 640px) {
+  /* 名称・日時などの2カラムフォームは縦積みに */
+  .form-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+  /* カンバンは1列ずつ横スワイプ（スナップ付き） */
+  .kanban-cols {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  .kanban-col {
+    min-width: 82vw !important;
+    scroll-snap-align: start;
+  }
+  /* カレンダーは横スクロールで7列を維持 */
+  .cal-grid {
+    min-width: 560px;
+  }
+  .cal-scroll-wrap {
+    overflow-x: auto;
+  }
+}
