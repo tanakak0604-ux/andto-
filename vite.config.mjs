@@ -8,4 +8,7 @@ export default defineConfig({
   build: {
     outDir: "build", // CRAと同じ出力先（Vercelのプロジェクト設定に合わせる）
   },
+  test: {
+    environment: "jsdom",
+  },
 });
