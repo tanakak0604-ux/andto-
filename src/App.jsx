@@ -5,6 +5,7 @@ import { MinutesPage } from "./components/MinutesPage";
 import { MemberTasksPage, ProjectDetailPage, SlackSettingsPage } from "./components/MiscPages";
 import { ProjectsPage } from "./components/ProjectsPage";
 import { Toast } from "./components/common";
+import { GlobalSearch } from "./components/GlobalSearch";
 import { C, INIT_PROJECTS, btn } from "./constants";
 import { loadProjects, loadSlackSettings, loadUpdatedAt, saveProjects, saveSlackSettings, supabase } from "./lib/supabase";
 import { uid } from "./lib/text";
@@ -38,6 +39,12 @@ export default function App() {
   useEffect(() => { projectsRef.current = projects; }, [projects]);
   const showToast = (msg) => setToast(msg);
   useEffect(() => onUndoToast((message, undo) => setToast({ text: message, actionLabel: "元に戻す", onAction: undo })), []);
+  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearchOpen(true); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const navigate = (newTab) => {
     setTab(newTab);
@@ -373,6 +380,8 @@ export default function App() {
               {saveStatus==="saved" ? "✓ 保存済み" : "保存中..."}
             </span>
           )}
+          <button onClick={()=>setSearchOpen(true)} aria-label="全体検索（Ctrl+K）" title="全体検索（Ctrl+K）"
+            style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>🔍 検索</button>
           <button onClick={()=>navigate("slack-settings")} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${tab==="slack-settings"?C.sage:C.border}`,background:tab==="slack-settings"?C.sageLight:"transparent",color:tab==="slack-settings"?C.sage:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>💬 Slack設定</button>
           <button onClick={exportData} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>⬆ エクスポート</button>
           <button onClick={()=>importRef.current?.click()} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>⬇ インポート</button>
@@ -390,6 +399,7 @@ export default function App() {
       </>
 
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+      <GlobalSearch projects={projects} open={searchOpen} onClose={() => setSearchOpen(false)} onNavigate={id => navigate(id)} />
 
       {showWelcome&&(
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
