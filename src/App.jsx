@@ -2,11 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import logo from "./logo.png";
 import { createClient } from "@supabase/supabase-js";
 
-async function callClaude({ system, messages, max_tokens = 65536, signal, audioFile, audioFileUri, audioMimeType }) {
+async function callClaude({ system, messages, max_tokens = 65536, temperature, signal, audioFile, audioFileUri, audioMimeType }) {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, messages, max_tokens, audioFile, audioFileUri, audioMimeType }),
+    body: JSON.stringify({ system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType }),
     signal,
   });
   const rawText = await response.text();
@@ -17,6 +17,48 @@ async function callClaude({ system, messages, max_tokens = 65536, signal, audioF
   }
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
   return data.content?.[0]?.text || "";
+}
+
+// Gemini File API アップロード（キーはサーバー側のみ。署名付きURLを受け取り、ファイル本体はブラウザから直接送る）
+async function uploadAudioToGemini(bytes, mimeType, displayName, signal) {
+  const startRes = await fetch("/api/gemini-upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "start", mimeType, numBytes: bytes.size ?? bytes.length, displayName }),
+    signal,
+  });
+  const startData = await startRes.json();
+  if (!startRes.ok || !startData.uploadUrl) throw new Error(startData?.error?.message || "アップロードセッションの開始に失敗しました");
+  const uploadRes = await fetch(startData.uploadUrl, {
+    method: "POST",
+    headers: { "X-Goog-Upload-Command": "upload, finalize", "X-Goog-Upload-Offset": "0", "Content-Type": mimeType },
+    body: bytes,
+    signal,
+  });
+  const rawText = await uploadRes.text();
+  let data;
+  try { data = JSON.parse(rawText); } catch {
+    throw new Error(`Gemini応答がJSONではありません (${uploadRes.status}): ${rawText.slice(0, 150)}`);
+  }
+  if (!uploadRes.ok) throw new Error(`Gemini upload error (${uploadRes.status}): ${data?.error?.message || rawText.slice(0, 150)}`);
+  if (!data?.file?.uri) throw new Error("File URI が返されませんでした: " + JSON.stringify(data).slice(0, 150));
+  return { uri: data.file.uri, name: data.file.name };
+}
+
+async function waitGeminiFileActive(fileName, signal) {
+  if (!fileName) return;
+  for (let i = 0; i < 15; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const res = await fetch("/api/gemini-upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "state", fileName }),
+      signal,
+    });
+    const data = await res.json();
+    if (data?.state === "ACTIVE") return;
+    if (data?.state === "FAILED") throw new Error("音声ファイルの処理に失敗しました");
+  }
 }
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
 const SUPABASE_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
@@ -326,35 +368,14 @@ function extractAudioChunk(audioBuffer, startSec, endSec) {
   return chunk;
 }
 
-async function uploadWavChunkToGemini(wavBlob, chunkIndex, apiKey) {
-  const boundary = "gem_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-  const meta = JSON.stringify({ file: { display_name: `chunk_${chunkIndex}.wav` } });
-  const encoder = new TextEncoder();
-  const header = encoder.encode(`--${boundary}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: audio/wav\r\n\r\n`);
-  const footer = encoder.encode(`\r\n--${boundary}--`);
-  const fileBytes = new Uint8Array(await wavBlob.arrayBuffer());
-  const body = new Uint8Array(header.length + fileBytes.length + footer.length);
-  body.set(header, 0); body.set(fileBytes, header.length); body.set(footer, header.length + fileBytes.length);
-  const uploadRes = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
-    method: "POST",
-    headers: { "X-Goog-Upload-Protocol": "multipart", "Content-Type": `multipart/related; boundary=${boundary}` },
-    body,
-  });
-  const uploadData = await uploadRes.json();
-  if (!uploadRes.ok) throw new Error(`チャンク${chunkIndex}アップロードエラー: ${uploadData?.error?.message}`);
-  const fileUri = uploadData?.file?.uri;
-  const fileName = uploadData?.file?.name;
-  if (!fileUri) throw new Error(`チャンク${chunkIndex}: File URI が返されませんでした`);
-  if (fileName) {
-    for (let i = 0; i < 15; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      const stateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`);
-      const stateData = await stateRes.json();
-      if (stateData?.state === "ACTIVE") break;
-      if (stateData?.state === "FAILED") throw new Error(`チャンク${chunkIndex}: 音声ファイルの処理に失敗しました`);
-    }
+async function uploadWavChunkToGemini(wavBlob, chunkIndex) {
+  try {
+    const { uri, name } = await uploadAudioToGemini(wavBlob, "audio/wav", `chunk_${chunkIndex}.wav`);
+    await waitGeminiFileActive(name);
+    return uri;
+  } catch (e) {
+    throw new Error(`チャンク${chunkIndex}: ${e.message}`);
   }
-  return fileUri;
 }
 
 // タイムスタンプ逆戻り検出（安全網）
@@ -2011,7 +2032,7 @@ function MinutesPage({ projects, onUpdateProject }) {
     setLoading(false);
   };
 
-  const runBgTranscript = async (audioFileUri, mimeType, geminiKey, memberInfo) => {
+  const runBgTranscript = async (audioFileUri, mimeType, memberInfo) => {
     try {
       setBgTranscriptStatus({ pct: 10, msg: "バックグラウンドで文字起こし中..." });
       let fakePct = 10;
@@ -2021,23 +2042,12 @@ function MinutesPage({ projects, onUpdateProject }) {
       }, 4000);
       let transcriptText = "";
       try {
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [
-                { file_data: { file_uri: audioFileUri, mime_type: mimeType } },
-                { text: TRANSCRIPTION_SYSTEM_PROMPT + "\n\n以下の音声を文字起こしてください。\n\n【参加者情報】\n" + memberInfo + "\n\n参加者情報から話者を推定し、各発言を「話者名：内容」の形式で書き起こしてください。" },
-              ]}],
-              generationConfig: { maxOutputTokens: 65536, temperature: 0 },
-            }),
-          }
-        );
-        const geminiData = await geminiRes.json();
-        if (geminiData.error) throw new Error(geminiData.error.message);
-        transcriptText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        transcriptText = await callClaude({
+          messages: [{ role: "user", content: TRANSCRIPTION_SYSTEM_PROMPT + "\n\n以下の音声を文字起こしてください。\n\n【参加者情報】\n" + memberInfo + "\n\n参加者情報から話者を推定し、各発言を「話者名：内容」の形式で書き起こしてください。" }],
+          temperature: 0,
+          audioFileUri,
+          audioMimeType: mimeType,
+        });
       } finally {
         clearInterval(ticker);
       }
@@ -2069,10 +2079,6 @@ function MinutesPage({ projects, onUpdateProject }) {
     abortControllerRef.current = new AbortController();
     setLoading(true); setGenError(""); setChunkProgress(""); setIsChunked(false); setLoadingOp("transcript");
     try {
-      const keyRes = await fetch("/api/gemini-key", { signal: abortControllerRef.current?.signal });
-      const { key: geminiKey } = await keyRes.json();
-      if (!geminiKey) throw new Error("APIキーが取得できませんでした");
-
       const latestProj = projects.find(p => p.id === selProj);
       const members = latestProj?.members || [];
       const memberInfo = members.length > 0
@@ -2098,51 +2104,17 @@ function MinutesPage({ projects, onUpdateProject }) {
 
       if (!audioBuffer || audioBuffer.duration <= CHUNK_SEC) {
         // ── 従来フロー（5分以下 or デコード失敗）────────────────────
-        const boundary = "gem_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-        const meta = JSON.stringify({ file: { display_name: audioAttachment.name } });
-        const encoder = new TextEncoder();
-        const header = encoder.encode(`--${boundary}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${audioAttachment.mimeType}\r\n\r\n`);
-        const footer = encoder.encode(`\r\n--${boundary}--`);
         const fileBytes = new Uint8Array(arrayBuffer);
-        const body = new Uint8Array(header.length + fileBytes.length + footer.length);
-        body.set(header, 0); body.set(fileBytes, header.length); body.set(footer, header.length + fileBytes.length);
-        const uploadRes = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiKey}`, {
-          method: "POST",
-          headers: { "X-Goog-Upload-Protocol": "multipart", "Content-Type": `multipart/related; boundary=${boundary}` },
-          body, signal: abortControllerRef.current?.signal,
-        });
-        const uploadRawText = await uploadRes.text();
-        let uploadData;
-        try { uploadData = JSON.parse(uploadRawText); } catch { throw new Error(`Gemini応答がJSONではありません: ${uploadRawText.slice(0, 150)}`); }
-        if (!uploadRes.ok) throw new Error(`アップロードエラー (${uploadRes.status}): ${uploadData?.error?.message || uploadRawText.slice(0, 150)}`);
-        const audioFileUri = uploadData?.file?.uri;
-        const audioFileName = uploadData?.file?.name;
-        if (!audioFileUri) throw new Error("File URI が返されませんでした");
+        const { uri: audioFileUri, name: audioFileName } = await uploadAudioToGemini(fileBytes, audioAttachment.mimeType, audioAttachment.name, abortControllerRef.current?.signal);
         setUploadedAudioFileUri(audioFileUri);
-        if (audioFileName) {
-          for (let i = 0; i < 15; i++) {
-            await new Promise(r => setTimeout(r, 2000));
-            const stateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/${audioFileName}?key=${geminiKey}`);
-            const stateData = await stateRes.json();
-            if (stateData?.state === "ACTIVE") break;
-            if (stateData?.state === "FAILED") throw new Error("音声ファイルの処理に失敗しました");
-          }
-        }
-        const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [
-              { file_data: { file_uri: audioFileUri, mime_type: audioAttachment.mimeType } },
-              { text: basePrompt("00:00", 0) },
-            ]}],
-            generationConfig: { maxOutputTokens: 65536, temperature: 0 },
-          }),
+        await waitGeminiFileActive(audioFileName, abortControllerRef.current?.signal);
+        const raw = await callClaude({
+          messages: [{ role: "user", content: basePrompt("00:00", 0) }],
+          temperature: 0,
+          audioFileUri,
+          audioMimeType: audioAttachment.mimeType,
           signal: abortControllerRef.current?.signal,
         });
-        const geminiData = await geminiRes.json();
-        if (geminiData.error) throw new Error(geminiData.error.message);
-        const raw = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
         setTranscript(removeTimestampRegression(removeLoopedLines(raw)));
       } else {
         // ── チャンク分割フロー（5分超）────────────────────────────
@@ -2156,24 +2128,22 @@ function MinutesPage({ projects, onUpdateProject }) {
           const endSec = Math.min((i + 1) * CHUNK_SEC, audioBuffer.duration);
           const chunkBuf = extractAudioChunk(audioBuffer, startSec, endSec);
           const wavBlob = audioBufferToWavBlob(chunkBuf);
-          const fileUri = await uploadWavChunkToGemini(wavBlob, i + 1, geminiKey);
+          const fileUri = await uploadWavChunkToGemini(wavBlob, i + 1);
           const mm = String(Math.floor(startSec / 60)).padStart(2, "0");
           const ss = String(Math.floor(startSec % 60)).padStart(2, "0");
-          const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [
-                { file_data: { file_uri: fileUri, mime_type: "audio/wav" } },
-                { text: basePrompt(`${mm}:${ss}`, startSec) },
-              ]}],
-              generationConfig: { maxOutputTokens: 65536, temperature: 0 },
-            }),
-            signal: abortControllerRef.current?.signal,
-          });
-          const geminiData = await geminiRes.json();
-          if (geminiData.error) throw new Error(`チャンク${i + 1}: ${geminiData.error.message}`);
-          const chunkText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          let chunkText;
+          try {
+            chunkText = await callClaude({
+              messages: [{ role: "user", content: basePrompt(`${mm}:${ss}`, startSec) }],
+              temperature: 0,
+              audioFileUri: fileUri,
+              audioMimeType: "audio/wav",
+              signal: abortControllerRef.current?.signal,
+            });
+          } catch (err) {
+            if (err.name === "AbortError") throw err;
+            throw new Error(`チャンク${i + 1}: ${err.message}`);
+          }
           // チャンクごとに個別クリーニング（チャンク間の誤検知防止）
           const cleanedChunk = removeTimestampRegression(removeLoopedLines(chunkText));
           fullTranscript += (fullTranscript ? "\n" : "") + cleanedChunk;
@@ -2207,60 +2177,24 @@ function MinutesPage({ projects, onUpdateProject }) {
     if (!audioAttachment && !uploadedAudioFileUri) return;
     setTranscriptContinueLoading(true);
     try {
-      const keyRes = await fetch("/api/gemini-key");
-      const { key: geminiKey } = await keyRes.json();
-      if (!geminiKey) throw new Error("APIキーが取得できませんでした");
-
       let fileUri = uploadedAudioFileUri;
       if (!fileUri) {
         // 再アップロード
-        const boundary = "gem_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-        const meta = JSON.stringify({ file: { display_name: audioAttachment.name } });
-        const encoder = new TextEncoder();
-        const header = encoder.encode(`--${boundary}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${audioAttachment.mimeType}\r\n\r\n`);
-        const footer = encoder.encode(`\r\n--${boundary}--`);
         const fileBytes = new Uint8Array(await audioAttachment.file.arrayBuffer());
-        const body = new Uint8Array(header.length + fileBytes.length + footer.length);
-        body.set(header, 0); body.set(fileBytes, header.length); body.set(footer, header.length + fileBytes.length);
-        const uploadRes = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiKey}`, {
-          method: "POST",
-          headers: { "X-Goog-Upload-Protocol": "multipart", "Content-Type": `multipart/related; boundary=${boundary}` },
-          body,
-        });
-        const uploadData = await uploadRes.json();
-        fileUri = uploadData?.file?.uri;
-        const fileName = uploadData?.file?.name;
-        if (!fileUri) throw new Error("File URI が返されませんでした");
+        const { uri, name } = await uploadAudioToGemini(fileBytes, audioAttachment.mimeType, audioAttachment.name);
+        fileUri = uri;
         setUploadedAudioFileUri(fileUri);
-
-        // ACTIVEになるまでポーリング
-        if (fileName) {
-          for (let i = 0; i < 15; i++) {
-            await new Promise(r => setTimeout(r, 2000));
-            const stateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${geminiKey}`);
-            const stateData = await stateRes.json();
-            if (stateData?.state === "ACTIVE") break;
-            if (stateData?.state === "FAILED") throw new Error("音声ファイルの処理に失敗しました");
-          }
-        }
+        await waitGeminiFileActive(name);
       }
 
       const tail = transcript.slice(-800);
       const continuePrompt = `以下の音声の文字起こしを行っています。すでに書き起こされた末尾部分を参考に、その続きから文字起こしを続けてください。重複しないように、末尾の直後から続けてください。\n\n【ここまでの末尾】\n${tail}\n\n【続きの文字起こし（末尾の直後から）】`;
-      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [
-            { file_data: { file_uri: fileUri, mime_type: audioAttachment?.mimeType || "audio/m4a" } },
-            { text: continuePrompt },
-          ]}],
-          generationConfig: { maxOutputTokens: 65536, temperature: 0 },
-        }),
+      const continuation = await callClaude({
+        messages: [{ role: "user", content: continuePrompt }],
+        temperature: 0,
+        audioFileUri: fileUri,
+        audioMimeType: audioAttachment?.mimeType || "audio/m4a",
       });
-      const geminiData = await geminiRes.json();
-      if (geminiData.error) throw new Error(geminiData.error.message);
-      const continuation = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
       if (continuation) setTranscript(prev => removeLoopedLines(prev + "\n" + continuation));
     } catch (e) {
       alert("続き生成エラー：" + e.message);
@@ -2271,14 +2205,6 @@ function MinutesPage({ projects, onUpdateProject }) {
   const generateMinutes = async (isRegen = false, transcriptText = null) => {
     abortControllerRef.current = new AbortController();
     setLoading(true); setGenError(""); setLoadingOp("minutes");
-
-    // Gemini キーを常に取得（ブラウザ直接呼び出しで Vercel タイムアウトを回避）
-    let geminiKey = null;
-    try {
-      const keyRes = await fetch("/api/gemini-key", { signal: abortControllerRef.current?.signal });
-      const keyData = await keyRes.json();
-      geminiKey = keyData.key || null;
-    } catch { /* キー取得失敗時は後段でエラーになる */ }
 
     const date = new Date().toLocaleDateString("ja-JP");
     const latestProj = projects.find(p => p.id === selProj);
@@ -2330,52 +2256,20 @@ function MinutesPage({ projects, onUpdateProject }) {
     ].filter(Boolean).join("\n\n");
     setGeneratedSourceText(combinedText);
 
-    // 音声ファイルをブラウザから Gemini File API に直接アップロード（multipart, CORS対応エンドポイント使用）
+    // 音声ファイルをアップロード（署名付きURLをサーバーから取得し、本体はブラウザから直接送る）
     let audioFileUri = undefined;
     if (audioAttachment) {
       try {
-        if (!geminiKey) throw new Error("APIキーが取得できませんでした");
-
-        // multipart/related ボディを手動構築（base64不要・バイナリそのまま）
-        const boundary = "gem_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-        const meta = JSON.stringify({ file: { display_name: audioAttachment.name } });
-        const encoder = new TextEncoder();
-        const header = encoder.encode(
-          `--${boundary}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${audioAttachment.mimeType}\r\n\r\n`
-        );
-        const footer = encoder.encode(`\r\n--${boundary}--`);
         const fileBytes = new Uint8Array(await audioAttachment.file.arrayBuffer());
-        const body = new Uint8Array(header.length + fileBytes.length + footer.length);
-        body.set(header, 0);
-        body.set(fileBytes, header.length);
-        body.set(footer, header.length + fileBytes.length);
-
-        const uploadRes = await fetch(
-          `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiKey}`,
-          {
-            method: "POST",
-            headers: {
-              "X-Goog-Upload-Protocol": "multipart",
-              "Content-Type": `multipart/related; boundary=${boundary}`,
-            },
-            body,
-            signal: abortControllerRef.current?.signal,
-          }
-        );
-        const uploadRawText = await uploadRes.text();
-        let uploadData;
-        try { uploadData = JSON.parse(uploadRawText); } catch {
-          throw new Error(`Gemini応答がJSONではありません (${uploadRes.status}): ${uploadRawText.slice(0, 150)}`);
-        }
-        if (!uploadRes.ok) throw new Error(`Gemini upload error (${uploadRes.status}): ${uploadData?.error?.message || uploadRawText.slice(0, 150)}`);
-        audioFileUri = uploadData?.file?.uri;
-        if (!audioFileUri) throw new Error("File URI が返されませんでした: " + JSON.stringify(uploadData).slice(0, 150));
+        const uploaded = await uploadAudioToGemini(fileBytes, audioAttachment.mimeType, audioAttachment.name, abortControllerRef.current?.signal);
+        audioFileUri = uploaded.uri;
+        await waitGeminiFileActive(uploaded.name, abortControllerRef.current?.signal);
         // バックグラウンドで文字起こしを並行実行（fire-and-forget）
         const bgMemberInfo = (latestProj?.members || []).length > 0
           ? (latestProj.members || []).map(m => `${m.name}（${m.isAndto ? "andto" : m.org || "参加者"}）`).join("、")
           : "不明";
         bgStateRef.current.selProj = selProj;
-        runBgTranscript(audioFileUri, audioAttachment.mimeType, geminiKey, bgMemberInfo);
+        runBgTranscript(audioFileUri, audioAttachment.mimeType, bgMemberInfo);
       } catch (e) {
         setLoading(false);
         setGenError("音声アップロードエラー: " + e.message);
@@ -2386,27 +2280,13 @@ function MinutesPage({ projects, onUpdateProject }) {
     const audioNote = audioAttachment ? `\n\n【音声ファイル】「${audioAttachment.name}」が添付されています。音声を文字起こしし、議事録に反映してください。` : "";
     const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一し、受動態（「〜された」「〜される」）は使わず「〜した」「〜する」の能動表現で記載（発言者名は文末に付くため文中の主語不要）\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}${learningNote}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${combinedText}${audioNote}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
     try {
-      // 常にブラウザから Gemini に直接リクエスト（Vercel タイムアウト回避）
-      if (!geminiKey) throw new Error("APIキーが取得できませんでした");
-      const prompt = SYSTEM_PROMPT + "\n\n" + userContent;
-      const parts = [];
-      if (audioFileUri) parts.push({ file_data: { file_uri: audioFileUri, mime_type: audioAttachment.mimeType } });
-      parts.push({ text: prompt });
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ role: "user", parts }],
-            generationConfig: { maxOutputTokens: 65536 },
-          }),
-          signal: abortControllerRef.current?.signal,
-        }
-      );
-      const geminiData = await geminiRes.json();
-      if (geminiData.error) throw new Error(geminiData.error.message);
-      const result = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const result = await callClaude({
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: userContent }],
+        audioFileUri,
+        audioMimeType: audioAttachment?.mimeType,
+        signal: abortControllerRef.current?.signal,
+      });
       let hasAiComp = false;
       if (result.includes("※AI補完") || result.includes("※AI要約")) {
         setPendingMinutes(result);
@@ -3582,27 +3462,10 @@ ${pastMinutesTitles}
 3. 担当・期日は記載しない
 4. タイトル下の項目（名称・日時・場所・出席者・文責・フェーズ）は議事録の該当情報から自動引き継ぎ
 5. 議事録のヘッダースタイル（■ 議題）と完全に統一する`;
-      const keyRes = await fetch("/api/gemini-key");
-      const { key: geminiKey } = await keyRes.json();
-      if (!geminiKey) throw new Error("APIキーが取得できませんでした");
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: { maxOutputTokens: 8000 },
-          }),
-        }
-      );
-      if (!geminiRes.ok) {
-        const errText = await geminiRes.text();
-        throw new Error(`Gemini APIエラー (${geminiRes.status}): ${errText.slice(0, 300)}`);
-      }
-      const geminiData = await geminiRes.json();
-      if (geminiData.error) throw new Error(geminiData.error.message);
-      const result = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const result = await callClaude({
+        max_tokens: 8000,
+        messages: [{ role: "user", content: prompt }],
+      });
       if (result) {
         const agendaEntry = {
           id: "a" + Date.now(),

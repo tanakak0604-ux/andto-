@@ -1,7 +1,7 @@
 {
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/" }],
   "functions": {
-    "api/chat.js": { "maxDuration": 60 }
+    "api/chat.js": { "maxDuration": 300 }
   },
   "crons": [
     {

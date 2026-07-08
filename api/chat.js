@@ -44,7 +44,7 @@ async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  const { system, messages, max_tokens, audioFile, audioFileUri, audioMimeType } = req.body;
+  const { system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
 
@@ -74,7 +74,7 @@ async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
-        generationConfig: { maxOutputTokens: max_tokens || 65536 },
+        generationConfig: { maxOutputTokens: max_tokens || 65536, ...(temperature !== undefined ? { temperature } : {}) },
       }),
     });
 
