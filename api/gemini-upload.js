@@ -11,6 +11,9 @@ async function handler(req, res) {
 
   try {
     if (action === "start") {
+      // ブラウザのOriginをセッション開始時に伝えることで、発行されるアップロードURLが
+      // そのOriginからのブラウザ直接アップロード（CORS）を許可するようになる
+      const browserOrigin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : null);
       const startRes = await fetch(
         `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
         {
@@ -21,6 +24,7 @@ async function handler(req, res) {
             "X-Goog-Upload-Header-Content-Length": String(numBytes || 0),
             "X-Goog-Upload-Header-Content-Type": mimeType,
             "Content-Type": "application/json",
+            ...(browserOrigin ? { "Origin": browserOrigin } : {}),
           },
           body: JSON.stringify({ file: { display_name: displayName || "audio" } }),
         }
