@@ -385,7 +385,7 @@ function MinutesPage({ projects, onUpdateProject }) {
       });
       if (continuation) setTranscript(prev => removeLoopedLines(prev + "\n" + continuation));
     } catch (e) {
-      alert("続き生成エラー：" + e.message);
+      setGenError("続き生成エラー：" + e.message);
     }
     setTranscriptContinueLoading(false);
   };

@@ -1,0 +1,34 @@
+/* 全端末で同じフォントを使う（Noto Sans JP を同梱） */
+body {
+  font-family: "Noto Sans JP Variable", "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+
+/* ボタン共通の手触り：ホバーで少し暗く、押下で少し縮む */
+button {
+  transition: filter 0.15s ease, transform 0.06s ease, opacity 0.15s ease,
+    background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+button:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* キーボード操作時のフォーカスリング（マウスクリックでは出ない） */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #4a9b8e !important;
+  outline-offset: 2px;
+}
+
+/* カードはホバーでふわっと浮く */
+.card-anim {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-anim:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}

@@ -94,7 +94,7 @@ function highlightInHtml(html, keyword) {
 }
 
 const PREVIEW_CSS = `
-  .mins-preview { font-family: 'Hiragino Sans','Noto Sans JP','Yu Gothic',sans-serif; font-size: 13px; color: #2D2A24; line-height: 1.75; }
+  .mins-preview { font-family: 'Noto Sans JP Variable','Hiragino Sans','Noto Sans JP','Yu Gothic',sans-serif; font-size: 13px; color: #2D2A24; line-height: 1.75; }
   .mins-preview .title { font-size: 15px; font-weight: 700; text-align: left; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid #2D2A24; letter-spacing: 0.05em; }
   .mins-preview table.meta { border-collapse: collapse; margin-bottom: 10px; }
   .mins-preview .mk { font-size: 12px; font-weight: 700; padding: 2px 14px 2px 0; white-space: nowrap; vertical-align: top; }

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { C } from "../constants";
+import { BTN, C } from "../constants";
 
 function PriorityDot({ p }) {
   const c = p === "high" ? C.accent : p === "medium" ? C.doing : C.muted;
@@ -16,11 +16,34 @@ function Toast({ message, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
   return (
     <div style={{ position:"fixed", bottom:24, right:24, background:"#333", color:"#fff", padding:"12px 20px", borderRadius:8, zIndex:9999, fontSize:13, boxShadow:"0 4px 12px rgba(0,0,0,0.2)", display:"flex", alignItems:"center", gap:10 }}>
-      <span>🔄 {message}</span>
+      <span>{message.startsWith("⚠️") ? message : "🔄 " + message}</span>
       <button onClick={onClose} style={{ background:"transparent", border:"none", color:"#aaa", cursor:"pointer", fontSize:14, padding:0 }}>✕</button>
     </div>
   );
 }
 
 
-export { PriorityDot, StatusBadge, Toast };
+// アプリ内の削除確認モーダル（window.confirmの置き換え）
+function ConfirmDialog({ open, title, message, confirmLabel = "削除する", onConfirm, onCancel }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onCancel]);
+  if (!open) return null;
+  return (
+    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(45,42,36,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9000, animation:"fadeIn 0.15s ease" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:C.surface, borderRadius:14, padding:"22px 24px", width:380, maxWidth:"88vw", boxShadow:"0 12px 40px rgba(0,0,0,0.2)" }}>
+        {title && <div style={{ fontSize:15, fontWeight:800, color:C.text, marginBottom:8 }}>{title}</div>}
+        <div style={{ fontSize:13, color:C.muted, lineHeight:1.7, marginBottom:18 }}>{message}</div>
+        <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
+          <button onClick={onCancel} style={BTN.ghost}>キャンセル</button>
+          <button onClick={onConfirm} autoFocus style={{ background:"#E53935", border:"none", color:"#fff", borderRadius:6, padding:"6px 16px", fontSize:13, fontWeight:600, cursor:"pointer" }}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export { PriorityDot, StatusBadge, Toast, ConfirmDialog };

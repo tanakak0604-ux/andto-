@@ -242,8 +242,8 @@ export default function App() {
         const data=JSON.parse(ev.target.result);
         if(data.projects&&Array.isArray(data.projects)){
           setImportModal({ projects: data.projects, selected: new Set(data.projects.map(p=>p.id)) });
-        } else alert("正しいバックアップファイルではありません");
-      } catch { alert("ファイルの読み込みに失敗しました"); }
+        } else showToast("⚠️ 正しいバックアップファイルではありません");
+      } catch { showToast("⚠️ ファイルの読み込みに失敗しました"); }
     };
     r.readAsText(file); e.target.value="";
   };
@@ -267,14 +267,14 @@ export default function App() {
   const importRef = useRef(null);
 
   if (!storageReady) return (
-    <div style={{ minHeight:"100dvh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif" }}>
+    <div style={{ minHeight:"100dvh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans JP Variable','Hiragino Sans','Noto Sans JP',sans-serif" }}>
       <img src={logo} alt="andto" style={{ height:36, objectFit:"contain", animation:"pulse 1.6s ease-in-out infinite" }} />
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
     </div>
   );
 
   return (
-    <div style={{ minHeight:"100dvh", background:C.bg, fontFamily:"'Hiragino Sans','Noto Sans JP',sans-serif", color:C.text }}>
+    <div style={{ minHeight:"100dvh", background:C.bg, fontFamily:"'Noto Sans JP Variable','Hiragino Sans','Noto Sans JP',sans-serif", color:C.text }}>
       <style>{`
         .nav-scroll::-webkit-scrollbar { display: none; }
         .nav-tab:hover { background: rgba(0,0,0,0.04) !important; }

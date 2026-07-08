@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { PriorityDot } from "./common";
+import { ConfirmDialog, PriorityDot } from "./common";
 import { BTN, C, btn } from "../constants";
 import { callClaude } from "../lib/gemini";
 import { PREVIEW_CSS, buildAgendaBody, buildMinutesBody, highlightInHtml } from "../lib/print";
@@ -7,6 +7,7 @@ import { escapeHtml, extractJsonArray, uid } from "../lib/text";
 
 function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [selectedId, setSelectedId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const detailTextareaRef = useRef();
@@ -491,11 +492,15 @@ ${pastMinutesTitles}
                       <button onClick={()=>downloadPdf(selectedMinute)}
                         onMouseEnter={()=>setHoveredBtn('pdf')} onMouseLeave={()=>setHoveredBtn(null)}
                         style={{ ...BTN.pdf, background:hoveredBtn==='pdf'?"#C62828":"#E8412A", transition:"all 0.15s" }}>PDF</button>
-                      <button onClick={()=>{ if(window.confirm("この議事録を削除しますか？この操作は取り消せません。")) { onUpdate({...project, minutes:project.minutes.filter(m=>m.id!==selectedMinute.id)}); setSelectedId(null); } }}
+                      <button onClick={()=>setConfirmDelete(true)}
                         onMouseEnter={()=>setHoveredBtn('delete')} onMouseLeave={()=>setHoveredBtn(null)}
                         style={{ background:hoveredBtn==='delete'?"#FFEBEE":"transparent", border:"1.5px solid #E53935", color:"#E53935", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer", transition:"all 0.15s" }}>
                         🗑 削除
                       </button>
+                      <ConfirmDialog open={confirmDelete} title="議事録の削除"
+                        message={`「${selectedMinute?.title||"この議事録"}」を削除しますか？この操作は取り消せません。`}
+                        onConfirm={()=>{ onUpdate({...project, minutes:project.minutes.filter(m=>m.id!==selectedMinute.id)}); setSelectedId(null); setConfirmDelete(false); }}
+                        onCancel={()=>setConfirmDelete(false)} />
                       {currentAgenda === null && (selectedMinute?.agendas||[]).length > 0 && (
                         <button onClick={()=>{ const latest = selectedMinute.agendas[selectedMinute.agendas.length-1]; setCurrentAgenda(latest); setAgendaContent(latest.content||''); }}
                           style={{ background:"transparent", border:`1.5px solid ${C.border}`, color:C.text, borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer" }}>
