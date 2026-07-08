@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { pushUndoToast } from "../lib/undoBus";
 import { ConfirmDialog, PriorityDot } from "./common";
 import { BTN, C, btn } from "../constants";
 import { callClaude } from "../lib/gemini";
@@ -499,7 +500,7 @@ ${pastMinutesTitles}
                       </button>
                       <ConfirmDialog open={confirmDelete} title="議事録の削除"
                         message={`「${selectedMinute?.title||"この議事録"}」を削除しますか？この操作は取り消せません。`}
-                        onConfirm={()=>{ onUpdate({...project, minutes:project.minutes.filter(m=>m.id!==selectedMinute.id)}); setSelectedId(null); setConfirmDelete(false); }}
+                        onConfirm={()=>{ const prev = project; onUpdate({...project, minutes:project.minutes.filter(m=>m.id!==selectedMinute.id)}); pushUndoToast("議事録を削除しました", () => onUpdate(prev)); setSelectedId(null); setConfirmDelete(false); }}
                         onCancel={()=>setConfirmDelete(false)} />
                       {currentAgenda === null && (selectedMinute?.agendas||[]).length > 0 && (
                         <button onClick={()=>{ const latest = selectedMinute.agendas[selectedMinute.agendas.length-1]; setCurrentAgenda(latest); setAgendaContent(latest.content||''); }}

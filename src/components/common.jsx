@@ -13,10 +13,20 @@ function StatusBadge({ s }) {
 
 
 function Toast({ message, onClose }) {
-  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
+  // message: 文字列、または { text, actionLabel, onAction }（Undo付きトースト）
+  const isObj = typeof message === "object" && message !== null;
+  const text = isObj ? message.text : message;
+  const hasAction = isObj && message.actionLabel;
+  useEffect(() => { const t = setTimeout(onClose, hasAction ? 6000 : 3000); return () => clearTimeout(t); }, [onClose, hasAction]);
   return (
     <div style={{ position:"fixed", bottom:24, right:24, background:"#333", color:"#fff", padding:"12px 20px", borderRadius:8, zIndex:9999, fontSize:13, boxShadow:"0 4px 12px rgba(0,0,0,0.2)", display:"flex", alignItems:"center", gap:10 }}>
-      <span>{message.startsWith("⚠️") ? message : "🔄 " + message}</span>
+      <span>{(hasAction || text.startsWith("⚠️")) ? text : "🔄 " + text}</span>
+      {hasAction && (
+        <button onClick={() => { message.onAction(); onClose(); }}
+          style={{ background:"transparent", border:`1.5px solid ${C.sage}`, color:"#9FD3A8", cursor:"pointer", fontSize:12, fontWeight:700, borderRadius:6, padding:"3px 10px", whiteSpace:"nowrap" }}>
+          {message.actionLabel}
+        </button>
+      )}
       <button aria-label="通知を閉じる" onClick={onClose} style={{ background:"transparent", border:"none", color:"#aaa", cursor:"pointer", fontSize:14, padding:0 }}>✕</button>
     </div>
   );

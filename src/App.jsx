@@ -8,6 +8,7 @@ import { Toast } from "./components/common";
 import { C, INIT_PROJECTS, btn } from "./constants";
 import { loadProjects, loadSlackSettings, loadUpdatedAt, saveProjects, saveSlackSettings, supabase } from "./lib/supabase";
 import { uid } from "./lib/text";
+import { onUndoToast } from "./lib/undoBus";
 
 export default function App() {
   const [projects, setProjects] = useState([]);
@@ -36,6 +37,7 @@ export default function App() {
   const projectsRef = useRef(projects);
   useEffect(() => { projectsRef.current = projects; }, [projects]);
   const showToast = (msg) => setToast(msg);
+  useEffect(() => onUndoToast((message, undo) => setToast({ text: message, actionLabel: "元に戻す", onAction: undo })), []);
 
   const navigate = (newTab) => {
     setTab(newTab);
@@ -212,7 +214,12 @@ export default function App() {
       return ps.map(x => x.id === newProj.id ? newProj : x);
     });
   };
-  const deleteProject = id => { setProjects(ps => ps.filter(p => p.id!==id)); navigate("projects"); };
+  const deleteProject = id => {
+    const target = projectsRef.current.find(p => p.id === id);
+    setProjects(ps => ps.filter(p => p.id!==id));
+    navigate("projects");
+    if (target) setToast({ text: `プロジェクト「${target.name}」を削除しました`, actionLabel: "元に戻す", onAction: () => setProjects(ps => [...ps, target]) });
+  };
   const addProject = () => {
     if (!newName.trim()) return;
     const colors = [C.sage,C.doing,C.done,C.accent,"#9B8EC0"];

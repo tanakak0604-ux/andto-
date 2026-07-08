@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { pushUndoToast } from "../lib/undoBus";
 import { dueDateInfo } from "../lib/date";
 import { PriorityDot } from "./common";
 import { BTN, C, btn } from "../constants";
@@ -237,7 +238,7 @@ function KanbanColumn({ status, label, bg, col, project, viewTasks, onUpdate, on
             <div style={{ fontSize:13, color:C.muted, marginBottom:20, lineHeight:1.6 }}>「{folders.find(f=>f.id===confirmDeleteFolderId)?.name}」を削除します。フォルダ内のタスクは未分類に移動します。</div>
             <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
               <button onClick={()=>setConfirmDeleteFolderId(null)} style={btn({padding:"7px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:12,fontWeight:700})}>キャンセル</button>
-              <button onClick={()=>{ onUpdate({ ...project, [folderKey]: folders.filter(f=>f.id!==confirmDeleteFolderId), tasks: project.tasks.map(t=>t.folderId===confirmDeleteFolderId?{...t,folderId:null}:t) }); setConfirmDeleteFolderId(null); }} style={btn({padding:"7px 16px",borderRadius:8,background:"#E53935",color:"#fff",fontSize:12,fontWeight:700})}>削除する</button>
+              <button onClick={()=>{ const prev = project; const fname = folders.find(f=>f.id===confirmDeleteFolderId)?.name || ""; onUpdate({ ...project, [folderKey]: folders.filter(f=>f.id!==confirmDeleteFolderId), tasks: project.tasks.map(t=>t.folderId===confirmDeleteFolderId?{...t,folderId:null}:t) }); pushUndoToast(`フォルダ「${fname}」を削除しました`, () => onUpdate(prev)); setConfirmDeleteFolderId(null); }} style={btn({padding:"7px 16px",borderRadius:8,background:"#E53935",color:"#fff",fontSize:12,fontWeight:700})}>削除する</button>
             </div>
           </div>
         </div>
@@ -269,7 +270,13 @@ function KanbanPage({ project, onUpdate }) {
   const confirmTask = (taskId) => {
     onUpdate({ ...project, tasks: project.tasks.map(t => t.id === taskId ? { ...t, needsReview: false } : t) });
   };
-  const del = () => { onUpdate({ ...project, tasks: project.tasks.filter(t => t.id !== form.id) }); closeModal(); };
+  const del = () => {
+    const prev = project;
+    const title = project.tasks.find(t => t.id === form.id)?.title || "";
+    onUpdate({ ...project, tasks: project.tasks.filter(t => t.id !== form.id) });
+    pushUndoToast(`タスク「${title}」を削除しました`, () => onUpdate(prev));
+    closeModal();
+  };
 
   const memberAndtoIds = new Set((project.members || []).filter(m => m.isAndto).map(m => m.id));
   const memberOtherIds = new Set((project.members || []).filter(m => !m.isAndto).map(m => m.id));

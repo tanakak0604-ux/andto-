@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { pushUndoToast } from "../lib/undoBus";
 import { StatusBadge } from "./common";
 import { BTN, C, btn } from "../constants";
 import { uid } from "../lib/text";
@@ -60,8 +61,11 @@ function DecisionsPage({ project, onUpdate }) {
   };
 
   const deleteFolder = (folderId) => {
+    const prev = project;
+    const name = folders.find(f => f.id === folderId)?.name || "";
     const newDecisions = allDecisions.map(d => d.folderId === folderId ? { ...d, folderId: currentFolderId } : d);
     onUpdate({ ...project, decisionFolders: folders.filter(f => f.id !== folderId), decisions: newDecisions });
+    pushUndoToast(`フォルダ「${name}」を削除しました`, () => onUpdate(prev));
   };
 
   const renameFolder = () => {
@@ -81,11 +85,13 @@ function DecisionsPage({ project, onUpdate }) {
   };
 
   const deleteDecision = (id) => {
+    const prev = project;
     const updatedTasks = (project.tasks || []).map(t => ({
       ...t,
       relatedDecisionIds: (t.relatedDecisionIds || []).filter(rid => rid !== id)
     }));
     onUpdate({ ...project, decisions: allDecisions.filter(d => d.id !== id), tasks: updatedTasks });
+    pushUndoToast("決定事項を削除しました", () => onUpdate(prev));
   };
 
   // ── Drag & Drop ──────────────────────────────────────────────
