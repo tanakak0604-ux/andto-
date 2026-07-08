@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { PriorityDot } from "./common";
+import { PriorityDot, ProgressPanel } from "./common";
 import { BTN, C, PHASE_LABELS, btn } from "../constants";
 import { audioBufferToWavBlob, extractAudioChunk } from "../lib/audio";
 import { callClaude, callClaudePartial, transcribeLongAudio, uploadAudioToGemini, uploadWavChunkToGemini, waitGeminiFileActive } from "../lib/gemini";
@@ -109,6 +109,7 @@ function MinutesPage({ projects, onUpdateProject }) {
   const [uploadedAudioFileUri, setUploadedAudioFileUri] = useState(null);
   const [transcriptContinueLoading, setTranscriptContinueLoading] = useState(false);
   const [chunkProgress, setChunkProgress] = useState("");
+  const [progress, setProgress] = useState(null); // { steps, idx, detail, startedAt }
   const [isChunked, setIsChunked] = useState(false);
   const [loadingOp, setLoadingOp] = useState(null); // "transcript" | "minutes" | null
   const [aiDiff, setAiDiff] = useState(null); // { original, revised } 議事録AI修正プレビュー
@@ -266,6 +267,7 @@ function MinutesPage({ projects, onUpdateProject }) {
     if (!audioAttachment) return;
     abortControllerRef.current = new AbortController();
     setLoading(true); setGenError(""); setChunkProgress(""); setIsChunked(false); setLoadingOp("transcript");
+    setProgress({ steps: ["音声アップロード", "文字起こし", "完了"], idx: 0, detail: "", startedAt: Date.now() });
     try {
       const latestProj = projects.find(p => p.id === selProj);
       const members = latestProj?.members || [];
@@ -296,12 +298,16 @@ function MinutesPage({ projects, onUpdateProject }) {
         const { uri: audioFileUri, name: audioFileName } = await uploadAudioToGemini(fileBytes, audioAttachment.mimeType, audioAttachment.name, abortControllerRef.current?.signal);
         setUploadedAudioFileUri(audioFileUri);
         await waitGeminiFileActive(audioFileName, abortControllerRef.current?.signal);
+        setProgress(p => p && { ...p, idx: 1 });
         const raw = await transcribeLongAudio({
           audioFileUri,
           mimeType: audioAttachment.mimeType,
           firstPrompt: basePrompt("00:00", 0),
           signal: abortControllerRef.current?.signal,
-          onPass: (n) => setChunkProgress(n > 1 ? `文字起こし継続中（${n}回目）...` : ""),
+          onPass: (n) => {
+            setChunkProgress(n > 1 ? `文字起こし継続中（${n}回目）...` : "");
+            setProgress(p => p && { ...p, detail: n > 1 ? `続きを取得中（${n}回目）` : "" });
+          },
         });
         setTranscript(raw);
       } else {
@@ -312,6 +318,7 @@ function MinutesPage({ projects, onUpdateProject }) {
         for (let i = 0; i < numChunks; i++) {
           if (abortControllerRef.current?.signal.aborted) break;
           setChunkProgress(`チャンク ${i + 1} / ${numChunks} 処理中...`);
+          setProgress(p => p && { ...p, idx: 1, detail: `チャンク ${i + 1} / ${numChunks} を処理中` });
           const startSec = i * CHUNK_SEC;
           const endSec = Math.min((i + 1) * CHUNK_SEC, audioBuffer.duration);
           const chunkBuf = extractAudioChunk(audioBuffer, startSec, endSec);
@@ -339,8 +346,11 @@ function MinutesPage({ projects, onUpdateProject }) {
         setTranscript(removeLoopedLines(fullTranscript));
       }
       setStep("transcript");
+      setProgress(p => p && { ...p, idx: 2, detail: "" });
+      setTimeout(() => setProgress(null), 3000);
     } catch (e) {
       if (e.name !== "AbortError") setGenError("文字起こしエラー：" + e.message);
+      setProgress(null);
     }
     setLoading(false);
     setChunkProgress("");
@@ -444,6 +454,7 @@ function MinutesPage({ projects, onUpdateProject }) {
     ].filter(Boolean).join("\n\n");
     setGeneratedSourceText(combinedText);
 
+    setProgress({ steps: audioAttachment ? ["音声アップロード", "議事録生成", "完了"] : ["議事録生成", "完了"], idx: 0, detail: "", startedAt: Date.now() });
     // 音声ファイルをアップロード（署名付きURLをサーバーから取得し、本体はブラウザから直接送る）
     let audioFileUri = undefined;
     if (audioAttachment) {
@@ -458,9 +469,11 @@ function MinutesPage({ projects, onUpdateProject }) {
           : "不明";
         bgStateRef.current.selProj = selProj;
         runBgTranscript(audioFileUri, audioAttachment.mimeType, bgMemberInfo);
+        setProgress(p => p && { ...p, idx: 1 });
       } catch (e) {
         setLoading(false);
         setGenError("音声アップロードエラー: " + e.message);
+        setProgress(null);
         return;
       }
     }
@@ -497,9 +510,12 @@ function MinutesPage({ projects, onUpdateProject }) {
         } catch { setNewMemberCandidates([]); }
       }
       if (!hasAiComp) setStep("minutes");
+      setProgress(p => p && { ...p, idx: p.steps.length - 1, detail: "" });
+      setTimeout(() => setProgress(null), 3000);
     } catch(e) {
       setGenError("エラー："+e.message);
       setStep("minutes");
+      setProgress(null);
     }
     setLoading(false);
     setLoadingOp(null);
@@ -966,6 +982,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                   </button>
                   {loading && <button onClick={cancelGenerate} style={{ background:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", borderRadius:6, padding:"10px 18px", fontSize:13, fontWeight:600, cursor:"pointer" }}>キャンセル</button>}
                 </div>
+                {progress && <div style={{marginTop:14}}><ProgressPanel steps={progress.steps} idx={progress.idx} detail={progress.detail} startedAt={progress.startedAt} /></div>}
                 {genError&&<div style={{ marginTop:14, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#DC2626", fontWeight:600 }}>⚠️ {genError}</div>}
               </div>
             )}
@@ -1026,6 +1043,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                   </button>
                   {loading && <button onClick={cancelGenerate} style={{ padding:"10px 18px", borderRadius:12, background:"transparent", border:"1.5px solid #9E9E9E", color:"#616161", fontSize:13, fontWeight:600, cursor:"pointer" }}>キャンセル</button>}
                 </div>
+                {progress && <div style={{marginTop:14}}><ProgressPanel steps={progress.steps} idx={progress.idx} detail={progress.detail} startedAt={progress.startedAt} /></div>}
                 {genError&&<div style={{ marginTop:14, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#DC2626", fontWeight:600 }}>⚠️ {genError}</div>}
               </div>
             )}
@@ -1042,6 +1060,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                   <input value={minutesTitle} onChange={e=>setMinutesTitle(e.target.value)} placeholder="タイトルを入力"
                     style={{ flex:1, border:"none", outline:"none", fontSize:13, fontWeight:700, color:C.text, background:"transparent" }} />
                 </div>
+                {progress && <div style={{marginTop:14}}><ProgressPanel steps={progress.steps} idx={progress.idx} detail={progress.detail} startedAt={progress.startedAt} /></div>}
                 {genError&&<div style={{ marginBottom:14, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#DC2626", fontWeight:600 }}>⚠️ {genError}</div>}
                 {bgTranscriptStatus && (
                   <div style={{ marginBottom:14, padding:"10px 14px", background: bgTranscriptStatus.error ? "#FEF2F2" : "#F0FDF4", border:`1.5px solid ${bgTranscriptStatus.error ? "#FCA5A5" : "#86EFAC"}`, borderRadius:10 }}>

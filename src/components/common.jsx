@@ -56,4 +56,29 @@ function ConfirmDialog({ open, title, message, confirmLabel = "削除する", on
   );
 }
 
-export { PriorityDot, StatusBadge, Toast, ConfirmDialog };
+// 長時間処理のステップ進捗＋経過時間表示
+function ProgressPanel({ steps, idx, detail, startedAt }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const elapsed = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
+  const ss = String(elapsed % 60).padStart(2, "0");
+  return (
+    <div style={{ background:C.sageLight, border:`1.5px solid ${C.sage}`, borderRadius:10, padding:"10px 14px", marginBottom:14 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+        {steps.map((s, i) => (
+          <React.Fragment key={s}>
+            {i > 0 && <span style={{ color:C.muted, fontSize:11 }}>→</span>}
+            <span style={{ fontSize:12, fontWeight:700, color: i < idx ? C.sage : i === idx ? C.text : C.muted }}>
+              {i < idx ? "✓ " : i === idx ? "⏳ " : ""}{s}
+            </span>
+          </React.Fragment>
+        ))}
+        <span style={{ marginLeft:"auto", fontSize:11, color:C.muted, fontVariantNumeric:"tabular-nums", fontWeight:700 }}>{mm}:{ss}</span>
+      </div>
+      {detail && <div style={{ fontSize:11, color:C.muted, marginTop:6 }}>{detail}</div>}
+    </div>
+  );
+}
+
+export { PriorityDot, StatusBadge, Toast, ConfirmDialog, ProgressPanel };
