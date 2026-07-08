@@ -21,6 +21,7 @@ export default function App() {
   const [slackSettings, setSlackSettings] = useState({ summaryChannel: "", notifyChannel: "", sourceChannels: [] });
   const [toast, setToast] = useState(null);
   const [saveError, setSaveError] = useState(null);
+  const [saveStatus, setSaveStatus] = useState(null); // null | "saving" | "saved"
   const [importModal, setImportModal] = useState(null); // { projects: [...], selected: Set }
   const isRemoteUpdate = useRef(false);
   const channelRef = useRef(null);
@@ -169,8 +170,8 @@ export default function App() {
       saveTimer.current = null;
       isSaving.current = true;
       saveProjects(projects)
-        .then(savedAt => { lastSavedAt.current = savedAt; })
-        .catch(e => setSaveError("データの保存に失敗しました：" + e.message))
+        .then(savedAt => { lastSavedAt.current = savedAt; setSaveStatus("saved"); })
+        .catch(e => { setSaveError("データの保存に失敗しました：" + e.message); setSaveStatus(null); })
         .finally(() => { isSaving.current = false; });
     };
     if (isRemoteUpdate.current) {
@@ -183,6 +184,7 @@ export default function App() {
       return;
     }
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    setSaveStatus("saving");
     saveTimer.current = setTimeout(doSave, 500);
   }, [projects, storageReady]);
 
@@ -359,6 +361,11 @@ export default function App() {
           <button onClick={()=>setShowAdd(true)} style={btn({padding:"0 14px",height:52,background:"transparent",fontSize:16,fontWeight:700,color:C.muted,flexShrink:0,lineHeight:1})}>+</button>
         )}
         <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:4, padding:"0 12px", flexShrink:0 }}>
+          {saveStatus && (
+            <span style={{ fontSize:11, fontWeight:700, whiteSpace:"nowrap", marginRight:6, color: saveStatus==="saved" ? C.sage : C.muted, transition:"color 0.3s" }}>
+              {saveStatus==="saved" ? "✓ 保存済み" : "保存中..."}
+            </span>
+          )}
           <button onClick={()=>navigate("slack-settings")} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${tab==="slack-settings"?C.sage:C.border}`,background:tab==="slack-settings"?C.sageLight:"transparent",color:tab==="slack-settings"?C.sage:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>💬 Slack設定</button>
           <button onClick={exportData} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>⬆ エクスポート</button>
           <button onClick={()=>importRef.current?.click()} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>⬇ インポート</button>

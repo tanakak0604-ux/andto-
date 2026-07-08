@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { dueDateInfo } from "../lib/date";
 import { DecisionsPage } from "./DecisionsPage";
 import { KanbanPage } from "./KanbanPage";
 import { MilestonePage } from "./MilestonePage";
@@ -81,7 +82,12 @@ function MemberTasksPage({ projects }) {
                       <PriorityDot p={t.priority} />
                       <span style={{ flex:1, fontSize:13, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.title}</span>
                       <StatusBadge s={t.status} />
-                      <span style={{ fontSize:11, color:C.muted, minWidth:80, textAlign:"right", flexShrink:0 }}>{t.dueDate||"期日未設定"}</span>
+                      {(() => {
+                        const info = dueDateInfo(t.dueDate, t.status);
+                        return info
+                          ? <span style={{ fontSize:11, color:info.color, background:info.bg, fontWeight:700, borderRadius:10, padding:"1px 8px", flexShrink:0 }}>{t.dueDate}（{info.label}）</span>
+                          : <span style={{ fontSize:11, color:C.muted, minWidth:80, textAlign:"right", flexShrink:0 }}>{t.dueDate||"期日未設定"}</span>;
+                      })()}
                       <span style={{ fontSize:11, color:p.color, fontWeight:700, background:`${p.color}18`, borderRadius:20, padding:"2px 10px", minWidth:80, textAlign:"center", flexShrink:0 }}>{p.name}</span>
                     </div>
                   ))}

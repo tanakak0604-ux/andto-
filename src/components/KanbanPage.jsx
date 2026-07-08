@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { dueDateInfo } from "../lib/date";
 import { PriorityDot } from "./common";
 import { BTN, C, btn } from "../constants";
 import { uid } from "../lib/text";
@@ -24,7 +25,15 @@ function TaskCard({ t, project, onUpdate, onEdit }) {
         <div style={{ marginTop: 4 }}><PriorityDot p={t.priority} /></div>
         <span style={{ fontSize: 13, fontWeight: 600, color: C.text, lineHeight: 1.4 }}>{t.title}</span>
       </div>
-      {t.dueDate && <div style={{ fontSize: 11, color: C.muted, marginLeft: 15 }}>📅 {t.dueDate}</div>}
+      {t.dueDate && (() => {
+        const info = dueDateInfo(t.dueDate, t.status);
+        return (
+          <div style={{ fontSize: 11, color: C.muted, marginLeft: 15, display: "flex", alignItems: "center", gap: 6 }}>
+            📅 {t.dueDate}
+            {info && <span style={{ background: info.bg, color: info.color, fontWeight: 700, fontSize: 10, padding: "1px 7px", borderRadius: 10 }}>{info.label}</span>}
+          </div>
+        );
+      })()}
       {(t.assigneeIds || []).length > 0 && (
         <div style={{ fontSize: 11, color: C.sage, marginLeft: 15, fontWeight: 600 }}>
           👤 {(t.assigneeIds || []).map(id => project.members.find(m => m.id === id)?.name).filter(Boolean).join("・")}
