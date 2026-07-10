@@ -7,7 +7,7 @@ import { ProjectsPage } from "./components/ProjectsPage";
 import { Toast } from "./components/common";
 import { GlobalSearch } from "./components/GlobalSearch";
 import { C, INIT_PROJECTS, btn } from "./constants";
-import { loadProjects, loadSlackSettings, loadUpdatedAt, saveProjects, saveSlackSettings, supabase } from "./lib/supabase";
+import { ensureDailyBackup, listBackups, loadBackup, loadProjects, loadSlackSettings, loadUpdatedAt, saveProjects, saveSlackSettings, supabase } from "./lib/supabase";
 import { uid } from "./lib/text";
 import { onUndoToast } from "./lib/undoBus";
 
@@ -69,6 +69,8 @@ export default function App() {
       if (saved && Array.isArray(saved) && saved.length > 0) {
         isRemoteUpdate.current = true;
         setProjects(saved);
+        // その日最初の起動時にスナップショットを保存（失敗しても本体動作には影響させない）
+        ensureDailyBackup(saved).then(r => { if (!r.ok && !r.skipped) console.warn("[backup] 日次バックアップに失敗:", r.error); });
       } else {
         isRemoteUpdate.current = true; // データが取れなかった場合もINIT_PROJECTSを保存しない
         setShowWelcome(true);
@@ -244,6 +246,30 @@ export default function App() {
     ? [...projects].sort((a, b) => { const ai = projectOrder.indexOf(a.id); const bi = projectOrder.indexOf(b.id); if (ai === -1 && bi === -1) return 0; if (ai === -1) return 1; if (bi === -1) return -1; return ai - bi; })
     : projects;
 
+  const [backupModal, setBackupModal] = useState(null); // null | { list, loading, restoringId }
+  const openBackups = async () => {
+    setBackupModal({ list: [], loading: true });
+    const list = await listBackups().catch(() => []);
+    setBackupModal({ list, loading: false });
+  };
+  const restoreBackup = async (id) => {
+    setBackupModal(m => m && { ...m, restoringId: id });
+    const snapshot = await loadBackup(id).catch(() => null);
+    if (!snapshot || !Array.isArray(snapshot) || snapshot.length === 0) {
+      showToast("⚠️ バックアップの読み込みに失敗しました");
+      setBackupModal(m => m && { ...m, restoringId: null });
+      return;
+    }
+    const prev = projectsRef.current;
+    setProjects(snapshot);
+    setBackupModal(null);
+    setToast({ text: `${fmtBackupId(id)}のバックアップを復元しました`, actionLabel: "元に戻す", onAction: () => setProjects(prev) });
+  };
+  const fmtBackupId = (id) => {
+    const m = id.match(/^backup_(\d{4})(\d{2})(\d{2})$/);
+    return m ? `${m[1]}/${m[2]}/${m[3]}` : id;
+  };
+
   const exportData = () => {
     const blob = new Blob([JSON.stringify({projects,exportedAt:new Date().toISOString()},null,2)],{type:"application/json"});
     const url = URL.createObjectURL(blob);
@@ -383,6 +409,7 @@ export default function App() {
           <button onClick={()=>setSearchOpen(true)} aria-label="全体検索（Ctrl+K）" title="全体検索（Ctrl+K）"
             style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>🔍 検索</button>
           <button onClick={()=>navigate("slack-settings")} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${tab==="slack-settings"?C.sage:C.border}`,background:tab==="slack-settings"?C.sageLight:"transparent",color:tab==="slack-settings"?C.sage:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>💬 Slack設定</button>
+          <button onClick={openBackups} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>🕘 バックアップ</button>
           <button onClick={exportData} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>⬆ エクスポート</button>
           <button onClick={()=>importRef.current?.click()} style={btn({padding:"5px 10px",borderRadius:8,border:`1.5px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:11,fontWeight:700,whiteSpace:"nowrap"})}>⬇ インポート</button>
           <input ref={importRef} type="file" accept=".json" onChange={importData} style={{ display:"none" }} />
@@ -400,6 +427,33 @@ export default function App() {
 
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
       <GlobalSearch projects={projects} open={searchOpen} onClose={() => setSearchOpen(false)} onNavigate={id => navigate(id)} />
+      {backupModal && (
+        <div onClick={() => setBackupModal(null)} style={{ position:"fixed", inset:0, background:"rgba(45,42,36,0.45)", zIndex:9000, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <div role="dialog" aria-modal="true" aria-label="バックアップ" onClick={e => e.stopPropagation()}
+            style={{ background:C.surface, borderRadius:14, padding:"22px 24px", width:420, maxWidth:"90vw", boxShadow:"0 12px 40px rgba(0,0,0,0.2)" }}>
+            <div style={{ fontSize:15, fontWeight:800, color:C.text, marginBottom:4 }}>🕘 日次バックアップ</div>
+            <div style={{ fontSize:12, color:C.muted, marginBottom:14, lineHeight:1.6 }}>毎日最初にアプリを開いた時点のデータを自動保存しています（直近14日分）。復元すると全プロジェクトがその時点の内容に置き換わります。</div>
+            <div style={{ maxHeight:300, overflowY:"auto", display:"flex", flexDirection:"column", gap:6 }}>
+              {backupModal.loading && <div style={{ padding:"20px 0", textAlign:"center", color:C.muted, fontSize:13 }}>読み込み中...</div>}
+              {!backupModal.loading && backupModal.list.length === 0 && (
+                <div style={{ padding:"20px 0", textAlign:"center", color:C.muted, fontSize:13 }}>バックアップはまだありません。<br /><span style={{ fontSize:11 }}>明日以降、アプリを開くと自動で作成されます。</span></div>
+              )}
+              {backupModal.list.map(b => (
+                <div key={b.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", border:`1.5px solid ${C.border}`, borderRadius:10, background:C.bg }}>
+                  <span style={{ fontSize:13, fontWeight:700, color:C.text, flex:1 }}>{fmtBackupId(b.id)}</span>
+                  <button onClick={() => restoreBackup(b.id)} disabled={backupModal.restoringId === b.id}
+                    style={btn({ padding:"4px 12px", borderRadius:8, background:C.sage, color:"#fff", fontSize:12, fontWeight:700, opacity: backupModal.restoringId === b.id ? 0.6 : 1 })}>
+                    {backupModal.restoringId === b.id ? "復元中..." : "復元"}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:16 }}>
+              <button onClick={() => setBackupModal(null)} style={btn({ background:"transparent", border:`1.5px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"7px 18px", fontSize:13 })}>閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showWelcome&&(
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>

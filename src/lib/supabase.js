@@ -85,4 +85,49 @@ async function saveSlackSettings(slackSettings) {
 }
 
 
-export { supabase, loadUpdatedAt, loadProjects, saveProjects, loadSlackSettings, saveSlackSettings };
+// ── 日次バックアップ ─────────────────────────────────────────
+// 同じテーブルに backup_YYYYMMDD というidの行としてスナップショットを保存する
+// （サーバーAPIはすべて id=eq.shared で絞っているため既存処理に影響しない）
+const BACKUP_KEEP = 14; // 直近14日分を保持
+const sbHeaders = { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` };
+
+async function listBackups() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=like.backup*&select=id,updated_at&order=id.desc`, { headers: sbHeaders });
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+async function loadBackup(id) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.${encodeURIComponent(id)}&select=projects`, { headers: sbHeaders });
+  const data = await res.json();
+  return data?.[0]?.projects || null;
+}
+
+async function deleteBackup(id) {
+  await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", headers: sbHeaders });
+}
+
+// その日最初の起動時に、読み込んだ時点のデータをスナップショットとして残す
+async function ensureDailyBackup(projects) {
+  if (!Array.isArray(projects) || projects.length === 0) return { ok: false, skipped: true };
+  const t = new Date();
+  const key = `backup_${t.getFullYear()}${String(t.getMonth() + 1).padStart(2, "0")}${String(t.getDate()).padStart(2, "0")}`;
+  try {
+    const existing = await (await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data?id=eq.${key}&select=id`, { headers: sbHeaders })).json();
+    if (Array.isArray(existing) && existing.length > 0) return { ok: true, existed: true };
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/taskflow_data`, {
+      method: "POST",
+      headers: { ...sbHeaders, "Content-Type": "application/json", "Prefer": "return=minimal" },
+      body: JSON.stringify({ id: key, projects, updated_at: new Date().toISOString() }),
+    });
+    if (!res.ok) return { ok: false, error: `${res.status}: ${(await res.text()).slice(0, 200)}` };
+    // 保持数を超えた古いバックアップを削除
+    const all = await listBackups();
+    for (const b of all.slice(BACKUP_KEEP)) await deleteBackup(b.id);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+export { supabase, loadUpdatedAt, loadProjects, saveProjects, loadSlackSettings, saveSlackSettings, listBackups, loadBackup, ensureDailyBackup };
