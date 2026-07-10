@@ -1,10 +1,15 @@
 import { cleanTranscriptChunk, removeLoopedLines } from "./text";
 
-async function callClaude({ system, messages, max_tokens = 65536, temperature, signal, audioFile, audioFileUri, audioMimeType }) {
+// 議事録生成・AI編集・チャットは新世代モデル、文字起こしは実績のある2.5-flashを使う
+// （3系は思考トークンを消費するため、大量トークンを扱う文字起こしには2.5の方が効率的）
+const CHAT_MODEL = "gemini-3-flash-preview";
+const TRANSCRIBE_MODEL = "gemini-2.5-flash";
+
+async function callClaude({ system, messages, max_tokens = 65536, temperature, signal, audioFile, audioFileUri, audioMimeType, model = CHAT_MODEL }) {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType }),
+    body: JSON.stringify({ system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType, model }),
     signal,
   });
   const rawText = await response.text();
@@ -22,7 +27,7 @@ async function callClaudePartial({ messages, temperature, max_tokens, signal, au
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, temperature, max_tokens, audioFileUri, audioMimeType, collectPartial: true }),
+    body: JSON.stringify({ messages, temperature, max_tokens, audioFileUri, audioMimeType, collectPartial: true, model: TRANSCRIBE_MODEL }),
     signal,
   });
   const rawText = await response.text();
@@ -116,4 +121,4 @@ async function uploadWavChunkToGemini(wavBlob, chunkIndex) {
 
 // タイムスタンプ逆戻り検出（安全網）
 
-export { callClaude, callClaudePartial, transcribeLongAudio, uploadAudioToGemini, waitGeminiFileActive, uploadWavChunkToGemini };
+export { callClaude, callClaudePartial, transcribeLongAudio, uploadAudioToGemini, waitGeminiFileActive, uploadWavChunkToGemini, TRANSCRIBE_MODEL };

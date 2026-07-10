@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { PriorityDot, ProgressPanel } from "./common";
 import { BTN, C, PHASE_LABELS, btn } from "../constants";
 import { audioBufferToWavBlob, extractAudioChunk } from "../lib/audio";
-import { callClaude, callClaudePartial, transcribeLongAudio, uploadAudioToGemini, uploadWavChunkToGemini, waitGeminiFileActive } from "../lib/gemini";
+import { callClaude, callClaudePartial, transcribeLongAudio, uploadAudioToGemini, uploadWavChunkToGemini, waitGeminiFileActive, TRANSCRIBE_MODEL } from "../lib/gemini";
 import { buildMinutesBody } from "../lib/print";
 import { cleanTranscriptChunk, escapeHtml, extractJsonArray, removeLoopedLines, uid } from "../lib/text";
 import { SYSTEM_PROMPT, TEMPLATE } from "../prompts";
@@ -333,6 +333,7 @@ function MinutesPage({ projects, onUpdateProject }) {
               temperature: 0,
               audioFileUri: fileUri,
               audioMimeType: "audio/wav",
+              model: TRANSCRIBE_MODEL,
               signal: abortControllerRef.current?.signal,
             });
           } catch (err) {
