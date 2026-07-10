@@ -44,9 +44,12 @@ async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  const { system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType, collectPartial } = req.body;
+  const { system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType, collectPartial, model } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
+  // モデルは許可リスト内のみ指定可（既定: gemini-2.5-flash）
+  const ALLOWED_MODELS = ["gemini-2.5-flash", "gemini-3-flash", "gemini-3-flash-preview", "gemini-flash-latest", "gemini-3-pro-preview"];
+  const MODEL = ALLOWED_MODELS.includes(model) ? model : "gemini-2.5-flash";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=` + apiKey;
 
   try {
     let parts = [];
@@ -73,7 +76,7 @@ async function handler(req, res) {
       // ストリーミングで受信し、時間切れ前に取れたところまで返す（長時間音声の文字起こし用）
       // truncated: true が返ったらクライアント側が続きを再リクエストする
       const DEADLINE_MS = 250000; // maxDuration 300秒に対して余裕を持たせる
-      const streamUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=" + apiKey;
+      const streamUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse&key=` + apiKey;
       const controller = new AbortController();
       let deadlineHit = false;
       const timer = setTimeout(() => { deadlineHit = true; controller.abort(); }, DEADLINE_MS);
