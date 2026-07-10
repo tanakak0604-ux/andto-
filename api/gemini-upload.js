@@ -48,6 +48,16 @@ async function handler(req, res) {
       return res.status(200).json({ state: data?.state || null });
     }
 
+    if (action === "models") {
+      // 利用可能なモデル名の一覧（generateContent対応のみ）
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=${apiKey}`);
+      const data = await r.json();
+      const models = (data.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+        .map(m => m.name.replace(/^models\//, ""));
+      return res.status(200).json({ models });
+    }
+
     return res.status(400).json({ error: { message: "不正なactionです" } });
   } catch (e) {
     return res.status(500).json({ error: { message: e.message } });
