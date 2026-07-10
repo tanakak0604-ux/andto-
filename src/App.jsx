@@ -1,15 +1,19 @@
 import React, { useState, useRef, useEffect } from "react";
 import logo from "./logo.png";
-import { CalendarPage } from "./components/CalendarPage";
-import { MinutesPage } from "./components/MinutesPage";
-import { MemberTasksPage, ProjectDetailPage, SlackSettingsPage } from "./components/MiscPages";
-import { ProjectsPage } from "./components/ProjectsPage";
 import { Toast } from "./components/common";
 import { GlobalSearch } from "./components/GlobalSearch";
 import { C, INIT_PROJECTS, btn } from "./constants";
 import { ensureDailyBackup, listBackups, loadBackup, loadProjects, loadSlackSettings, loadUpdatedAt, saveProjects, saveSlackSettings, supabase } from "./lib/supabase";
 import { uid } from "./lib/text";
 import { onUndoToast } from "./lib/undoBus";
+
+// ページは初回表示時に読み込む（初回ロードを軽くするためのコード分割）
+const ProjectsPage = React.lazy(() => import("./components/ProjectsPage").then(m => ({ default: m.ProjectsPage })));
+const CalendarPage = React.lazy(() => import("./components/CalendarPage").then(m => ({ default: m.CalendarPage })));
+const MinutesPage = React.lazy(() => import("./components/MinutesPage").then(m => ({ default: m.MinutesPage })));
+const MemberTasksPage = React.lazy(() => import("./components/MiscPages").then(m => ({ default: m.MemberTasksPage })));
+const SlackSettingsPage = React.lazy(() => import("./components/MiscPages").then(m => ({ default: m.SlackSettingsPage })));
+const ProjectDetailPage = React.lazy(() => import("./components/MiscPages").then(m => ({ default: m.ProjectDetailPage })));
 
 export default function App() {
   const [projects, setProjects] = useState([]);
@@ -45,6 +49,10 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // 一度表示したタブはマウントしたままにする（display:none切替で状態を保持する従来挙動の維持）
+  const visitedTabs = useRef(new Set(["projects"]));
+  visitedTabs.current.add(tab);
 
   const navigate = (newTab) => {
     setTab(newTab);
@@ -416,14 +424,14 @@ export default function App() {
         </div>
       </div>
 
-      <>
+      <React.Suspense fallback={<div style={{ padding:40, textAlign:"center", color:C.muted, fontSize:13 }}>読み込み中...</div>}>
         <div style={{ display:tab==="projects"?"block":"none" }}><ProjectsPage projects={sortedProjects} onUpdate={updateProject} onDelete={deleteProject} onNavigate={id=>navigate(id)} onReorder={reorderProjects} /></div>
-        <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} onUpdate={updateProject} /></div>
-        <div style={{ display:tab==="minutes"?"block":"none" }}><MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} /></div>
-        <div style={{ display:tab==="members"?"block":"none" }}><MemberTasksPage projects={projects} /></div>
-        <div style={{ display:tab==="slack-settings"?"block":"none" }}><SlackSettingsPage slackSettings={slackSettings} onChange={updateSlackSettings} /></div>
+        {visitedTabs.current.has("calendar") && <div style={{ display:tab==="calendar"?"block":"none" }}><CalendarPage projects={projects} onUpdate={updateProject} /></div>}
+        {visitedTabs.current.has("minutes") && <div style={{ display:tab==="minutes"?"block":"none" }}><MinutesPage projects={projects} onAddTasks={addTasks} onUpdateProject={updateProject} /></div>}
+        {visitedTabs.current.has("members") && <div style={{ display:tab==="members"?"block":"none" }}><MemberTasksPage projects={projects} /></div>}
+        {visitedTabs.current.has("slack-settings") && <div style={{ display:tab==="slack-settings"?"block":"none" }}><SlackSettingsPage slackSettings={slackSettings} onChange={updateSlackSettings} /></div>}
         {active&&tab===active.id&&<ProjectDetailPage key={active.id} project={active} onUpdate={updateProject} onMinutesUpdate={p => { lastBroadcastAt.current = new Date().toISOString(); updateProject(p); }} />}
-      </>
+      </React.Suspense>
 
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
       <GlobalSearch projects={projects} open={searchOpen} onClose={() => setSearchOpen(false)} onNavigate={id => navigate(id)} />
