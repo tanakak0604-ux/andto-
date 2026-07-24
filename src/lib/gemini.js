@@ -1,8 +1,9 @@
 import { cleanTranscriptChunk, removeLoopedLines } from "./text";
 
-// 議事録生成・AI編集・チャット・文字起こしすべて実績のある2.5-flashを使う
-// （gemini-3-flash-previewはプレビュー版で挙動が不安定なため、議事録の精度低下を受けて2.5-flashへ戻した）
-const CHAT_MODEL = "gemini-2.5-flash";
+// 議事録生成・AI編集・チャットは安定版の最新Flash（3.6）、文字起こしは実績のある2.5-flashを使う
+// （プレビュー版は挙動がドリフトするため避け、正式提供の安定版を採用。3系は思考モデルのため
+//  api/chat.js側で空応答検知の安全網を入れている）
+const CHAT_MODEL = "gemini-3.6-flash";
 const TRANSCRIBE_MODEL = "gemini-2.5-flash";
 
 async function callClaude({ system, messages, max_tokens = 65536, temperature, signal, audioFile, audioFileUri, audioMimeType, model = CHAT_MODEL }) {

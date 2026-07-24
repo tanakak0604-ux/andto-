@@ -47,7 +47,7 @@ async function handler(req, res) {
   const { system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType, collectPartial, model } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
   // モデルは許可リスト内のみ指定可（既定: gemini-2.5-flash）
-  const ALLOWED_MODELS = ["gemini-2.5-flash", "gemini-3-flash", "gemini-3-flash-preview", "gemini-flash-latest", "gemini-3-pro-preview"];
+  const ALLOWED_MODELS = ["gemini-2.5-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-flash-latest", "gemini-3-pro-preview"];
   const MODEL = ALLOWED_MODELS.includes(model) ? model : "gemini-2.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=` + apiKey;
 
@@ -148,6 +148,15 @@ async function handler(req, res) {
     if (data.error) return res.status(500).json({ error: { message: data.error.message } });
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const finishReason = data.candidates?.[0]?.finishReason;
+    // 思考モデルでは思考トークンが出力枠を食い切り、本文が空/途切れで返ることがある。
+    // 静かに空を返すと議事録が空欄になり原因が分かりにくいため、明示的にエラーにする。
+    if (!text) {
+      const reason = finishReason === "MAX_TOKENS"
+        ? "出力が長すぎて途中で打ち切られました。入力を分割するか、もう一度お試しください。"
+        : "空の応答が返されました。もう一度お試しください。";
+      return res.status(500).json({ error: { message: reason } });
+    }
     res.status(200).json({ content: [{ type: "text", text }] });
   } catch (e) {
     res.status(500).json({ error: { message: e.message } });
