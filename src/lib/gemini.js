@@ -1,8 +1,8 @@
 import { cleanTranscriptChunk, removeLoopedLines } from "./text";
 
-// 議事録生成・AI編集・チャットは新世代モデル、文字起こしは実績のある2.5-flashを使う
-// （3系は思考トークンを消費するため、大量トークンを扱う文字起こしには2.5の方が効率的）
-const CHAT_MODEL = "gemini-3-flash-preview";
+// 議事録生成・AI編集・チャット・文字起こしすべて実績のある2.5-flashを使う
+// （gemini-3-flash-previewはプレビュー版で挙動が不安定なため、議事録の精度低下を受けて2.5-flashへ戻した）
+const CHAT_MODEL = "gemini-2.5-flash";
 const TRANSCRIBE_MODEL = "gemini-2.5-flash";
 
 async function callClaude({ system, messages, max_tokens = 65536, temperature, signal, audioFile, audioFileUri, audioMimeType, model = CHAT_MODEL }) {
