@@ -6,11 +6,12 @@ import { cleanTranscriptChunk, removeLoopedLines } from "./text";
 const CHAT_MODEL = "gemini-3.6-flash";
 const TRANSCRIBE_MODEL = "gemini-2.5-flash";
 
-async function callClaude({ system, messages, max_tokens = 65536, temperature, signal, audioFile, audioFileUri, audioMimeType, model = CHAT_MODEL }) {
+// fileUris: [{ uri, mimeType }] — PDFなどの添付資料。音声（audioFileUri）と併用できる
+async function callClaude({ system, messages, max_tokens = 65536, temperature, signal, audioFile, audioFileUri, audioMimeType, fileUris, model = CHAT_MODEL }) {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType, model }),
+    body: JSON.stringify({ system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType, fileUris, model }),
     signal,
   });
   const rawText = await response.text();
@@ -69,7 +70,8 @@ async function transcribeLongAudio({ audioFileUri, mimeType, firstPrompt, signal
 }
 
 // Gemini File API アップロード（キーはサーバー側のみ。署名付きURLを受け取り、ファイル本体はブラウザから直接送る）
-async function uploadAudioToGemini(bytes, mimeType, displayName, signal) {
+// 音声・PDFなどmimeTypeを問わず使える
+async function uploadFileToGemini(bytes, mimeType, displayName, signal) {
   const startRes = await fetch("/api/gemini-upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -112,7 +114,7 @@ async function waitGeminiFileActive(fileName, signal) {
 
 async function uploadWavChunkToGemini(wavBlob, chunkIndex) {
   try {
-    const { uri, name } = await uploadAudioToGemini(wavBlob, "audio/wav", `chunk_${chunkIndex}.wav`);
+    const { uri, name } = await uploadFileToGemini(wavBlob, "audio/wav", `chunk_${chunkIndex}.wav`);
     await waitGeminiFileActive(name);
     return uri;
   } catch (e) {
@@ -122,4 +124,4 @@ async function uploadWavChunkToGemini(wavBlob, chunkIndex) {
 
 // タイムスタンプ逆戻り検出（安全網）
 
-export { callClaude, callClaudePartial, transcribeLongAudio, uploadAudioToGemini, waitGeminiFileActive, uploadWavChunkToGemini, TRANSCRIBE_MODEL };
+export { callClaude, callClaudePartial, transcribeLongAudio, uploadFileToGemini, waitGeminiFileActive, uploadWavChunkToGemini, TRANSCRIBE_MODEL };

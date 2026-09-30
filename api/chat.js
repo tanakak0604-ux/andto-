@@ -44,7 +44,7 @@ async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  const { system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType, collectPartial, model } = req.body;
+  const { system, messages, max_tokens, temperature, audioFile, audioFileUri, audioMimeType, fileUris, collectPartial, model } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
   // モデルは許可リスト内のみ指定可（既定: gemini-2.5-flash）
   const ALLOWED_MODELS = ["gemini-2.5-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-flash-latest", "gemini-3-pro-preview"];
@@ -66,6 +66,13 @@ async function handler(req, res) {
         parts.push({ file_data: { file_uri: fileUri, mime_type: mimeType } });
       } else {
         parts.push({ inline_data: { mime_type: mimeType, data: audioBase64 } });
+      }
+    }
+
+    // 添付資料（PDFなど）。File APIにアップロード済みのURIを受け取る。音声と併用可。
+    if (Array.isArray(fileUris)) {
+      for (const f of fileUris) {
+        if (f?.uri) parts.push({ file_data: { file_uri: f.uri, mime_type: f.mimeType || "application/pdf" } });
       }
     }
 

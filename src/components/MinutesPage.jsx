@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { PriorityDot, ProgressPanel } from "./common";
 import { BTN, C, PHASE_LABELS, btn } from "../constants";
 import { audioBufferToWavBlob, extractAudioChunk } from "../lib/audio";
-import { callClaude, callClaudePartial, transcribeLongAudio, uploadAudioToGemini, uploadWavChunkToGemini, waitGeminiFileActive, TRANSCRIBE_MODEL } from "../lib/gemini";
+import { callClaude, callClaudePartial, transcribeLongAudio, uploadFileToGemini, uploadWavChunkToGemini, waitGeminiFileActive, TRANSCRIBE_MODEL } from "../lib/gemini";
 import { buildMinutesBody } from "../lib/print";
 import { cleanTranscriptChunk, escapeHtml, extractJsonArray, removeLoopedLines, uid } from "../lib/text";
 import { SYSTEM_PROMPT, TEMPLATE } from "../prompts";
@@ -169,8 +169,16 @@ function MinutesPage({ projects, onUpdateProject }) {
         setAttachedFiles(prev => [...prev, { name: f.name, isAudio: true, file: f, mimeType: "audio/mp3" }]);
       } else if (f.name.endsWith(".m4a") || f.type === "audio/mp4" || f.type === "audio/x-m4a" || f.type === "audio/m4a") {
         setAttachedFiles(prev => [...prev, { name: f.name, isAudio: true, file: f, mimeType: "audio/m4a" }]);
+      } else if (f.name.toLowerCase().endsWith(".pdf") || f.type === "application/pdf") {
+        // PDFはテキスト抽出せずGeminiにそのまま渡す（スキャンPDF・図面・表組みも読めるため）
+        if (f.size > 50 * 1024 * 1024) {
+          setFileError(`「${f.name}」は大きすぎます。PDFは50MB以下にしてください。`);
+          setTimeout(() => setFileError(""), 4000);
+          return;
+        }
+        setAttachedFiles(prev => [...prev, { name: f.name, isPdf: true, file: f, mimeType: "application/pdf" }]);
       } else {
-        setFileError(`「${f.name}」は非対応形式です。対応ファイル：.txt / .md / .mp3 / .m4a`);
+        setFileError(`「${f.name}」は非対応形式です。対応ファイル：.txt / .md / .pdf / .mp3 / .m4a`);
         setTimeout(() => setFileError(""), 4000);
       }
     });
@@ -295,7 +303,7 @@ function MinutesPage({ projects, onUpdateProject }) {
       if (!audioBuffer || audioBuffer.duration <= CHUNK_SEC) {
         // ── 従来フロー（5分以下 or デコード失敗）────────────────────
         const fileBytes = new Uint8Array(arrayBuffer);
-        const { uri: audioFileUri, name: audioFileName } = await uploadAudioToGemini(fileBytes, audioAttachment.mimeType, audioAttachment.name, abortControllerRef.current?.signal);
+        const { uri: audioFileUri, name: audioFileName } = await uploadFileToGemini(fileBytes, audioAttachment.mimeType, audioAttachment.name, abortControllerRef.current?.signal);
         setUploadedAudioFileUri(audioFileUri);
         await waitGeminiFileActive(audioFileName, abortControllerRef.current?.signal);
         setProgress(p => p && { ...p, idx: 1 });
@@ -380,7 +388,7 @@ function MinutesPage({ projects, onUpdateProject }) {
       if (!fileUri) {
         // 再アップロード
         const fileBytes = new Uint8Array(await audioAttachment.file.arrayBuffer());
-        const { uri, name } = await uploadAudioToGemini(fileBytes, audioAttachment.mimeType, audioAttachment.name);
+        const { uri, name } = await uploadFileToGemini(fileBytes, audioAttachment.mimeType, audioAttachment.name);
         fileUri = uri;
         setUploadedAudioFileUri(fileUri);
         await waitGeminiFileActive(name);
@@ -449,19 +457,30 @@ function MinutesPage({ projects, onUpdateProject }) {
       ? `\n\n【過去の修正パターン（参考にして議事録の質を向上させてください）】\n${learningPatterns.map((l, i) => `${i+1}. ${l.instruction}`).join("\n")}`
       : "";
     const audioAttachment = transcriptText ? null : attachedFiles.find(f => f.isAudio);
+    const pdfAttachments = attachedFiles.filter(f => f.isPdf);
     const combinedText = transcriptText || [
-      ...attachedFiles.filter(f => !f.isAudio).map((f, i) => `【ファイル${i + 1}：${f.name}】\n${f.content}`),
+      ...attachedFiles.filter(f => !f.isAudio && !f.isPdf).map((f, i) => `【ファイル${i + 1}：${f.name}】\n${f.content}`),
       text.trim() ? text : null,
     ].filter(Boolean).join("\n\n");
-    setGeneratedSourceText(combinedText);
+    // PDFは本文を持たないため、元テキストの記録には資料名だけ残す
+    setGeneratedSourceText([
+      combinedText,
+      pdfAttachments.length > 0 ? `【添付資料】${pdfAttachments.map(f => f.name).join("、")}` : null,
+    ].filter(Boolean).join("\n\n"));
 
-    setProgress({ steps: audioAttachment ? ["音声アップロード", "議事録生成", "完了"] : ["議事録生成", "完了"], idx: 0, detail: "", startedAt: Date.now() });
+    const progressSteps = [
+      ...(audioAttachment ? ["音声アップロード"] : []),
+      ...(pdfAttachments.length > 0 ? ["資料アップロード"] : []),
+      "議事録生成", "完了",
+    ];
+    let stepIdx = 0;
+    setProgress({ steps: progressSteps, idx: 0, detail: "", startedAt: Date.now() });
     // 音声ファイルをアップロード（署名付きURLをサーバーから取得し、本体はブラウザから直接送る）
     let audioFileUri = undefined;
     if (audioAttachment) {
       try {
         const fileBytes = new Uint8Array(await audioAttachment.file.arrayBuffer());
-        const uploaded = await uploadAudioToGemini(fileBytes, audioAttachment.mimeType, audioAttachment.name, abortControllerRef.current?.signal);
+        const uploaded = await uploadFileToGemini(fileBytes, audioAttachment.mimeType, audioAttachment.name, abortControllerRef.current?.signal);
         audioFileUri = uploaded.uri;
         await waitGeminiFileActive(uploaded.name, abortControllerRef.current?.signal);
         // バックグラウンドで文字起こしを並行実行（fire-and-forget）
@@ -470,7 +489,8 @@ function MinutesPage({ projects, onUpdateProject }) {
           : "不明";
         bgStateRef.current.selProj = selProj;
         runBgTranscript(audioFileUri, audioAttachment.mimeType, bgMemberInfo);
-        setProgress(p => p && { ...p, idx: 1 });
+        stepIdx += 1;
+        setProgress(p => p && { ...p, idx: stepIdx });
       } catch (e) {
         setLoading(false);
         setGenError("音声アップロードエラー: " + e.message);
@@ -479,14 +499,39 @@ function MinutesPage({ projects, onUpdateProject }) {
       }
     }
 
+    // PDF資料をアップロード（音声と同じFile API経路）
+    const pdfFileUris = [];
+    if (pdfAttachments.length > 0) {
+      try {
+        for (const pdf of pdfAttachments) {
+          setProgress(p => p && { ...p, detail: pdf.name });
+          const pdfBytes = new Uint8Array(await pdf.file.arrayBuffer());
+          const uploaded = await uploadFileToGemini(pdfBytes, pdf.mimeType, pdf.name, abortControllerRef.current?.signal);
+          await waitGeminiFileActive(uploaded.name, abortControllerRef.current?.signal);
+          pdfFileUris.push({ uri: uploaded.uri, mimeType: pdf.mimeType });
+        }
+        stepIdx += 1;
+        setProgress(p => p && { ...p, idx: stepIdx, detail: "" });
+      } catch (e) {
+        setLoading(false);
+        setGenError("資料アップロードエラー: " + e.message);
+        setProgress(null);
+        return;
+      }
+    }
+
     const audioNote = audioAttachment ? `\n\n【音声ファイル】「${audioAttachment.name}」が添付されています。音声を文字起こしし、議事録に反映してください。` : "";
-    const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一し、受動態（「〜された」「〜される」）は使わず「〜した」「〜する」の能動表現で記載（発言者名は文末に付くため文中の主語不要）\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}${learningNote}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${combinedText}${audioNote}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
+    const pdfNote = pdfAttachments.length > 0
+      ? `\n\n【添付資料（PDF）】${pdfAttachments.map(f => `「${f.name}」`).join("、")}を添付している。資料の内容を読み取り、議事内容および提出資料／受領資料欄に反映すること。資料に書かれているだけで会議で触れられていない事項は、議事内容に混ぜず参考情報として扱うこと。`
+      : "";
+    const userContent = `プロジェクト「${latestProj?.name}」の議事録を作成してください。\n\n【絶対に守るルール】\n- テンプレートの見出しを一字一句変えずすべて使用\n- だ・である調で統一し、受動態（「〜された」「〜される」）は使わず「〜した」「〜する」の能動表現で記載（発言者名は文末に付くため文中の主語不要）\n- テンプレートのヘッダー行（打合せ概要・日時・場所・出席者・文責・作成日・提出資料・受領資料・フェーズ）は必ず全て出力し、値を変更しないこと\n- 「文責　：」欄には「${bunsekiText}」を使用し変更しない\n- 「作成日：」欄には「${date}」を使用し変更しない\n- 「出席者：」欄にはテンプレートの値をそのまま使用し変更しない\n${headerNote ? `- ${headerNote}\n` : ""}- ヘッダーの「（入力テキストから推測。不明な場合は空欄）」は入力テキストから推測して記入。推測できない場合は空欄にする\n\n【メンバー情報】\n${memberInfo}\n\n${attendeeRule}${learningNote}\n\n【テンプレート】\n${filledTemplate}\n\n【入力テキスト】\n${combinedText}${audioNote}${pdfNote}\n\n必ず「■ 次回会議予定」まで出力を完了すること。`;
     try {
       const result = await callClaude({
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: userContent }],
         audioFileUri,
         audioMimeType: audioAttachment?.mimeType,
+        fileUris: pdfFileUris,
         signal: abortControllerRef.current?.signal,
       });
       let hasAiComp = false;
@@ -946,8 +991,8 @@ function MinutesPage({ projects, onUpdateProject }) {
                     style={{ border:`2px dashed ${isDragging?C.sage:C.border}`, borderRadius:12, padding:"20px 24px", textAlign:"center", cursor:"pointer", marginBottom:8, background:isDragging?C.sageLight:C.bg }}>
                     <div style={{ fontSize:28, marginBottom:6 }}>{isDragging?"📂":"📎"}</div>
                     <div style={{ fontSize:13, fontWeight:700, color:isDragging?C.sage:C.text }}>{isDragging?"ここにドロップ":"クリックまたはドラッグ＆ドロップ（複数可）"}</div>
-                    <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>.txt / .md / .mp3 / .m4a 対応</div>
-                    <input ref={fileRef} type="file" style={{ display:"none" }} accept=".txt,.md,.mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a" multiple onChange={handleFile} />
+                    <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>.txt / .md / .pdf / .mp3 / .m4a 対応</div>
+                    <input ref={fileRef} type="file" style={{ display:"none" }} accept=".txt,.md,.pdf,.mp3,.m4a,application/pdf,audio/mpeg,audio/mp4,audio/x-m4a" multiple onChange={handleFile} />
                   </div>
                   {fileError && (
                     <div style={{ marginBottom:8, background:"#FEE2E2", border:"1.5px solid #FCA5A5", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#DC2626", fontWeight:600 }}>
@@ -958,7 +1003,7 @@ function MinutesPage({ projects, onUpdateProject }) {
                     <div style={{ marginBottom:10, display:"flex", flexDirection:"column", gap:5 }}>
                       {attachedFiles.map((f, i) => (
                         <div key={i} style={{ display:"flex", alignItems:"center", gap:8, background:C.surface, border:`1.5px solid ${C.border}`, borderRadius:8, padding:"6px 10px" }}>
-                          <span style={{ fontSize:11, color:C.accent, flexShrink:0 }}>{f.isAudio ? "🎙" : "📄"}</span>
+                          <span style={{ fontSize:11, color:C.accent, flexShrink:0 }}>{f.isAudio ? "🎙" : f.isPdf ? "📕" : "📄"}</span>
                           <span style={{ flex:1, fontSize:12, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</span>
                           <button aria-label="添付ファイルを削除" onClick={()=>setAttachedFiles(prev=>prev.filter((_,j)=>j!==i))}
                             style={btn({padding:"2px 8px",borderRadius:6,fontSize:11,color:C.muted,background:"transparent",border:`1px solid ${C.border}`})}>×</button>
