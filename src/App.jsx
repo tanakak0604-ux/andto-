@@ -207,6 +207,15 @@ export default function App() {
     saveTimer.current = setTimeout(doSave, 500);
   }, [projects, storageReady]);
 
+  // サーバー保存待ち（0.5秒デバウンス中）や送信中にタブを閉じたら警告
+  useEffect(() => {
+    const warn = (e) => {
+      if (saveTimer.current || isSaving.current) { e.preventDefault(); e.returnValue = ""; }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+
   const updateSlackSettings = s => { setSlackSettings(s); saveSlackSettings(s); };
 
   const updateProject = (newProj) => {

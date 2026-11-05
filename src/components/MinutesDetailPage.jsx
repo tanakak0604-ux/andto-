@@ -5,6 +5,7 @@ import { BTN, C, btn } from "../constants";
 import { callClaude } from "../lib/gemini";
 import { PREVIEW_CSS, buildAgendaBody, buildMinutesBody, highlightInHtml } from "../lib/print";
 import { escapeHtml, extractJsonArray, uid } from "../lib/text";
+import { agendaDraftKey, clearDraft, formatDraftTime, loadDraft, minuteDraftKey, saveDraft } from "../lib/draft";
 
 function MinutesDetailPage({ project, onBack, onUpdate }) {
   const [selectedId, setSelectedId] = useState(null);
@@ -93,6 +94,38 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
     setChatMessages(minute?.chatHistory || []);
   }, [selectedId]); // eslint-disable-line
 
+  // ── 未保存の編集の保護（下書き退避＋閉じる前の警告） ──
+  const [draftTick, setDraftTick] = useState(0); // 下書き破棄後に再描画するため
+  const minuteDirty = isEditing && !!selectedMinute && editContent !== selectedMinute.content;
+  const agendaDirty = isEditingAgenda && !!currentAgenda && agendaContent !== (currentAgenda.content || "");
+
+  useEffect(() => {
+    if (minuteDirty) saveDraft(minuteDraftKey(selectedMinute.id), editContent);
+  }, [minuteDirty, editContent]);
+
+  useEffect(() => {
+    if (agendaDirty) saveDraft(agendaDraftKey(selectedMinute.id, currentAgenda.id), agendaContent);
+  }, [agendaDirty, agendaContent]);
+
+  useEffect(() => {
+    if (!minuteDirty && !agendaDirty) return;
+    const warn = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [minuteDirty, agendaDirty]);
+
+  void draftTick;
+  const minuteDraft = selectedMinute && !isEditing ? loadDraft(minuteDraftKey(selectedMinute.id), selectedMinute.content) : null;
+  const agendaDraft = selectedMinute && currentAgenda && !isEditingAgenda ? loadDraft(agendaDraftKey(selectedMinute.id, currentAgenda.id), currentAgenda.content || "") : null;
+
+  const draftBanner = (draft, label, onRestore, onDiscard) => (
+    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:12, padding:"8px 12px", background:"#FFF8E1", border:"1.5px solid #FFB300", borderRadius:8, fontSize:12, color:"#6D4C00" }}>
+      <span style={{ flex:1, minWidth:180 }}>💾 保存されていない{label}の下書きがあります（{formatDraftTime(draft.savedAt)}）</span>
+      <button onClick={onRestore} style={BTN.primary}>復元して編集</button>
+      <button onClick={onDiscard} style={BTN.ghost}>破棄</button>
+    </div>
+  );
+
   const hasAgenda = Boolean(
     currentAgenda &&
     selectedMinute?.agendas &&
@@ -159,6 +192,7 @@ function MinutesDetailPage({ project, onBack, onUpdate }) {
 
   const saveEdit = () => {
     onUpdate({ ...project, minutes: project.minutes.map(m => m.id===selectedId ? {...m,content:editContent} : m) });
+    clearDraft(minuteDraftKey(selectedId));
     setIsEditing(false);
   };
 
@@ -471,7 +505,7 @@ ${pastMinutesTitles}
                         setEditContent(next);
                         setTimeout(() => { el.selectionStart = el.selectionEnd = s + marker.length; el.focus(); }, 0);
                       }} style={BTN.ghost}>✂ 改ページ</button>}
-                      <button onClick={()=>{ setIsEditing(false); setAiEditOpen(false); setDiffResult(null); }} style={BTN.ghost}>キャンセル</button>
+                      <button onClick={()=>{ clearDraft(minuteDraftKey(selectedMinute.id)); setIsEditing(false); setAiEditOpen(false); setDiffResult(null); }} style={BTN.ghost}>キャンセル</button>
                     </>
                   ) : extractMode ? (
                     <button onClick={()=>setExtractMode(false)} style={BTN.ghost}>← プレビューに戻る</button>
@@ -511,6 +545,9 @@ ${pastMinutesTitles}
                     </>
                   )}
                 </div>
+                {minuteDraft && !extractMode && draftBanner(minuteDraft, "議事録",
+                  () => { setIsEditing(true); setEditContent(minuteDraft.text); setAiEditOpen(false); setDiffResult(null); },
+                  () => { clearDraft(minuteDraftKey(selectedMinute.id)); setDraftTick(t => t + 1); })}
                 {aiEditOpen && isEditing && (
                   <div style={{ marginBottom:16, background:C.accentLight, border:`1.5px solid ${C.accent}`, borderRadius:12, padding:16 }}>
                     {(chatMessages.length > 0 || aiLoading) && (
@@ -814,8 +851,9 @@ ${pastMinutesTitles}
                 <div style={{ flex:"1 1 320px", minWidth:0, overflow:"hidden", borderLeft:`1.5px solid ${C.border}`, paddingLeft:16 }}>
                   <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginBottom:12, gap:8 }}>
                     {isEditingAgenda ? (<>
-                      <button onClick={()=>{ setAgendaContent(currentAgenda.content||''); setIsEditingAgenda(false); }} style={BTN.ghost}>キャンセル</button>
+                      <button onClick={()=>{ clearDraft(agendaDraftKey(selectedMinute.id, currentAgenda.id)); setAgendaContent(currentAgenda.content||''); setIsEditingAgenda(false); }} style={BTN.ghost}>キャンセル</button>
                       <button onClick={()=>{
+                        clearDraft(agendaDraftKey(selectedMinute.id, currentAgenda.id));
                         const updated = { ...currentAgenda, content: agendaContent };
                         setCurrentAgenda(updated);
                         const updatedMinutes = project.minutes.map(m => m.id === selectedMinute.id ? {...m, agendas: (m.agendas||[]).map(a => a.id === updated.id ? updated : a)} : m);
@@ -834,6 +872,9 @@ ${pastMinutesTitles}
                       onMouseEnter={()=>setHoveredBtn('agendaDelete')} onMouseLeave={()=>setHoveredBtn(null)}
                       style={{ background:hoveredBtn==='agendaDelete'?"#FFEBEE":"transparent", border:"1.5px solid #E53935", color:"#E53935", borderRadius:6, padding:"6px 14px", fontSize:13, fontWeight:600, cursor:"pointer", transition:"all 0.15s" }}>🗑 削除</button>
                   </div>
+                  {agendaDraft && draftBanner(agendaDraft, "アジェンダ",
+                    () => { setAgendaContent(agendaDraft.text); setIsEditingAgenda(true); },
+                    () => { clearDraft(agendaDraftKey(selectedMinute.id, currentAgenda.id)); setDraftTick(t => t + 1); })}
                   {isEditingAgenda ? (
                     <textarea value={agendaContent} onChange={e=>setAgendaContent(e.target.value)} rows={30}
                       style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:10, padding:"12px 14px", fontSize:12, background:C.surface, color:C.text, outline:"none", boxSizing:"border-box", resize:"vertical", lineHeight:1.8, fontFamily:"'Courier New',monospace" }} />
